@@ -101,7 +101,6 @@ class Events(commands.Cog):
                             m['guild_id'],
                             location=m.get('location'),
                             ping_role_id=m.get('ping_role_id'),
-                            tag=m.get('tag'),
                         )
                     )
                 else:
@@ -167,8 +166,6 @@ class Events(commands.Cog):
             details = [f"📝 {m['description']}"]
             if m['location']:
                 details.append(f"📍 {m['location']}")
-            if m['tag']:
-                details.append(f"🏷️ {m['tag']}")
             embed.add_field(
                 name=f"🔹 {m['codename']}",
                 value="\n".join(details + [f"⏰ `{start_game}`"]),
@@ -203,10 +200,6 @@ class Events(commands.Cog):
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = name_msg.content
 
-            await ctx.author.send("🏷️ **Tag the event** (raid, siege, rally, briefing, or custom).")
-            tag_msg = await self.bot.wait_for('message', check=check, timeout=120)
-            tag = tag_msg.content
-
             await ctx.author.send("📝 **Instructions?** Tell the squad what to do.")
             desc_msg = await self.bot.wait_for('message', check=check, timeout=300)
             desc = desc_msg.content
@@ -225,11 +218,11 @@ class Events(commands.Cog):
                 f"⏰ **Target Time?** `YYYY-MM-DD HH:MM` using the game clock (UTC-2)."
             )
             t_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            await self.finalize_mission(ctx, name, desc, t_msg.content, tag, location, ping_role)
+            await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_role)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `!event` when you're ready.")
 
-    async def finalize_mission(self, ctx, name, desc, t_str, tag, location, ping_role):
+    async def finalize_mission(self, ctx, name, desc, t_str, location, ping_role):
         try:
             target_dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M")
             utc_dt = game_to_utc(target_dt)
@@ -245,14 +238,14 @@ class Events(commands.Cog):
                 utc_dt.isoformat(),
                 location=location,
                 ping_role_id=ping_role_id,
-                tag=tag,
+                tag=None,
                 notes=None,
             )
             self.running_tasks[f"{ctx.guild.id}_{name}"] = self.bot.loop.create_task(
-                self.manage_reminders(name, desc, utc_dt, ctx.guild.id, location, ping_role_id, tag)
+                self.manage_reminders(name, desc, utc_dt, ctx.guild.id, location, ping_role_id)
             )
 
-            preview = self._build_event_embed(ctx.guild, name, desc, utc_dt, tag, location, ping_role_id)
+            preview = self._build_event_embed(ctx.guild, name, desc, utc_dt, location, ping_role_id)
             await ctx.author.send(f"✅ Mission `{name}` locked. {_marica_quip()}", embed=preview)
 
             settings = await get_settings(ctx.guild.id)
@@ -263,7 +256,7 @@ class Events(commands.Cog):
         except Exception:
             await ctx.author.send("❌ Use: `YYYY-MM-DD HH:MM`.")
 
-    async def manage_reminders(self, name, desc, utc_dt, guild_id, location=None, ping_role_id=None, tag=None):
+    async def manage_reminders(self, name, desc, utc_dt, guild_id, location=None, ping_role_id=None):
         for mins in [60, 30, 15, 3, 0]:
             wait = (utc_dt - timedelta(minutes=mins) - datetime.now(timezone.utc)).total_seconds()
             if wait > 0:
@@ -287,30 +280,29 @@ class Events(commands.Cog):
             role = guild.get_role(ping_role_id) if ping_role_id else None
             mention = role.mention if role else "@everyone"
             location_line = f"\n📍 {location}" if location else ""
-            tag_line = f"\n🏷️ {tag}" if tag else ""
-
             title, body = random.choice(TIMED_REMINDERS.get(mins, [("📡 **ALERT:**", "`{name}` is coming up.")]))
             body = body.format(name=name, drone=drone)
             quote = random.choice(MARICA_QUOTES)
 
-            msg = (
-                f"{mention}\n{title} {quote}\n"
-                f"{body}\n\n"
-                f"{desc}{location_line}{tag_line}\n\n*Drone: {drone}*"
-            )
+            if mins == 60:
+                msg = (
+                    f"{mention}\n{title} {quote}\n"
+                    f"{body}\n\n"
+                    f"{desc}{location_line}\n\n*Drone: {drone}*"
+                )
+            else:
+                msg = f"{mention}\n{title} {quote}\n{body}\n\n*Drone: {drone}*"
             await chan.send(msg)
 
         await delete_mission(guild_id, name)
 
-    def _build_event_embed(self, guild, name, desc, utc_dt, tag=None, location=None, ping_role_id=None):
+    def _build_event_embed(self, guild, name, desc, utc_dt, location=None, ping_role_id=None):
         embed = discord.Embed(
             title=f"📡 {name}",
             description=desc,
             color=0x5865f2,
         )
         embed.add_field(name="⏰ Game Time", value=format_game(utc_dt), inline=False)
-        if tag:
-            embed.add_field(name="🏷️ Tag", value=tag, inline=True)
         if location:
             embed.add_field(name="📍 Location", value=location, inline=True)
         if ping_role_id:
