@@ -55,5 +55,7 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 TOKEN=your_discord_bot_token_here
 ```
 
+*Data persistence:* All per-server links (event/chat/welcome/verify/rules/auto-role) and progression data live in `data/marcia_os.db` by default. The bot creates this folder automatically and reuses it across restarts and git pulls. Override with `MARCIA_DB_PATH` if your host prefers a custom data mount.
+
 ### 3. Troubleshooting
 * **`ModuleNotFoundError: cogs`** — The bot forces its working directory to this repository root at startup. If you still see this error on hosts like Pterodactyl, double-check that `main.py` and the `cogs/` folder stay together and that your start command runs from this folder.
