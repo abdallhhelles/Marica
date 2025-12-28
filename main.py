@@ -139,6 +139,7 @@ class MarciaBot(commands.Bot):
 
 async def main():
     configure_logging()
+    logger.info("📂 Working directory pinned to %s", BASE_DIR)
 
     if not TOKEN:
         logger.error("✘ TOKEN missing. Please set the TOKEN environment variable before starting Marcia OS.")
