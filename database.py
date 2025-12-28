@@ -298,6 +298,73 @@ async def get_inventory(guild_id: int, user_id: int):
             return await cursor.fetchall()
 
 
+async def remove_from_inventory(guild_id: int, user_id: int, item_name: str, quantity: int) -> bool:
+    """Remove quantity of an item; returns True if successful."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await _ensure_user(db, guild_id, user_id)
+        async with db.execute(
+            "SELECT quantity FROM user_inventory WHERE guild_id=? AND user_id=? AND item_id=?",
+            (guild_id, user_id, item_name),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row or row[0] < quantity:
+                return False
+
+        await db.execute(
+            """
+            UPDATE user_inventory
+            SET quantity = quantity - ?
+            WHERE guild_id=? AND user_id=? AND item_id=?
+            """,
+            (quantity, guild_id, user_id, item_name),
+        )
+        await db.execute(
+            "DELETE FROM user_inventory WHERE quantity <= 0 AND guild_id=? AND user_id=? AND item_id=?",
+            (guild_id, user_id, item_name),
+        )
+        await db.commit()
+    return True
+
+
+async def transfer_inventory(guild_id: int, sender: int, receiver: int, item_name: str, quantity: int) -> bool:
+    """Atomic transfer of loot between survivors."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await _ensure_user(db, guild_id, sender)
+        await _ensure_user(db, guild_id, receiver)
+        async with db.execute(
+            "SELECT quantity, rarity FROM user_inventory WHERE guild_id=? AND user_id=? AND item_id=?",
+            (guild_id, sender, item_name),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row or row[0] < quantity:
+                return False
+            rarity = row[1]
+
+        await db.execute(
+            """
+            UPDATE user_inventory
+            SET quantity = quantity - ?
+            WHERE guild_id=? AND user_id=? AND item_id=?
+            """,
+            (quantity, guild_id, sender, item_name),
+        )
+        await db.execute(
+            "DELETE FROM user_inventory WHERE quantity <= 0 AND guild_id=? AND user_id=? AND item_id=?",
+            (guild_id, sender, item_name),
+        )
+        await db.execute(
+            '''
+            INSERT INTO user_inventory (guild_id, user_id, item_id, quantity, rarity)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET quantity = quantity + excluded.quantity
+            ''',
+            (guild_id, receiver, item_name, quantity, rarity),
+        )
+        await db.commit()
+    return True
+
+
 async def update_scavenge_time(guild_id: int, user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await _ensure_user(db, guild_id, user_id)

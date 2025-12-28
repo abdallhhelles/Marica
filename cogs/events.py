@@ -285,7 +285,7 @@ class Events(commands.Cog):
                         tag_line = f"\n🏷️ {tag}" if tag else ""
                         msg = (
                             f"{mention}\n📡 **INCOMING TRANSMISSION | {name}**{tag_line}\n\n"
-                            f"{desc}{location_line}\n\n*Drone: {drone}*"
+                            f"{desc}{location_line}\n\n*Drone: {drone}*\n{_marica_quip()}"
                         )
                         await chan.send(msg)
 

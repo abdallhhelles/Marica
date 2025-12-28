@@ -53,11 +53,13 @@ class Utility(commands.Cog):
                 "!analytics",
                 "!status",
                 "!setup audit",
+                "!missions (legacy list)",
             ],
             "Members": [
                 "!events",
-                "!profile / !inventory",
-                "!scavenge",
+                "!profile / !inventory / !trade_item",
+                "!scavenge (loot + XP)",
+                "!missions (legacy list)",
                 "!manual",
                 "!features",
                 "!commands",
@@ -72,6 +74,7 @@ class Utility(commands.Cog):
             "Trading": [
                 "Interact with Fish-Link buttons",
                 "!setup_trade (admins)",
+                "Fish spares/wanted are per-server",
             ],
         }
 
@@ -138,7 +141,10 @@ class Utility(commands.Cog):
         )
         embed.add_field(
             name="Progression",
-            value="XP, profiles, scavenging loot, and inventories kept separate per sector.",
+            value=(
+                "Endless XP tiers with auto-created rank roles, hourly scavenging with rare/Mythic drops, "
+                "player-to-player loot trades, and prestige rewards for completing the catalog."
+            ),
             inline=False,
         )
         embed.add_field(

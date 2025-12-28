@@ -19,9 +19,9 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 * **Management:** Users can easily add extras, find needs, and clear their listings.
 
 ### 2. 🧟 Survivor Progression
-* **XP System:** Survivors earn 10 XP per message (with a 60-second cooldown).
-* **Auto-Ranks:** Automatic role rewards at Level 5 (Scout), Level 10 (Veteran), and Level 20 (Alliance Elite).
-* **Scavenging:** Deploy drones once an hour to find supplies like Stim-packs or Canned Beans and gain bonus XP.
+* **Endless XP Tiers:** Survivors earn dynamic XP per message (60s cooldown) and unlock auto-created "Sector Rank" roles every 5 levels.
+* **Prestige Collections:** Hourly scavenging now drops Common → Mythic loot; completing the catalog grants the prestige role **Vaultwalker**.
+* **Loot Economy:** Trade scavenged items with `!trade_item` to help squadmates finish their sets.
 
 ### 3. 🚁 Commander Protocols
 * **Event Management:** Set up missions with automated reminders at T-minus 60, 30, 15, 3, and 0 minutes.
