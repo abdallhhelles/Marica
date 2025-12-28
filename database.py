@@ -203,7 +203,8 @@ async def get_settings(guild_id):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM settings WHERE guild_id = ?", (guild_id,)) as cursor:
-            return await cursor.fetchone()
+            row = await cursor.fetchone()
+            return dict(row) if row else None
 
 async def update_setting(guild_id, column, value, server_name=None):
     async with aiosqlite.connect(DB_PATH) as db:
