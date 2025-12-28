@@ -11,9 +11,18 @@ from pathlib import Path
 import random
 
 BASE_DIR = Path(__file__).resolve().parent
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
-os.chdir(BASE_DIR)
+
+
+def _pin_working_directory() -> None:
+    """Ensure imports resolve relative to the repo root and log the result."""
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
+
+    if Path.cwd() != BASE_DIR:
+        os.chdir(BASE_DIR)
+
+
+_pin_working_directory()
 
 import discord
 from discord.ext import commands
