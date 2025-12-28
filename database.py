@@ -15,23 +15,36 @@ from time_utils import GAME_TZ
 
 logger = logging.getLogger('MarciaOS.DB')
 
-# Persist data outside the code tree to survive restarts and git pulls.
+# Persist data outside the code tree to survive restarts, git pulls, and container redeploys.
 _BASE_DIR = Path(__file__).resolve().parent
-_DEFAULT_DB = _BASE_DIR / "data" / "marcia_os.db"
-_LEGACY_DB = _BASE_DIR / "marcia_os.db"
-DB_PATH_OBJ = Path(os.getenv("MARCIA_DB_PATH", _DEFAULT_DB))
-DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
-if _LEGACY_DB.exists() and not DB_PATH_OBJ.exists():
-    try:
-        shutil.move(str(_LEGACY_DB), str(DB_PATH_OBJ))
-        logger.info("🗂️ Migrated existing database to %s", DB_PATH_OBJ)
-    except Exception as e:
-        logger.warning("Could not move legacy DB to %s: %s", DB_PATH_OBJ, e)
+_HOME_DEFAULT = Path.home() / "marcia_data" / "marcia_os.db"
+_ENV_PATH = os.getenv("MARCIA_DB_PATH")
+DB_PATH_OBJ = Path(_ENV_PATH) if _ENV_PATH else _HOME_DEFAULT
 
+def _migrate_legacy_db(dest: Path) -> None:
+    """Promote any older DB files into the persistent location if missing."""
+    legacy_paths = [
+        _BASE_DIR / "data" / "marcia_os.db",
+        _BASE_DIR / "marcia_os.db",
+    ]
+    for src in legacy_paths:
+        if dest.exists() or not src.exists():
+            continue
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dest))
+            logger.info("🗂️ Migrated existing database to %s", dest)
+            break
+        except Exception as e:
+            logger.warning("Could not move legacy DB to %s: %s", dest, e)
+
+_migrate_legacy_db(DB_PATH_OBJ)
+DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
 DB_PATH = str(DB_PATH_OBJ)
 
 async def init_db():
     """Initializes the database and migrates legacy data if found."""
+    logger.info("🗄️ Database path: %s", DB_PATH)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("PRAGMA journal_mode=WAL")
         await db.execute("PRAGMA synchronous=NORMAL")

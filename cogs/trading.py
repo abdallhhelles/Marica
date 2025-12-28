@@ -56,25 +56,35 @@ async def db_remove_listing(guild_id, user_id, rarity, index, trade_type):
 
 # --- DISPLAY HELPERS ---
 
-def get_status_report(fish_data):
-    lines = ["**📡 LIVE NETWORK STOCK**", "✅ = Extra | 🎣 = Wanted", "---"]
-    for rarity, count in FISH_CONFIG.items():
-        row_count, current_row = 0, f"**{rarity}:** "
-        for i in range(1, count + 1):
-            fid = f"{rarity}-{i}"
-            has_extra = "✅" if fid in fish_data["extras"] else ""
-            is_wanted = "🎣" if fid in fish_data["wanted"] else ""
-            if has_extra or is_wanted:
-                current_row += f"`{format_fish_label(fid)}{has_extra}{is_wanted}` "
-                row_count += 1
-                if row_count % 4 == 0:
-                    lines.append(current_row)
-                    current_row = " " * (len(rarity) + 4)
-        if row_count > 0 and not current_row.isspace(): 
-            lines.append(current_row)
-    if len(lines) <= 3: 
-        lines.append("*Network is currently quiet...*")
-    return "\n".join(lines)
+def _summarize_listings(fid_list):
+    labels = [format_fish_label(fid) for fid in fid_list]
+    if not labels:
+        return "—"
+    if len(labels) > 8:
+        visible = ", ".join(labels[:8])
+        return f"{visible}, +{len(labels) - 8} more"
+    return ", ".join(labels)
+
+
+def rarity_block(fish_data, rarity: str) -> str:
+    extras = [fid for fid in fish_data["extras"] if fid.startswith(rarity + "-")]
+    wanted = [fid for fid in fish_data["wanted"] if fid.startswith(rarity + "-")]
+    extras.sort(key=lambda x: int(x.split('-')[1]))
+    wanted.sort(key=lambda x: int(x.split('-')[1]))
+    return (
+        f"✅ Extras: {_summarize_listings(extras)}\n"
+        f"🎣 Wanted: {_summarize_listings(wanted)}"
+    )
+
+
+def stock_summary(fish_data) -> str:
+    chunks = []
+    for rarity in FISH_CONFIG.keys():
+        extra_count = sum(1 for fid in fish_data["extras"] if fid.startswith(rarity))
+        want_count = sum(1 for fid in fish_data["wanted"] if fid.startswith(rarity))
+        if extra_count or want_count:
+            chunks.append(f"{rarity}: {extra_count} extras · {want_count} wanted")
+    return " | ".join(chunks) if chunks else "Network is quiet. Start listing fish!"
 
 def sort_by_rarity(fish_list):
     categorized = {r: [] for r in FISH_CONFIG.keys()}
@@ -265,11 +275,17 @@ class Trading(commands.Cog):
         embed = discord.Embed(
             title="📡 Fish-Link Trading Terminal",
             description=(
-                f"{get_status_report(data)}\n\n**--- OPTIONS ---**\n"
-                "📦 **Add Spare** | 🔍 **Find Fish**\n🤝 **Matches** | 📜 **My Listings**"
+                "Server-isolated trading. Use the buttons to add spares or hunts.\n"
+                f"**Stock pulse:** {stock_summary(data)}"
             ),
             color=0x2b2d31,
         )
+
+        for rarity in FISH_CONFIG.keys():
+            embed.add_field(
+                name=f"{rarity} Tier", value=rarity_block(data, rarity), inline=False
+            )
+
         embed.set_footer(text=f"Sector: {channel.guild.name} | Marcia OS")
         view = FishControlView(self.bot, persistent=True)
 
