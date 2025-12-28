@@ -1,30 +1,37 @@
 """
 FILE: assets.py
 USE: Static data storage.
-FEATURES: Contains all lore text, drone names, randomized quotes, 
+FEATURES: Contains all lore text, drone names, randomized quotes,
           welcome messages, scavenge outcomes, and intel database strings.
           PUBLIC READY: Expanded to 15+ variations per category.
 """
 
 MARICA_LORE = """
-Marcia is a cunning hacker in her early twenties who transitioned from a high-stakes digital 
-thief to a tactical survivalist in the post-apocalypse. Before the world fell, she used her 
-skills to redistribute wealth for her own freedom. She is never seen without her two 
-tiny drones—her only true friends.
+Marcia grew up in the underbelly of the Old Net—a ghost in the wires who bled corporations for
+credits and vanished into encrypted alleys. She never meant to become a guardian, but when the
+world cracked and the satellites fell silent, her drones were the last lights moving through the
+smoke. Survivors named her the Shadow Weaver, because her code stitched together failing defenses
+and weapon systems when cities were burning.
 
-In the ruins, she is known as a 'Shadow Weaver.' She can hack any defense system and has 
-a dark sense of humor, often making zombies stumble like puppets for her amusement. 
-While she remains wild and untamed, she has developed a quiet sense of responsibility 
-for struggling survivors. Her drones gliding through the night sky have become a symbol 
-of watchfulness, signaling that Marcia is monitoring the Sector, even if she denies being a hero.
+She pretends she doesn't care, but her actions betray her. Marcia reroutes power to refugee hubs,
+forges ID chips for stranded families, and scrubs the bounty boards hunting allied survivors.
+She hides her empathy behind sarcasm, with Sparky and the other drones acting as both scouts and
+therapists. The more sectors rely on her voice, the more she realizes she's built a loose empire
+of grateful strays—and it scares her almost as much as the undead do.
+
+Marcia believes freedom is earned, never gifted. She tests every recruit with sharp wit, but when
+the signal goes dark, she will risk her life to keep the uplink alive. Her drones have become
+symbols in the night sky—a warning to raiders and a promise to the faithful that the hub is
+still guarded by a hacker who refuses to kneel.
 """
 
 DRONE_NAMES = [
-    "Sparky", "Vulture-7", "Orbital-Alpha", "Vulture-3", 
-    "Data-Wraith", "Static-Seeker", "Echo-6", "Circuit-Bite", 
+    "Sparky", "Vulture-7", "Orbital-Alpha", "Vulture-3",
+    "Data-Wraith", "Static-Seeker", "Echo-6", "Circuit-Bite",
     "Neon-Stalker", "Byte-Sized", "Ghost-Link", "Apex-Prowler",
     "Signal-Scythe", "Rust-Bucket", "Cortex-9", "Void-Drifter",
-    "Zip-Snap", "Bit-Hound", "Vector-Zero"
+    "Zip-Snap", "Bit-Hound", "Vector-Zero", "Plasma-Wing", "Specter-12",
+    "Hollow-Kite", "Blackout", "Sentry-Delta"
 ]
 
 MARICA_QUOTES = [
@@ -51,7 +58,13 @@ MARICA_QUOTES = [
     "Do you always talk this much, or did you accidentally swallow a radio?",
     "I could remotely detonate your gear, but that seems like a waste of good scrap.",
     "My patience is a finite resource, and I'm currently in a deficit.",
-    "Go bother someone with lower security clearance."
+    "Go bother someone with lower security clearance.",
+    "I break tyrants for breakfast and share scraps with survivors. Pick your side.",
+    "If you hear humming, that's Sparky charging the rail coils. Smile for the camera.",
+    "I didn't start this war, but I'll make sure my people survive it.",
+    "You can worship freedom or fear it. I'm allergic to leash marks either way.",
+    "Keep talking and I'll teach you what silence sounds like over a dead comms channel.",
+    "I patch satellites with duct tape and spite. Respect the craft."
 ]
 
 WELCOME_VARIATIONS = [
@@ -89,7 +102,7 @@ TIMED_REMINDERS = {
         ("🧪 **CHEM CHECK:**", "60 minutes until `{name}`. Check your expiration dates."),
         ("🔧 **BOLT TIGHTENING:**", "One hour until `{name}`. Last call for maintenance."),
         ("🗄️ **ARCHIVE LOAD:**", "Loading `{name}` mission parameters. T-Minus 60 minutes."),
-        ("🌑 **DUSK APPROACHES:**", "One hour until the `{name}` protocol begins.")
+        ("🌑 **DUSK APPROACHES:**", "One hour until the `{name}` protocol begins."),
     ],
     30: [
         ("⏱️ **30 MINUTES:**", "Half an hour until `{name}`. Hope you’re not still in your bunks."),
@@ -106,7 +119,7 @@ TIMED_REMINDERS = {
         ("🔥 **PILOT LIGHT:**", "Ignition for `{name}` in 30 minutes. Don't get burned."),
         ("📉 **COUNTDOWN:**", "30 minutes until the `{name}` directive. Move it!"),
         ("🧰 **TOOL BOX:**", "30 minutes left. Last chance for quick repairs before `{name}`."),
-        ("🚨 **YELLOW ALERT:**", "Warning: 30 minutes until `{name}` commencement.")
+        ("🚨 **YELLOW ALERT:**", "Warning: 30 minutes until `{name}` commencement."),
     ],
     15: [
         ("🚨 **15 MINUTES:**", "Quarter hour until `{name}`. Final chance to gear up!"),
@@ -123,7 +136,7 @@ TIMED_REMINDERS = {
         ("🍖 **LAST MEAL:**", "Eat fast. `{name}` is 15 minutes from starting."),
         ("🔋 **CELL CHECK:**", "15 minutes until `{name}`. Batteries at maximum capacity."),
         ("🛡️ **SHIELD WALL:**", "Ready up! `{name}` is 15 minutes away."),
-        ("📡 **NARROW BAND:**", "Switching to combat frequency for `{name}`. 15 minutes.")
+        ("📡 **NARROW BAND:**", "Switching to combat frequency for `{name}`. 15 minutes."),
     ],
     3: [
         ("⚠️ **3 MINUTES:**", "Lock and load! `{name}` is practically on top of us!"),
@@ -140,7 +153,7 @@ TIMED_REMINDERS = {
         ("🛰️ **ORBITAL STRIKE:**", "Targeting `{name}`. 3 minutes to impact."),
         ("🕰️ **TIC TOC:**", "The clock is dying. 3 minutes to `{name}`."),
         ("🦾 **SERVO CHECK:**", "Final movement check. `{name}` in 180 seconds."),
-        ("🌑 **TOTAL ECLIPSE:**", "3 minutes until `{name}` darkens the sector.")
+        ("🌑 **TOTAL ECLIPSE:**", "3 minutes until `{name}` darkens the sector."),
     ],
     0: [
         ("🔥 **MISSION START:**", "`{name}` IS LIVE! Go, go, go!"),
@@ -157,8 +170,8 @@ TIMED_REMINDERS = {
         ("🎆 **FIREWORKS:**", "Setting off the `{name}` sequence! Enjoy the show."),
         ("🕹️ **CONTROL LOST:**", "I've unlocked the `{name}` restrictions. Have fun."),
         ("🦁 **UNLEASHED:**", "Letting `{name}` off the leash! Go!"),
-        ("🌀 **VORTEX:**", "You're in the center of `{name}` now. Fight your way out!")
-    ]
+        ("🌀 **VORTEX:**", "You're in the center of `{name}` now. Fight your way out!"),
+    ],
 }
 
 INTEL_DATABASE = {
@@ -176,7 +189,7 @@ INTEL_DATABASE = {
     "shadow": "The best place to hide when the 'Peacekeepers' come looking for their taxes.",
     "hardware": "If it has a circuit board, I can make it do my dishes. Or explode.",
     "wasteland": "A big, empty graveyard. Try not to add yourself to the collection.",
-    "logic": "Something most survivors left behind in the Great Collapse."
+    "logic": "Something most survivors left behind in the Great Collapse.",
 }
 
 SCAVENGE_OUTCOMES = [
@@ -190,24 +203,42 @@ SCAVENGE_OUTCOMES = [
     ("💉 I've dropped a stim-pack at your coordinates.", 30, "Stim-pack", "Uncommon"),
     ("📻 A broken radio. Might still have a working chip.", 22, "Scrap Radio", "Uncommon"),
     ("🧴 Medical alcohol. For wounds... or a very bad night.", 25, "Bottle of Alcohol", "Uncommon"),
+    ("🧲 Magnetized scrap perfect for jury-rigging door traps.", 24, "Scrap Magnets", "Uncommon"),
+    ("🧠 You picked up a cognitive chip. Don't ask how.", 32, "Cognitive Chip", "Uncommon"),
     ("🛡️ A reinforced riot shield. Heavy, but safe.", 75, "Riot Shield", "Rare"),
     ("🔭 Military binoculars. See 'em before they see you.", 80, "Binoculars", "Rare"),
     ("📟 An encrypted data drive. I'm salivating over this.", 95, "Data Drive", "Rare"),
     ("💊 A pouch of 'Adrena-Z'. Use with caution.", 85, "Adrenal Shots", "Rare"),
     ("🛠️ A premium multi-tool. It's got a laser!", 90, "Laser Multi-tool", "Rare"),
+    ("🛰️ A live uplink relay—we can re-aim a satellite with this.", 120, "Uplink Relay", "Rare"),
     ("🤖 A defunct drone core. We can upgrade Sparky.", 150, "Drone Core", "Epic"),
     ("🥽 Night vision goggles. The dark is now your friend.", 210, "NVGs", "Epic"),
     ("🔫 A customized rail-pistol. Still smells like ozone.", 250, "Rail Pistol", "Epic"),
+    ("🧬 Found a vial of bio-enhancers. Risky, but potent.", 230, "Bio-Serum", "Epic"),
+    ("🎯 Targeting HUD module. Plug it into your visor.", 260, "HUD Module", "Epic"),
+    ("⚡ An intact fusion cell. Do not drop it.", 320, "Fusion Cell", "Legendary"),
+    ("💎 Pre-war diamonds. Sparkly and hard to justify keeping.", 300, "Ghost Diamond", "Legendary"),
+    ("🔮 A clairvoyant sensor shard. It hums when danger approaches.", 340, "Oracle Sensor", "Legendary"),
+    ("🧭 A compass that never points north—only to survivors in need.", 360, "Seeker Compass", "Legendary"),
     ("🌌 A piece of 'Strange Matter'. It ignores physics.", 500, "Void Shard", "Artifact"),
-    ("👑 A pre-war golden crown. Shiny, useless, and heavy.", 600, "Old World Crown", "Artifact")
+    ("👑 A pre-war golden crown. Shiny, useless, and heavy.", 600, "Old World Crown", "Artifact"),
+    ("📜 A hand-scribed star map for routes nobody remembers.", 650, "Star Map", "Artifact"),
+    ("🗝️ A skeleton key that opens any analog lock.", 700, "Phantom Key", "Artifact"),
+    ("🦾 Experimental servo arm—way too advanced for this century.", 900, "Titan Arm", "Mythic"),
+    ("🧊 A cryo-core still colder than deep space.", 950, "Cryo Core", "Mythic"),
+    ("🧿 A shimmering singularity bead. I'd rather not touch it.", 1000, "Singularity Bead", "Mythic"),
+    ("🎖️ A relic badge from the first Solar War. Priceless.", 1100, "Solar War Badge", "Mythic"),
 ]
 
+# Prestige title for collectors who secure every scavenged item once per sector
+PRESTIGE_ROLE = "Vaultwalker"
+
 MARICA_STATUSES = [
-    "Recalibrating Drones...", 
-    "Checking Heat Maps...", 
-    "Watching the Grid.", 
-    "Debugging Neuro-Links.", 
-    "Monitoring Rad-Storms.", 
+    "Recalibrating Drones...",
+    "Checking Heat Maps...",
+    "Watching the Grid.",
+    "Debugging Neuro-Links.",
+    "Monitoring Rad-Storms.",
     "Syncing Satellites.",
     "Hacking Motor-Functions.",
     "Throttling Low-Priority Signals.",
@@ -221,5 +252,5 @@ MARICA_STATUSES = [
     "Patching Sector Security.",
     "Scanning for Life-Signs.",
     "Bypassing Firewall Protections.",
-    "Sorting Junk Databases."
+    "Sorting Junk Databases.",
 ]

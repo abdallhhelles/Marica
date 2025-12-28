@@ -9,6 +9,7 @@ import asyncio
 import random
 from googletrans import Translator
 from assets import MARICA_LORE, INTEL_DATABASE
+from database import get_settings, guild_analytics_snapshot
 
 # Expanded Language Library
 FLAG_LANG = {
@@ -43,19 +44,47 @@ class Utility(commands.Cog):
     @commands.command(name="commands", aliases=["help"])
     async def list_commands(self, ctx):
         """Displays all available commands categorized by module."""
+        categories = {
+            "Admin (UTC-2 Clock)": [
+                "!setup",
+                "!event",
+                "!event_remove <codename>",
+                "!setup_trade",
+                "!analytics",
+                "!status",
+                "!setup audit",
+                "!missions (legacy list)",
+            ],
+            "Members": [
+                "!events",
+                "!profile / !inventory / !trade_item",
+                "!scavenge (loot + XP)",
+                "!missions (legacy list)",
+                "!manual",
+                "!features",
+                "!commands",
+            ],
+            "Utility": [
+                "!intel <topic>",
+                "!poll 'Question' opt1 opt2",
+                "!remindme <minutes> <task>",
+                "!clear <amount>",
+                "!tips",
+            ],
+            "Trading": [
+                "Interact with Fish-Link buttons",
+                "!setup_trade (admins)",
+                "Fish spares/wanted are per-server",
+            ],
+        }
+
         embed = discord.Embed(
             title="🛠️ Marcia OS | Command Directory",
-            description="All systems functional. Use `!manual` for a guide on how to use me.",
-            color=0x3498db
+            description="I split intel by crew role. All times are UTC-2.",
+            color=0x3498db,
         )
-
-        for cog_name, cog in self.bot.cogs.items():
-            cmd_list = cog.get_commands()
-            if not cmd_list: continue
-                
-            filtered_cmds = [f"`!{cmd.name}`" for cmd in cmd_list if not cmd.hidden]
-            if filtered_cmds:
-                embed.add_field(name=f"📦 {cog_name}", value=" ".join(filtered_cmds), inline=False)
+        for title, cmd_list in categories.items():
+            embed.add_field(name=f"📦 {title}", value="\n".join(cmd_list), inline=False)
 
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {ctx.guild.name}")
         await ctx.send(embed=embed)
@@ -86,21 +115,92 @@ class Utility(commands.Cog):
         """Random survival tips and bot tricks."""
         tips_list = [
             "You can use `!remindme 60 Prepare for War` and I will DM you in one hour.",
-            "If the mission timers look wrong, ask an admin to check the `!setup offset`.",
+            "Mission timers use the Dark War Survival clock (UTC-2) across every server.",
             "The Trading Terminal is server-specific. You won't see fish from other servers here!",
             "Use `!intel [topic]` to search the survival database for game-specific info."
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
 
     @commands.command()
+    async def features(self, ctx):
+        """Showcase Marcia's capabilities for new crews."""
+        embed = discord.Embed(
+            title="🛰️ Marcia OS | Feature Pack",
+            color=0x9b59b6,
+            description="What I handle for Dark War Survival alliances (UTC-2 clock).",
+        )
+        embed.add_field(
+            name="Operations",
+            value="Guided `!event` creator with role pings, locations, and persistent reminders; members can check `!events` anytime.",
+            inline=False,
+        )
+        embed.add_field(
+            name="Trading Network",
+            value="Fish-Link terminal with automatic re-anchoring on restart, donor matching, and per-server isolation.",
+            inline=False,
+        )
+        embed.add_field(
+            name="Progression",
+            value=(
+                "Endless XP tiers with auto-created rank roles, hourly scavenging with rare/Mythic drops, "
+                "player-to-player loot trades, and prestige rewards for completing the catalog."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Intel & Utilities",
+            value="Flag emoji translation, polls, reminders, quick `!manual`, and `!status`/`!analytics` diagnostics.",
+            inline=False,
+        )
+        embed.set_footer(text="Built for Dark War Survival alliances | Clock: UTC-2")
+        await ctx.send(embed=embed)
+
+    @commands.command()
     async def status(self, ctx):
         """System diagnostic and latency check."""
         latency = round(self.bot.latency * 1000)
+        settings = await get_settings(ctx.guild.id)
+
         embed = discord.Embed(title="📡 System Diagnostic", color=0x2ecc71)
         embed.add_field(name="Signal Latency", value=f"🟢 {latency}ms")
         embed.add_field(name="Databank", value="🔵 SQL Stable")
-        embed.add_field(name="Uptime", value="🔄 Full Operational Capacity")
+        embed.add_field(
+            name="Sectors Linked",
+            value=(
+                "✅ Event" if settings and settings.get('event_channel_id') else "❌ Event missing"
+            ) + " | " + (
+                "✅ Chat" if settings and settings.get('chat_channel_id') else "❌ Chat missing"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="⏱️ Server Clock",
+            value="UTC-2 (Dark War Survival global time)",
+            inline=False,
+        )
+        embed.set_footer(text="Need a deeper check? Use !setup audit for a full report.")
         await ctx.reply(embed=embed)
+
+    @commands.command()
+    @commands.has_permissions(manage_guild=True)
+    async def analytics(self, ctx):
+        """Detailed per-server analytics for admins."""
+        snapshot = await guild_analytics_snapshot(ctx.guild.id)
+
+        embed = discord.Embed(
+            title="📊 Sector Analytics",
+            description="Live stats are scoped to this server only. Other sectors stay isolated.",
+            color=0x9b59b6,
+        )
+        embed.add_field(name="🎣 Trading Listings", value=str(snapshot["trade_listings"]), inline=True)
+        embed.add_field(name="👥 Active Traders", value=str(snapshot["traders"]), inline=True)
+        embed.add_field(name="🛰️ Missions Running", value=str(snapshot["missions_active"]), inline=True)
+        embed.add_field(name="📂 Templates Saved", value=str(snapshot["templates"]), inline=True)
+        embed.add_field(name="🧭 Survivors Tracked", value=str(snapshot["survivors_tracked"]), inline=True)
+        embed.add_field(name="🎒 Items Logged", value=str(snapshot["items"]), inline=True)
+        embed.set_footer(text="Clock: UTC-2 | Data never crosses sectors.")
+
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def intel(self, ctx, topic: str = None):
