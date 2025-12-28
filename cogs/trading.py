@@ -226,15 +226,45 @@ class Trading(commands.Cog):
             logger.error(f"Error in Trading on_ready: {e}")
 
     async def re_anchor_menu(self, channel):
+        """Refresh the trading terminal without spamming the channel."""
+        target_msg = None
+        duplicates = []
         try:
-            async for m in channel.history(limit=25):
+            async for m in channel.history(limit=50):
                 if m.author.id == self.bot.user.id and m.embeds and "Fish-Link" in (m.embeds[0].title or ""):
-                    await m.delete()
-        except: pass
+                    if target_msg is None:
+                        target_msg = m
+                    else:
+                        duplicates.append(m)
+        except Exception:
+            target_msg = None
+
         data = await db_get_trade_data(channel.guild.id)
-        embed = discord.Embed(title="📡 Fish-Link Trading Terminal", description=f"{get_status_report(data)}\n\n**--- OPTIONS ---**\n📦 **Add Spare** | 🔍 **Find Fish**\n🤝 **Matches** | 📜 **My Listings**", color=0x2b2d31)
+        embed = discord.Embed(
+            title="📡 Fish-Link Trading Terminal",
+            description=(
+                f"{get_status_report(data)}\n\n**--- OPTIONS ---**\n"
+                "📦 **Add Spare** | 🔍 **Find Fish**\n🤝 **Matches** | 📜 **My Listings**"
+            ),
+            color=0x2b2d31,
+        )
         embed.set_footer(text=f"Sector: {channel.guild.name} | Marcia OS")
-        await channel.send(embed=embed, view=FishControlView(self))
+        view = FishControlView(self.bot, persistent=True)
+
+        if target_msg:
+            try:
+                await target_msg.edit(embed=embed, view=view)
+            except Exception:
+                target_msg = None
+
+        if not target_msg:
+            await channel.send(embed=embed, view=view)
+
+        for msg in duplicates:
+            try:
+                await msg.delete()
+            except Exception:
+                pass
 
     @commands.command(name="setup_trade")
     @commands.has_permissions(manage_guild=True)
