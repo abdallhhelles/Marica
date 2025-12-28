@@ -41,8 +41,9 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 ### 1. Requirements
 * Python 3.8+
 * `discord.py`
-* `googletrans==3.1.0a0`
+* `googletrans==4.0.0rc1`
 * `python-dotenv`
+* `aiosqlite`
 
 ### 2. Local Setup
 1. Clone this repository to your private server.
