@@ -42,14 +42,14 @@ class Missions(commands.Cog):
     async def mission_help(self, ctx):
         """Information and tips on using the Mission System."""
         await ctx.send(
-            "📡 Mission system has been folded into `!event`. Use `!event` to create ops or `!events` to list them."
+            "📡 Mission system has been folded into `/event`. Use `/event` to create ops or `/events` to list them."
         )
 
     @commands.command()
     @commands.has_permissions(manage_messages=True)
     async def mission_add(self, ctx, codename: str, hours: int, *, description: str = "No details provided."):
         """Legacy alias for creating an event."""
-        await ctx.send("Use `!event` for the guided event creator (UTC-2 clock).")
+        await ctx.send("Use `/event` for the guided event creator (UTC-2 clock).")
 
     @commands.command()
     async def missions(self, ctx):
@@ -75,7 +75,7 @@ class Missions(commands.Cog):
     async def mission_delete(self, ctx, codename: str):
         """Removes a mission manually."""
         await delete_mission(ctx.guild.id, codename.upper())
-        await ctx.send(f"✅ Mission **{codename.upper()}** has been scrubbed from the logs. (Use `!event_remove` next time.)")
+        await ctx.send(f"✅ Mission **{codename.upper()}** has been scrubbed from the logs. (Use `/event_remove` next time.)")
 
     @commands.command()
     @commands.has_permissions(manage_messages=True)

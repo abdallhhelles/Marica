@@ -24,7 +24,7 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 ### 2. 🧟 Survivor Progression
 * **Endless XP Tiers:** Survivors earn dynamic XP per message (60s cooldown) and unlock auto-created "Sector Rank" roles every 5 levels.
 * **Prestige Collections:** Hourly scavenging now drops Common → Mythic loot; completing the catalog grants the prestige role **Vaultwalker**.
-* **Loot Economy:** Trade scavenged items with `!trade_item` to help squadmates finish their sets.
+* **Loot Economy:** Trade scavenged items with `/trade_item` to help squadmates finish their sets.
 
 ### 3. 🚁 Commander Protocols
 * **Event Management:** Set up missions with automated reminders at T-minus 60, 30, 15, 3, and 0 minutes.
@@ -32,10 +32,10 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 * **Translations:** React with a flag emoji to have Marcia decode messages into any language using Google Translate.
 
 ### 4. 🛰️ Event Creator (UTC-2)
-* **Guided flow:** `!event` opens a DM interview where Marcia asks for the codename, tag (raid/siege/rally/briefing), instructions, and the exact game-time start (`YYYY-MM-DD HH:MM` in UTC-2). She can also capture a location/voice-channel link and which role to ping.
+* **Guided flow:** `/event` opens a DM interview where Marcia asks for the codename, tag (raid/siege/rally/briefing), instructions, and the exact game-time start (`YYYY-MM-DD HH:MM` in UTC-2). She can also capture a location/voice-channel link and which role to ping.
 * **Broadcast cadence:** Reminders post at 60/30/15/3/0 minutes with lore-flavored drone signatures, keeping every guild on the Dark War Survival clock.
-* **Member visibility:** `!events` lists the next scheduled operations for the current server, including tags, locations, and UTC-2 timestamps so squads can self-check the roster.
-* **Admin cleanup:** `!event_remove <codename>` scrubs an operation instantly. Templates can be archived and reused from the same menu for repeat ops.
+* **Member visibility:** `/events` lists the next scheduled operations for the current server, including tags, locations, and UTC-2 timestamps so squads can self-check the roster.
+* **Admin cleanup:** `/event_remove <codename>` scrubs an operation instantly. Templates can be archived and reused from the same menu for repeat ops.
 
 ---
 

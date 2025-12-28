@@ -15,16 +15,16 @@ class Configuration(commands.Cog):
     @commands.command(name="setup_basic")
     @commands.has_permissions(manage_guild=True)
     async def setup_basic(self, ctx):
-        """Legacy quick-start pointer. Use `!setup` for the full wizard."""
+        """Legacy quick-start pointer. Use `/setup` for the full wizard."""
         embed = discord.Embed(
             title="⚙️ Marcia OS: Setup Pointer",
             description=(
-                "I recommend `!setup` for the full DM-guided wizard. If you just need the legacy shortcuts, use:\n\n"
-                "`!set_chat #channel` - Where level-up alerts go.\n"
-                "`!set_welcome #channel` - Where new member logs go.\n"
-                "`!set_verify #channel` - Where the verification system lives.\n"
-                "`!set_role @role` - The role given to new/verified members.\n"
-                "`!view_config` - Check current server settings."
+                "I recommend `/setup` for the full DM-guided wizard. If you just need the legacy shortcuts, use:\n\n"
+                "`/set_chat #channel` - Where level-up alerts go.\n"
+                "`/set_welcome #channel` - Where new member logs go.\n"
+                "`/set_verify #channel` - Where the verification system lives.\n"
+                "`/set_role @role` - The role given to new/verified members.\n"
+                "`/view_config` - Check current server settings."
             ),
             color=0x3498db,
         )

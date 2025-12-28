@@ -34,6 +34,30 @@ DRONE_NAMES = [
     "Hollow-Kite", "Blackout", "Sentry-Delta"
 ]
 
+FISH_NAMES = {
+    "N": [
+        "Grass Crap", "Guppy", "Catfish", "Whitefish", "Pomfret",
+        "Rosy Barb", "Blackfish", "Rhodeus", "Goby", "Bonito",
+        "Tilapia", "Veiltail", "Alligator Turtle", "Whiteleg Shrimp", "Cuttlefish",
+        "Coral", "Conch", "Scallop", "Starfish", "Sea Urchin",
+    ],
+    "R": [
+        "Golden Barb", "Flying Fish", "Ocean Sunfish", "Salmon", "Bahaba",
+        "Bass", "Mackerel", "Herring", "Minnow", "Yellow Croaker",
+        "Cod", "Goldfish", "Wheatfish", "Pokerfish", "Petal Carp",
+        "Sardine", "Punk Fish", "Squid", "Jellyfish", "Portunid",
+    ],
+    "SR": [
+        "Mandarin Fish", "Arapaima", "Sea Snake", "Koi", "Giant Clam",
+        "Fighting Fish", "Peach Jellyfish", "Sea Cucumber", "Seahorse", "Pufferfish",
+        "Claw Lobster", "Lantern Fish", "Eel", "Crayfish", "Pearl Oyster",
+    ],
+    "SSR": [
+        "Shield Fish", "Wrasse", "Blobfish", "Tuna", "White Sturgeon",
+        "Dunkleosteus", "Goblin Shark", "Manta", "Nautilus", "Ammonite",
+    ],
+}
+
 MARICA_QUOTES = [
     "You looking for a handout? I only steal from people richer than you.",
     "Careful. Sparky says you're standing too close to the hardware.",
@@ -197,7 +221,7 @@ INTEL_DATABASE = {
     "rules": "Protocol is simple: Respect the crew, follow the chain, and don't touch my drones.",
     "marica": "I'm the hacker who keeps this place running while you're all sleeping.",
     "drones": "Sparky and his friends. They're smarter than you and they don't ask stupid questions.",
-    "scavenge": "Use the `!scavenge` command. If you're lucky, my drones will find you something better than dirt.",
+    "scavenge": "Use the `/scavenge` command. If you're lucky, my drones will find you something better than dirt.",
     "safety": "Stay inside the walls. Outside is for people who want to become zombie food.",
     "junk": "One person's trash is my next hardware upgrade. Keep it coming.",
     "zombies": "Rotting meat with a bad attitude. Aim for the head, or don't—I like watching you run.",

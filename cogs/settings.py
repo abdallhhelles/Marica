@@ -112,10 +112,10 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🛠️ Maintenance Commands",
             value=(
-                "`!setup events #channel` - Mission/Event broadcasts\n"
-                "`!setup chat #channel` - Main interaction zone\n"
-                "`!setup role @role` - Auto-role for arrivals\n"
-                "`!setup help` - View detailed setup guide\n"
+                "`/setup events #channel` - Mission/Event broadcasts\n"
+                "`/setup chat #channel` - Main interaction zone\n"
+                "`/setup role @role` - Auto-role for arrivals\n"
+                "`/setup help` - View detailed setup guide\n"
                 "Tap the button below for a guided DM setup with Marcia."
             ),
             inline=False

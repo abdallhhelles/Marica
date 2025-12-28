@@ -62,7 +62,7 @@ class Archives(commands.Cog):
     async def on_command(self, ctx):
         # Logs every command used
         if ctx.guild:
-            self.log_action(ctx.guild, ctx.author, f"Command executed: !{ctx.command}")
+            self.log_action(ctx.guild, ctx.author, f"Command executed: {ctx.prefix}{ctx.command}")
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):

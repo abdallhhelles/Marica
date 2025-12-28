@@ -59,7 +59,7 @@ class MarciaBot(commands.Bot):
         intents.presences = True
 
         super().__init__(
-            command_prefix="!",
+            command_prefix="/",
             intents=intents,
             help_command=None,
             case_insensitive=True,
@@ -93,7 +93,7 @@ class MarciaBot(commands.Bot):
         logger.info("-" * 30)
         
         await self.change_presence(
-            activity=discord.Game(name="Dark War: Survival | !manual"),
+            activity=discord.Game(name="Dark War: Survival | /manual"),
         )
 
     async def on_message(self, message):
@@ -116,7 +116,7 @@ class MarciaBot(commands.Bot):
         await self.process_commands(message)
 
         # 3. Command Cleanup
-        if message.content.startswith("!"):
+        if message.content.startswith("/"):
             await asyncio.sleep(2)
             try:
                 await message.delete()

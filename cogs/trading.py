@@ -8,11 +8,12 @@ from discord.ext import commands
 import aiosqlite
 import logging
 import asyncio
+from assets import FISH_NAMES
 from database import DB_PATH
 
 logger = logging.getLogger('MarciaOS.Trading')
 
-FISH_CONFIG = {'SSR': 10, 'SR': 15, 'R': 20, 'N': 20}
+FISH_CONFIG = {r: len(names) for r, names in FISH_NAMES.items()}
 
 # --- DATABASE HELPERS ---
 
@@ -64,7 +65,7 @@ def get_status_report(fish_data):
             has_extra = "✅" if fid in fish_data["extras"] else ""
             is_wanted = "🎣" if fid in fish_data["wanted"] else ""
             if has_extra or is_wanted:
-                current_row += f"`{fid}{has_extra}{is_wanted}` "
+                current_row += f"`{format_fish_label(fid)}{has_extra}{is_wanted}` "
                 row_count += 1
                 if row_count % 4 == 0:
                     lines.append(current_row)
@@ -86,8 +87,18 @@ def sort_by_rarity(fish_list):
     for r, items in categorized.items():
         if items:
             items.sort(key=lambda x: int(x.split('-')[1]))
-            output.append(f"**{r}**: {', '.join(items)}")
+            output.append(f"**{r}**: {', '.join(format_fish_label(i) for i in items)}")
     return "\n".join(output) if output else "None"
+
+
+def format_fish_label(fid: str) -> str:
+    try:
+        rarity, idx_s = fid.split('-')
+        idx = int(idx_s)
+        name = FISH_NAMES.get(rarity, [None])[idx - 1]
+        return f"{rarity}-{idx} {name}" if name else fid
+    except Exception:
+        return fid
 
 # --- VIEWS ---
 
@@ -99,7 +110,10 @@ class ManageListingsView(discord.ui.View):
         if not my_fish:
             self.add_item(discord.ui.Button(label="No active listings", disabled=True))
             return
-        options = [discord.SelectOption(label=f"Remove {fid}", value=fid, emoji="🗑️") for fid in my_fish[:25]]
+        options = [
+            discord.SelectOption(label=f"Remove {format_fish_label(fid)}", value=fid, emoji="🗑️")
+            for fid in my_fish[:25]
+        ]
         select = discord.ui.Select(placeholder=f"Remove from {category}...", options=options)
         select.callback = self.remove_callback
         self.add_item(select)
@@ -115,7 +129,14 @@ class ManageListingsView(discord.ui.View):
 class FishSelect(discord.ui.Select):
     def __init__(self, rarity, mode, cog):
         self.mode, self.cog, self.rarity = mode, cog, rarity
-        options = [discord.SelectOption(label=f"{rarity}-{i}", value=str(i), emoji="🐟") for i in range(1, FISH_CONFIG[rarity] + 1)]
+        options = [
+            discord.SelectOption(
+                label=format_fish_label(f"{rarity}-{i}"),
+                value=str(i),
+                emoji="🐟",
+            )
+            for i in range(1, FISH_CONFIG[rarity] + 1)
+        ]
         super().__init__(placeholder=f"Select {rarity} index...", options=options)
 
     async def callback(self, it: discord.Interaction):
@@ -125,7 +146,8 @@ class FishSelect(discord.ui.Select):
         if not success: 
             return await it.response.send_message("Already listed.", ephemeral=True)
         fid = f"{self.rarity}-{idx}"
-        await it.channel.send(f"{'📦' if self.mode == 'add' else '🎣'} <@{uid}> listed **{fid}**!", delete_after=10)
+        label = format_fish_label(fid)
+        await it.channel.send(f"{'📦' if self.mode == 'add' else '🎣'} <@{uid}> listed **{label}**!", delete_after=10)
         data = await db_get_trade_data(gid)
         target_cat = "wanted" if self.mode == 'add' else "extras"
         if fid in data[target_cat]:
@@ -133,7 +155,7 @@ class FishSelect(discord.ui.Select):
                 if int(target_id) == uid: continue 
                 try:
                     m = it.guild.get_member(int(target_id))
-                    if m: await m.send(f"🚨 **FISH-LINK:** Match for **{fid}** in **{it.guild.name}**!")
+                    if m: await m.send(f"🚨 **FISH-LINK:** Match for **{label}** in **{it.guild.name}**!")
                 except: pass 
         await it.response.defer()
         await self.cog.re_anchor_menu(it.channel)
@@ -164,7 +186,7 @@ class FishControlView(discord.ui.View):
             donors = [d for d in data["extras"].get(fid, []) if d != uid_s]
             if donors:
                 mentions = ", ".join([f"<@{d}>" for d in donors])
-                matches.append(f"• **{fid}**: Held by {mentions}")
+                matches.append(f"• **{format_fish_label(fid)}**: Held by {mentions}")
         report = "\n".join(matches) if matches else "No matches found."
         await it.response.send_message(embed=discord.Embed(title="🤝 Matches", description=report, color=0x2ecc71), ephemeral=True)
 

@@ -46,34 +46,35 @@ class Utility(commands.Cog):
         """Displays all available commands categorized by module."""
         categories = {
             "Admin (UTC-2 Clock)": [
-                "!setup",
-                "!event",
-                "!event_remove <codename>",
-                "!setup_trade",
-                "!analytics",
-                "!status",
-                "!setup audit",
-                "!missions (legacy list)",
+                "/setup",
+                "/event",
+                "/event_remove <codename>",
+                "/setup_trade",
+                "/analytics",
+                "/status",
+                "/setup audit",
+                "/missions (legacy list)",
             ],
             "Members": [
-                "!events",
-                "!profile / !inventory / !trade_item",
-                "!scavenge (loot + XP)",
-                "!missions (legacy list)",
-                "!manual",
-                "!features",
-                "!commands",
+                "/events",
+                "/profile / /inventory / /trade_item",
+                "/scavenge (loot + XP)",
+                "/missions (legacy list)",
+                "/manual",
+                "/features",
+                "/commands",
             ],
             "Utility": [
-                "!intel <topic>",
-                "!poll 'Question' opt1 opt2",
-                "!remindme <minutes> <task>",
-                "!clear <amount>",
-                "!tips",
+                "/intel <topic>",
+                "/poll 'Question' opt1 opt2",
+                "/remindme <minutes> <task>",
+                "/clear <amount>",
+                "/tips",
+                "/support",
             ],
             "Trading": [
                 "Interact with Fish-Link buttons",
-                "!setup_trade (admins)",
+                "/setup_trade (admins)",
                 "Fish spares/wanted are per-server",
             ],
         }
@@ -94,8 +95,8 @@ class Utility(commands.Cog):
         """A quick-start guide for new users and admins."""
         embed = discord.Embed(title="📖 Marcia OS | Operations Manual", color=0xf1c40f)
         embed.add_field(
-            name="🛰️ For Admins", 
-            value="1. Use `!setup` to link channels.\n2. Use `!event` to schedule missions.\n3. Use `!setup_trade` to open the market.", 
+            name="🛰️ For Admins",
+            value="1. Use `/setup` to link channels.\n2. Use `/event` to schedule missions.\n3. Use `/setup_trade` to open the market.",
             inline=False
         )
         embed.add_field(
@@ -114,12 +115,34 @@ class Utility(commands.Cog):
     async def tips(self, ctx):
         """Random survival tips and bot tricks."""
         tips_list = [
-            "You can use `!remindme 60 Prepare for War` and I will DM you in one hour.",
+            "You can use `/remindme 60 Prepare for War` and I will DM you in one hour.",
             "Mission timers use the Dark War Survival clock (UTC-2) across every server.",
             "The Trading Terminal is server-specific. You won't see fish from other servers here!",
-            "Use `!intel [topic]` to search the survival database for game-specific info."
+            "Use `/intel [topic]` to search the survival database for game-specific info."
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
+
+    @commands.command()
+    async def support(self, ctx):
+        """Share feedback, report bugs, or support development."""
+        embed = discord.Embed(
+            title="🛰️ Marcia OS | Support Channel",
+            description=(
+                "Report issues or drop feedback and I'll relay it to my handler.\n\n"
+                "Creator: **akrott**\n"
+                "Support the uptime: https://www.buymeacoffee.com/akrott"
+            ),
+            color=0x5865f2,
+        )
+        embed.add_field(
+            name="How to report",
+            value=(
+                "Describe the command you ran, the server, and any error text."
+                " I stay in UTC-2, so include times in that clock."
+            ),
+            inline=False,
+        )
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def features(self, ctx):
