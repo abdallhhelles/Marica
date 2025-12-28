@@ -28,6 +28,12 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 * **Intel Database:** Quick-access information regarding hub rules, roles, and lore.
 * **Translations:** React with a flag emoji to have Marcia decode messages into any language using Google Translate.
 
+### 4. 🛰️ Event Creator (UTC-2)
+* **Guided flow:** `!event` opens a DM interview where Marcia asks for the codename, tag (raid/siege/rally/briefing), instructions, and the exact game-time start (`YYYY-MM-DD HH:MM` in UTC-2). She can also capture a location/voice-channel link and which role to ping.
+* **Broadcast cadence:** Reminders post at 60/30/15/3/0 minutes with lore-flavored drone signatures, keeping every guild on the Dark War Survival clock.
+* **Member visibility:** `!events` lists the next scheduled operations for the current server, including tags, locations, and UTC-2 timestamps so squads can self-check the roster.
+* **Admin cleanup:** `!event_remove <codename>` scrubs an operation instantly. Templates can be archived and reused from the same menu for repeat ops.
+
 ---
 
 ## 🚀 Installation & Setup
@@ -43,3 +49,7 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 2. Create a `.env` file in the root directory:
 ```env
 TOKEN=your_discord_bot_token_here
+```
+
+### 3. Troubleshooting
+* **`ModuleNotFoundError: cogs`** — The bot forces its working directory to this repository root at startup. If you still see this error on hosts like Pterodactyl, double-check that `main.py` and the `cogs/` folder stay together and that your start command runs from this folder.
