@@ -3,11 +3,26 @@ FILE: main.py
 USE: Central entry point for Marcia OS.
 FEATURES: Handles initialization, Cog loading, SQL database connectivity, and persistent views.
 """
-from pathlib import Path
 import asyncio
 import logging
 import os
+import sys
+from pathlib import Path
 import random
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def _pin_working_directory() -> None:
+    """Ensure imports resolve relative to the repo root and log the result."""
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
+
+    if Path.cwd() != BASE_DIR:
+        os.chdir(BASE_DIR)
+
+
+_pin_working_directory()
 
 import discord
 from discord.ext import commands
@@ -32,7 +47,7 @@ def configure_logging() -> None:
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
-COG_DIR = Path("./cogs")
+COG_DIR = BASE_DIR / "cogs"
 
 class MarciaBot(commands.Bot):
     def __init__(self):
@@ -133,6 +148,7 @@ class MarciaBot(commands.Bot):
 
 async def main():
     configure_logging()
+    logger.info("📂 Working directory pinned to %s", BASE_DIR)
 
     if not TOKEN:
         logger.error("✘ TOKEN missing. Please set the TOKEN environment variable before starting Marcia OS.")

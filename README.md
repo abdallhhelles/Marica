@@ -41,11 +41,16 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 ### 1. Requirements
 * Python 3.8+
 * `discord.py`
-* `googletrans==3.1.0a0`
+* `googletrans==4.0.0rc1`
 * `python-dotenv`
+* `aiosqlite`
 
 ### 2. Local Setup
 1. Clone this repository to your private server.
 2. Create a `.env` file in the root directory:
 ```env
 TOKEN=your_discord_bot_token_here
+```
+
+### 3. Troubleshooting
+* **`ModuleNotFoundError: cogs`** — The bot forces its working directory to this repository root at startup. If you still see this error on hosts like Pterodactyl, double-check that `main.py` and the `cogs/` folder stay together and that your start command runs from this folder.
