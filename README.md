@@ -8,6 +8,9 @@
 
 **Marcia** is a custom tactical bot built for the **Helles Hub Alliance**. She is a cunning hacker turned hub guardian who manages survivor ranks, wasteland scavenging, and the "Fish-Link" trade network.
 
+### Bot Profile Blurb (≤400 chars)
+Dark War Survival liaison. Marcia tracks UTC-2 ops, pings squads with lorey drone chatter, manages Fish-Link trades, endless leveling, mythic scavenging, intel, translations, reminders, and analytics across alliances. Built to keep survivors organized, supplied, and hyped.
+
 ---
 
 ## 🛠️ System Features

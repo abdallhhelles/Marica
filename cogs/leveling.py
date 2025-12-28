@@ -45,6 +45,17 @@ class Leveling(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def cog_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            retry = int(error.retry_after)
+            mins, secs = divmod(retry, 60)
+            await ctx.send(f"⌛ Drones cooling down. Try again in {mins}m {secs}s.")
+            return
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("❌ Usage: `!trade_item @member <quantity> <item name>`.")
+            return
+        raise error
+
     def get_next_xp(self, level):
         """Escalating RPG leveling curve for endless progression."""
         return int(BASE_XP * (level ** 1.25))

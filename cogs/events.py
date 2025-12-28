@@ -268,26 +268,37 @@ class Events(commands.Cog):
             wait = (utc_dt - timedelta(minutes=mins) - datetime.now(timezone.utc)).total_seconds()
             if wait > 0:
                 await asyncio.sleep(wait)
-                # Final check if mission still exists in DB
-                missions = await get_all_active_missions()
-                if not any(m['guild_id'] == guild_id and m['codename'] == name for m in missions):
-                    return
 
-                settings = await get_settings(guild_id)
-                if settings and settings['event_channel_id']:
-                    chan = self.bot.get_channel(settings['event_channel_id'])
-                    if chan:
-                        drone = random.choice(DRONE_NAMES)
-                        guild = chan.guild
-                        role = guild.get_role(ping_role_id) if ping_role_id else None
-                        mention = role.mention if role else "@everyone"
-                        location_line = f"\n📍 {location}" if location else ""
-                        tag_line = f"\n🏷️ {tag}" if tag else ""
-                        msg = (
-                            f"{mention}\n📡 **INCOMING TRANSMISSION | {name}**{tag_line}\n\n"
-                            f"{desc}{location_line}\n\n*Drone: {drone}*\n{_marica_quip()}"
-                        )
-                        await chan.send(msg)
+            # Final check if mission still exists in DB
+            missions = await get_all_active_missions()
+            if not any(m['guild_id'] == guild_id and m['codename'] == name for m in missions):
+                return
+
+            settings = await get_settings(guild_id)
+            if not (settings and settings['event_channel_id']):
+                continue
+
+            chan = self.bot.get_channel(settings['event_channel_id'])
+            if not chan:
+                continue
+
+            drone = random.choice(DRONE_NAMES)
+            guild = chan.guild
+            role = guild.get_role(ping_role_id) if ping_role_id else None
+            mention = role.mention if role else "@everyone"
+            location_line = f"\n📍 {location}" if location else ""
+            tag_line = f"\n🏷️ {tag}" if tag else ""
+
+            title, body = random.choice(TIMED_REMINDERS.get(mins, [("📡 **ALERT:**", "`{name}` is coming up.")]))
+            body = body.format(name=name, drone=drone)
+            quote = random.choice(MARICA_QUOTES)
+
+            msg = (
+                f"{mention}\n{title} {quote}\n"
+                f"{body}\n\n"
+                f"{desc}{location_line}{tag_line}\n\n*Drone: {drone}*"
+            )
+            await chan.send(msg)
 
         await delete_mission(guild_id, name)
 

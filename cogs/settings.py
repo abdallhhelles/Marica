@@ -290,4 +290,5 @@ class Settings(commands.Cog):
             await user.send("⌛ Timeout. Ping me again with `!setup` when you're ready.")
 
 async def setup(bot):
+    bot.remove_command("setup")
     await bot.add_cog(Settings(bot))

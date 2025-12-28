@@ -120,7 +120,7 @@ class MarciaBot(commands.Bot):
             await asyncio.sleep(2)
             try:
                 await message.delete()
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.NotFound):
                 pass
 
     async def on_command_error(self, ctx, error):
@@ -130,7 +130,14 @@ class MarciaBot(commands.Bot):
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
             return
-        
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
+            return
+        if isinstance(error, commands.CommandOnCooldown):
+            retry = int(error.retry_after)
+            await ctx.send(f"⏳ Cooldown active. Try again in {retry}s.")
+            return
+
         logger.error(f"Uncaught Error: {error}")
 
     async def _load_cogs(self):
