@@ -1,31 +1,32 @@
 """
 FILE: cogs/config.py
 USE: Multi-server configuration management.
-FEATURES: Interactive setup for server-specific channels and roles.
+FEATURES: Legacy shortcuts for channel/role setup without conflicting with the main wizard.
 """
 import discord
 from discord.ext import commands
 from database import update_setting, get_settings
 
+
 class Configuration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="setup")
+    @commands.command(name="setup_basic")
     @commands.has_permissions(manage_guild=True)
-    async def setup(self, ctx):
-        """Interactive setup for server settings."""
+    async def setup_basic(self, ctx):
+        """Legacy quick-start pointer. Use `/setup` for the full wizard."""
         embed = discord.Embed(
-            title="⚙️ Marcia OS: Server Initialization",
+            title="⚙️ Marcia OS: Setup Pointer",
             description=(
-                "Please use the following commands to configure this unit for your server:\n\n"
-                "`!set_chat #channel` - Where level-up alerts go.\n"
-                "`!set_welcome #channel` - Where new member logs go.\n"
-                "`!set_verify #channel` - Where the verification system lives.\n"
-                "`!set_role @role` - The role given to new/verified members.\n"
-                "`!view_config` - Check current server settings."
+                "I recommend `/setup` for the full DM-guided wizard. If you just need the legacy shortcuts, use:\n\n"
+                "`/set_chat #channel` - Where level-up alerts go.\n"
+                "`/set_welcome #channel` - Where new member logs go.\n"
+                "`/set_verify #channel` - Where the verification system lives.\n"
+                "`/set_role @role` - The role given to new/verified members.\n"
+                "`/view_config` - Check current server settings."
             ),
-            color=0x3498db
+            color=0x3498db,
         )
         await ctx.send(embed=embed)
 
@@ -59,6 +60,7 @@ class Configuration(commands.Cog):
         embed.add_field(name="Welcome Channel", value=f"<#{s['welcome_channel_id']}>" if s['welcome_channel_id'] else "Not Set")
         embed.add_field(name="Auto-Role", value=f"<@&{s['auto_role_id']}>" if s['auto_role_id'] else "Not Set")
         await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(Configuration(bot))
