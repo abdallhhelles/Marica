@@ -1,0 +1,8 @@
+{
+    "FRANKENSTEIN": {
+        "desc": "\ud83d\udce1 TECHNICAL ORDERS:\n1. Scan for BUFFS before engagement.\n2. Fill rallies from the BOTTOM of the link-list.\n3. Patch your wounds (HEAL) between waves.\n4. DISABLE automatic rally functions\u2014drones need manual precision.\n\n\ud83d\udca4 OFFLINE MODE:\nIf your signal is fading, set 'Participate Offline' on the event grid to secure your rewards."
+    },
+    "CAPITAL": {
+        "desc": "\ud83d\udce1 TECHNICAL ORDERS:\n\nNO SOLO ATTACKS: Solo trucks (11k) vs Capital (70k) is suicide. Rally only.\nCOMMANDER SCALING: Only the Rally Leader\u2019s Tech/Heroes count.\nLEADERSHIP: Only the 5 strongest survivors CREATE rallies.\nTIER CHECK: T10+ for Capital. T9+ for Turrets.\n\n\ud83d\ude9b FIELD OPS:\n\nJOINERS: Use your Main Formation to JOIN active rallies.\nDEFENSE: Use 3rd/4th Formations to REINFORCE structures we hold.\nWARNING: Low-tier troops (T8) weaken the entire garrison. Do not join."
+    }
+}

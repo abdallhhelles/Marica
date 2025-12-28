@@ -1,0 +1,696 @@
+[
+    {
+        "username": "shahin0070.",
+        "id": 1429905367902589021,
+        "roles": [],
+        "joined_at": "2025-10-20 19:01:03.751000+00:00"
+    },
+    {
+        "username": "hellogoodbyeee",
+        "id": 1245146418923049013,
+        "roles": [
+            "Genesis"
+        ],
+        "joined_at": "2025-12-16 03:15:14.143000+00:00"
+    },
+    {
+        "username": "wartrx",
+        "id": 1421149917606449272,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-15 05:18:43.963000+00:00"
+    },
+    {
+        "username": "wastelandkiller._01064",
+        "id": 1408952317524443136,
+        "roles": [],
+        "joined_at": "2025-10-04 21:18:55.185000+00:00"
+    },
+    {
+        "username": "wafer8031",
+        "id": 970485827480223755,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-08-27 19:58:47.659000+00:00"
+    },
+    {
+        "username": "aish6922",
+        "id": 766247759174303744,
+        "roles": [],
+        "joined_at": "2025-09-05 08:38:18.965000+00:00"
+    },
+    {
+        "username": "luoyehuang",
+        "id": 1066707790418169967,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-21 15:49:47.478000+00:00"
+    },
+    {
+        "username": "kevin049691",
+        "id": 1410072781684605029,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-27 01:45:50.896000+00:00"
+    },
+    {
+        "username": "meowrosie_",
+        "id": 1430513666675179540,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders"
+        ],
+        "joined_at": "2025-12-17 23:35:01.347000+00:00"
+    },
+    {
+        "username": "lkensun",
+        "id": 210537016914477056,
+        "roles": [],
+        "joined_at": "2025-10-04 13:58:06.732000+00:00"
+    },
+    {
+        "username": "kaosedroma",
+        "id": 1384719729108975690,
+        "roles": [],
+        "joined_at": "2025-10-12 14:41:58.289000+00:00"
+    },
+    {
+        "username": "katianna_milena",
+        "id": 1389988384885178420,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-09-10 01:54:22.903000+00:00"
+    },
+    {
+        "username": "quack42.",
+        "id": 851871888480927804,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-21 14:50:32.424000+00:00"
+    },
+    {
+        "username": "cleocleo91",
+        "id": 516457913171181578,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-09-10 01:15:43.467000+00:00"
+    },
+    {
+        "username": "biiancca",
+        "id": 329444908630802432,
+        "roles": [],
+        "joined_at": "2025-09-07 16:44:23.451000+00:00"
+    },
+    {
+        "username": "natalie_43945",
+        "id": 689776852708884488,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-12-18 21:45:44.265000+00:00"
+    },
+    {
+        "username": "maleknia1",
+        "id": 798203710525538354,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-08 03:41:31.709000+00:00"
+    },
+    {
+        "username": "jheymie0946_68038",
+        "id": 1398870780976037908,
+        "roles": [],
+        "joined_at": "2025-09-24 19:50:40.157000+00:00"
+    },
+    {
+        "username": "lujaynnh",
+        "id": 1404240829849014395,
+        "roles": [
+            "\ud83e\udde0 Helles 2",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders",
+            "Moderator"
+        ],
+        "joined_at": "2025-08-16 01:32:44.104000+00:00"
+    },
+    {
+        "username": "bl0ss0m0335",
+        "id": 1409572913534730328,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders",
+            "Moderator"
+        ],
+        "joined_at": "2025-08-27 19:03:00.996000+00:00"
+    },
+    {
+        "username": "violetlily0845",
+        "id": 1410061549455802378,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-27 00:44:04.156000+00:00"
+    },
+    {
+        "username": "theplumb3r_22561",
+        "id": 1412425270631333919,
+        "roles": [
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-09-04 19:45:36.984000+00:00"
+    },
+    {
+        "username": "whimsical_courgette_17248",
+        "id": 1345434378276438088,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-14 22:07:28.162000+00:00"
+    },
+    {
+        "username": "maddie_the_yapper_46754",
+        "id": 1397404663413997719,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-07 19:26:10.232000+00:00"
+    },
+    {
+        "username": "supernewf0574",
+        "id": 1447261492469567603,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-07 16:22:33.546000+00:00"
+    },
+    {
+        "username": "chaosgirly",
+        "id": 798849874971590678,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-08-30 19:13:55.513000+00:00"
+    },
+    {
+        "username": "carmen1313.",
+        "id": 1246592699256143896,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "Genesis",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-08-19 17:01:22.969000+00:00"
+    },
+    {
+        "username": "anuskaloon",
+        "id": 391267148049416203,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-23 15:57:15.248000+00:00"
+    },
+    {
+        "username": "monster290._80667",
+        "id": 1419144688446738512,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-09-21 02:16:45.155000+00:00"
+    },
+    {
+        "username": "saarna",
+        "id": 381709285899632640,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-22 04:49:30.522000+00:00"
+    },
+    {
+        "username": "suzi.bear_58165",
+        "id": 1449863293459103942,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders"
+        ],
+        "joined_at": "2025-12-17 19:39:19.663000+00:00"
+    },
+    {
+        "username": "fabioske_50947",
+        "id": 1414316959759335566,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-07 18:35:25.510000+00:00"
+    },
+    {
+        "username": "slaybae0997",
+        "id": 883115085420175421,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-12-20 03:14:25.105000+00:00"
+    },
+    {
+        "username": "pandablanco",
+        "id": 714277877054570556,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-30 19:38:41.363000+00:00"
+    },
+    {
+        "username": ".heartgamer",
+        "id": 326285519061254145,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-08-27 16:18:36.564000+00:00"
+    },
+    {
+        "username": "Marcia#3564",
+        "id": 1428179195938476204,
+        "roles": [
+            "Servants",
+            "\ud83d\udc51 Helles Leaders",
+            "Marica",
+            "Moderator"
+        ],
+        "joined_at": "2025-10-16 00:50:15.909000+00:00"
+    },
+    {
+        "username": "ori1235651",
+        "id": 415788915958611968,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-24 16:05:35.375000+00:00"
+    },
+    {
+        "username": "akrott",
+        "id": 135894953027960833,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-08-10 21:29:47.701000+00:00"
+    },
+    {
+        "username": "StickyBot#0392",
+        "id": 628400349979344919,
+        "roles": [
+            "StickyBot",
+            "Servants"
+        ],
+        "joined_at": "2025-09-09 02:47:18.308000+00:00"
+    },
+    {
+        "username": "leisaaaaaa",
+        "id": 761202149891375144,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-18 18:56:35.834000+00:00"
+    },
+    {
+        "username": "robbo2652",
+        "id": 908263372921913394,
+        "roles": [],
+        "joined_at": "2025-09-07 17:27:48.583000+00:00"
+    },
+    {
+        "username": "_studmuffin_",
+        "id": 1450315936979615857,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-12-16 02:44:05.487000+00:00"
+    },
+    {
+        "username": "yoursage95",
+        "id": 330181504057737237,
+        "roles": [],
+        "joined_at": "2025-08-21 14:43:15.289000+00:00"
+    },
+    {
+        "username": "peace.love2024",
+        "id": 1202203056566177808,
+        "roles": [
+            "Genesis"
+        ],
+        "joined_at": "2025-12-18 23:14:00.661000+00:00"
+    },
+    {
+        "username": "thirstywork64",
+        "id": 578394836793688085,
+        "roles": [],
+        "joined_at": "2025-09-21 06:17:22.526000+00:00"
+    },
+    {
+        "username": "madmatz0354",
+        "id": 1428103746507771924,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-10-15 19:39:03.138000+00:00"
+    },
+    {
+        "username": "trappor",
+        "id": 257952123721875457,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-25 13:29:57.528000+00:00"
+    },
+    {
+        "username": "woofercz",
+        "id": 1419320593609654424,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-21 13:55:39.691000+00:00"
+    },
+    {
+        "username": "miggidyboo",
+        "id": 461483389866999809,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders",
+            "Moderator"
+        ],
+        "joined_at": "2025-08-18 19:05:30.150000+00:00"
+    },
+    {
+        "username": "catwith9lives.",
+        "id": 1416958937139380244,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-15 01:32:41.389000+00:00"
+    },
+    {
+        "username": "abde_fr",
+        "id": 1044232614841696326,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-06 16:47:09.319000+00:00"
+    },
+    {
+        "username": "helles0859",
+        "id": 253838459133886465,
+        "roles": [
+            "\ud83e\udde0 Helles 2",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-08-20 18:54:44.857000+00:00"
+    },
+    {
+        "username": "tingtong_fta",
+        "id": 265022447944859648,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-27 15:34:23.306000+00:00"
+    },
+    {
+        "username": "i96.xt",
+        "id": 1427695131733131375,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-10-15 16:35:09.916000+00:00"
+    },
+    {
+        "username": "sagegamingspot23",
+        "id": 1189033246160339005,
+        "roles": [],
+        "joined_at": "2025-11-06 23:34:28.724000+00:00"
+    },
+    {
+        "username": "a.farou2",
+        "id": 1290136010168209472,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-07 17:36:48.201000+00:00"
+    },
+    {
+        "username": "lizzza_m",
+        "id": 1421945431306539138,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-28 19:53:12.923000+00:00"
+    },
+    {
+        "username": "willowlove96",
+        "id": 1196591950699188234,
+        "roles": [
+            "Genesis",
+            "Genesis Leaders",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-07 17:01:43.350000+00:00"
+    },
+    {
+        "username": "zoneraker",
+        "id": 1132131556379598848,
+        "roles": [
+            "\ud83d\udce1 Hive Signal",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-26 05:19:13.465000+00:00"
+    },
+    {
+        "username": "ginger80.",
+        "id": 1066337674337722418,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-19 03:45:11.981000+00:00"
+    },
+    {
+        "username": "wei023886",
+        "id": 329019585896644608,
+        "roles": [
+            "Genesis",
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-09-07 04:25:51.719000+00:00"
+    },
+    {
+        "username": "thalegend2578",
+        "id": 583089683425394698,
+        "roles": [
+            "Genesis"
+        ],
+        "joined_at": "2025-12-16 18:25:37.028000+00:00"
+    },
+    {
+        "username": "mn190_27337",
+        "id": 1409196763096551477,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-07 08:45:32.403000+00:00"
+    },
+    {
+        "username": "tugao_30",
+        "id": 1419356478812455113,
+        "roles": [],
+        "joined_at": "2025-09-21 16:44:08.162000+00:00"
+    },
+    {
+        "username": "huschick",
+        "id": 1357286541054971965,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-10-15 18:30:53.837000+00:00"
+    },
+    {
+        "username": "florie_.",
+        "id": 1409585189809688627,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-25 17:39:44.510000+00:00"
+    },
+    {
+        "username": "kez1551",
+        "id": 496048957244309514,
+        "roles": [],
+        "joined_at": "2025-09-05 05:21:38.473000+00:00"
+    },
+    {
+        "username": "adminnnnngngn_26537",
+        "id": 1336446940036206605,
+        "roles": [],
+        "joined_at": "2025-10-16 01:25:19.164000+00:00"
+    },
+    {
+        "username": "majd_helles",
+        "id": 214789786160988160,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-11-11 19:27:58.830000+00:00"
+    },
+    {
+        "username": "deadus5933",
+        "id": 249273017895485441,
+        "roles": [],
+        "joined_at": "2025-09-21 23:22:08.521000+00:00"
+    },
+    {
+        "username": "gendow",
+        "id": 505595796532494370,
+        "roles": [
+            "\ud83e\udde0 Helles",
+            "\ud83d\udc51 Helles Leaders"
+        ],
+        "joined_at": "2025-09-08 04:09:04.290000+00:00"
+    },
+    {
+        "username": "chihirooly_48409",
+        "id": 1413436425059303504,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-10-20 18:27:15.044000+00:00"
+    },
+    {
+        "username": "tr_ma._04504",
+        "id": 1403844480137822299,
+        "roles": [
+            "Genesis"
+        ],
+        "joined_at": "2025-10-12 23:03:28.028000+00:00"
+    },
+    {
+        "username": "shaawen",
+        "id": 516395244497928244,
+        "roles": [
+            "\ud83e\udeb6 Wanderers"
+        ],
+        "joined_at": "2025-09-07 17:03:54.695000+00:00"
+    },
+    {
+        "username": "salmanff",
+        "id": 952926232742334464,
+        "roles": [],
+        "joined_at": "2025-12-18 14:15:43.024000+00:00"
+    },
+    {
+        "username": "thyagohorta",
+        "id": 1419385489869373571,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-21 18:16:27.656000+00:00"
+    },
+    {
+        "username": "everylcr",
+        "id": 797357252335894528,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-21 20:51:45.225000+00:00"
+    },
+    {
+        "username": "killahcam94",
+        "id": 807665354855284826,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-07 17:25:51.217000+00:00"
+    },
+    {
+        "username": "cadu84_rj",
+        "id": 1419644558710407178,
+        "roles": [
+            "\ud83e\udde0 Helles 2"
+        ],
+        "joined_at": "2025-09-23 17:47:23.926000+00:00"
+    },
+    {
+        "username": "avej0160",
+        "id": 1408468840404222062,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-12-26 09:56:05.661000+00:00"
+    },
+    {
+        "username": "_marola",
+        "id": 332792782143881216,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-22 23:37:14.792000+00:00"
+    },
+    {
+        "username": "keine0066",
+        "id": 1432109138250305749,
+        "roles": [],
+        "joined_at": "2025-11-09 20:57:37.560000+00:00"
+    },
+    {
+        "username": "vitpool_",
+        "id": 1386308302719287316,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-17 17:59:58.375000+00:00"
+    },
+    {
+        "username": "miss.w",
+        "id": 795651985532780585,
+        "roles": [
+            "Genesis",
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-08-30 19:30:15.274000+00:00"
+    },
+    {
+        "username": "kaiking2101",
+        "id": 1419267831089860719,
+        "roles": [
+            "\ud83e\udde0 Helles"
+        ],
+        "joined_at": "2025-09-21 10:26:51.646000+00:00"
+    }
+]
