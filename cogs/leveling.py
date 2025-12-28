@@ -1,7 +1,7 @@
 """
 FILE: cogs/leveling.py
 USE: Multi-server RPG system (SQL Version).
-FEATURES: Per-server XP, Scavenging with Rarity, and Automated Data Migration.
+FEATURES: Per-server XP, Scavenging with Rarity, Prestige collectors, and Automated Data Migration.
 """
 import discord
 from discord.ext import commands
@@ -11,40 +11,67 @@ import random
 import time
 import aiosqlite
 from datetime import datetime
-from assets import SCAVENGE_OUTCOMES, DRONE_NAMES
-from database import DB_PATH, get_settings, get_user_stats, update_user_xp, add_to_inventory, get_inventory, update_scavenge_time
+from assets import SCAVENGE_OUTCOMES, DRONE_NAMES, MARICA_QUOTES, PRESTIGE_ROLE
+from database import (
+    DB_PATH,
+    get_settings,
+    get_user_stats,
+    update_user_xp,
+    add_to_inventory,
+    get_inventory,
+    update_scavenge_time,
+    transfer_inventory,
+)
 
-XP_PER_MESSAGE = 10
-BASE_XP = 100
-# Define roles that exist in your server to be auto-assigned
-ROLE_REWARDS = {5: "Scout", 10: "Veteran", 20: "Alliance Elite"}
+XP_PER_MESSAGE = 12
+BASE_XP = 120
+ROLE_STEP = 5
 
 RARITY_COLORS = {
-    "Common": 0x95a5a6, 
-    "Uncommon": 0x2ecc71, 
+    "Common": 0x95a5a6,
+    "Uncommon": 0x2ecc71,
     "Rare": 0x3498db,
-    "Epic": 0x9b59b6, 
-    "Artifact": 0xf1c40f
+    "Epic": 0x9b59b6,
+    "Legendary": 0xe67e22,
+    "Artifact": 0xf1c40f,
+    "Mythic": 0xe91e63,
 }
+
+RARITY_ORDER = {"Mythic": 0, "Artifact": 1, "Legendary": 2, "Epic": 3, "Rare": 4, "Uncommon": 5, "Common": 6}
+ALL_SCAVENGE_ITEMS = {entry[2] for entry in SCAVENGE_OUTCOMES}
+TIER_COLORS = [0x3498db, 0x2ecc71, 0x9b59b6, 0xe67e22, 0xf1c40f, 0xe91e63, 0x1abc9c]
 
 class Leveling(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def cog_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            retry = int(error.retry_after)
+            mins, secs = divmod(retry, 60)
+            await ctx.send(f"⌛ Drones cooling down. Try again in {mins}m {secs}s.")
+            return
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("❌ Usage: `!trade_item @member <quantity> <item name>`.")
+            return
+        raise error
+
     def get_next_xp(self, level):
-        """Standard RPG leveling curve."""
-        return level * BASE_XP
+        """Escalating RPG leveling curve for endless progression."""
+        return int(BASE_XP * (level ** 1.25))
 
     async def apply_role_rewards(self, member, level):
-        """Automatically assigns roles based on level reached."""
-        for rank_lvl, role_name in ROLE_REWARDS.items():
-            if level >= rank_lvl:
-                role = discord.utils.get(member.guild.roles, name=role_name)
-                if role and role not in member.roles:
-                    try: 
-                        await member.add_roles(role)
-                    except discord.Forbidden:
-                        pass
+        """Automatically assigns dynamic tier roles based on level reached."""
+        tier_role = await self.ensure_tier_role(member.guild, level)
+        if tier_role and tier_role not in member.roles:
+            try:
+                # Remove older tier roles to keep things tidy
+                old_tiers = [r for r in member.roles if r.name.startswith("Sector Rank ")]
+                if old_tiers:
+                    await member.remove_roles(*old_tiers, reason="Upgrading tier role")
+                await member.add_roles(tier_role, reason="Level up reward")
+            except discord.Forbidden:
+                pass
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -60,11 +87,11 @@ class Leveling(commands.Cog):
         if not user_data or (current_ts - user_data['last_msg_ts'] > 60):
             # Record message timestamp in database
             async with aiosqlite.connect(DB_PATH) as db:
-                await db.execute("UPDATE user_stats SET last_msg_ts = ? WHERE guild_id = ? AND user_id = ?", 
+                await db.execute("UPDATE user_stats SET last_msg_ts = ? WHERE guild_id = ? AND user_id = ?",
                                  (current_ts, gid, uid))
                 await db.commit()
 
-            await update_user_xp(gid, uid, XP_PER_MESSAGE)
+            await update_user_xp(gid, uid, XP_PER_MESSAGE + random.randint(0, 6))
             
             # Re-fetch to check for level up
             updated = await get_user_stats(gid, uid)
@@ -79,7 +106,10 @@ class Leveling(commands.Cog):
                 # Level up Announcement
                 embed = discord.Embed(
                     title="🎊 LEVEL SYNCHRONIZED",
-                    description=f"{message.author.mention}, your bio-signature has evolved to **Level {new_lvl}**.",
+                    description=(
+                        f"{message.author.mention}, your bio-signature has evolved to **Level {new_lvl}**.\n"
+                        f"{random.choice(MARICA_QUOTES)}"
+                    ),
                     color=0x2ecc71
                 )
                 
@@ -115,7 +145,8 @@ class Leveling(commands.Cog):
         # Fetch inventory count for profile summary
         inv = await get_inventory(ctx.guild.id, member.id)
         item_count = sum(item['quantity'] for item in inv)
-        embed.add_field(name="Inventory", value=f"📦 {item_count} items in stash", inline=True)
+        unique_count = len({item['item_id'] for item in inv})
+        embed.add_field(name="Inventory", value=f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique", inline=True)
         
         await ctx.send(embed=embed)
 
@@ -134,15 +165,16 @@ class Leveling(commands.Cog):
 
         embed = discord.Embed(
             title=f"🚁 {drone_name.upper()} RETURNING...",
-            description=f"_{flavor}_",
+            description=f"_{flavor}_\n\n{random.choice(MARICA_QUOTES)}",
             color=RARITY_COLORS.get(rarity, 0x2b2d31)
         )
         embed.add_field(name="Loot Found", value=f"**{item_name}**", inline=True)
         embed.add_field(name="Rarity", value=f"`{rarity}`", inline=True)
         embed.add_field(name="Experience", value=f"+{xp_gain} XP", inline=True)
         embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
-        
+
         await ctx.reply(embed=embed)
+        await self.check_collector_prestige(ctx.author)
 
     @commands.command(aliases=["inv", "stash"])
     async def inventory(self, ctx):
@@ -152,19 +184,48 @@ class Leveling(commands.Cog):
         if not rows:
             return await ctx.send("🎒 Your stash is empty. Deploy a drone with `!scavenge` to find gear!")
 
-        # Sort items by rarity (Artifacts first)
-        rarity_order = {"Artifact": 0, "Epic": 1, "Rare": 2, "Uncommon": 3, "Common": 4}
-        sorted_items = sorted(rows, key=lambda x: rarity_order.get(x['rarity'], 5))
+        # Sort items by rarity (Mythics first)
+        sorted_items = sorted(rows, key=lambda x: RARITY_ORDER.get(x['rarity'], 99))
 
         items_list = "\n".join([f"• **{item['item_id']}** x{item['quantity']} [{item['rarity']}]" for item in sorted_items])
-        
+
+        completion = len({item['item_id'] for item in rows})
+        progress_line = f"Collection Progress: {completion}/{len(ALL_SCAVENGE_ITEMS)} unique"
+
         embed = discord.Embed(
             title=f"🎒 {ctx.author.display_name}'S STASH",
-            description=items_list,
+            description=f"{items_list}\n\n{progress_line}",
             color=0x95a5a6
         )
         embed.set_footer(text="Items are local to this sector.")
         await ctx.send(embed=embed)
+
+    @commands.command(name="trade_item")
+    async def trade_item(self, ctx, member: discord.Member, quantity: int, *, item_name: str):
+        """Trade scavenged loot to another survivor."""
+        if member.bot:
+            return await ctx.send("❌ Bots don't need loot.")
+        if member.id == ctx.author.id:
+            return await ctx.send("❌ Trading with yourself? Even I won't sign that invoice.")
+        if quantity <= 0:
+            return await ctx.send("❌ Quantity must be positive.")
+
+        item_name = item_name.strip()
+        success = await transfer_inventory(ctx.guild.id, ctx.author.id, member.id, item_name, quantity)
+        if not success:
+            return await ctx.send(f"❌ You don't have {quantity}x **{item_name}** to trade.")
+
+        embed = discord.Embed(
+            title="🤝 Trade Logged",
+            description=(
+                f"{ctx.author.mention} sent **{quantity}x {item_name}** to {member.mention}.\n"
+                f"{random.choice(MARICA_QUOTES)}"
+            ),
+            color=0x3498db,
+        )
+        await ctx.send(embed=embed)
+        await self.check_collector_prestige(ctx.author)
+        await self.check_collector_prestige(member)
 
     @commands.command()
     @commands.has_permissions(manage_guild=True)
@@ -203,6 +264,44 @@ class Leveling(commands.Cog):
             await ctx.send(f"✅ **Sector Data Restored.** Migrated {len(old_data)} user profiles to database.")
         except Exception as e:
             await ctx.send(f"❌ **System Breach during migration:** `{e}`")
+
+    async def ensure_tier_role(self, guild: discord.Guild, level: int) -> discord.Role | None:
+        tier = max(ROLE_STEP, (level // ROLE_STEP) * ROLE_STEP)
+        color = discord.Color(TIER_COLORS[tier % len(TIER_COLORS)])
+        role_name = f"Sector Rank {tier:03d}"
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            return role
+        try:
+            role = await guild.create_role(name=role_name, color=color, reason="Marcia rank auto-creation")
+        except discord.Forbidden:
+            return None
+        return role
+
+    async def check_collector_prestige(self, member: discord.Member):
+        rows = await get_inventory(member.guild.id, member.id)
+        owned = {item['item_id'] for item in rows}
+        if len(owned) < len(ALL_SCAVENGE_ITEMS):
+            return
+
+        prestige = discord.utils.get(member.guild.roles, name=PRESTIGE_ROLE)
+        if not prestige:
+            try:
+                prestige = await member.guild.create_role(
+                    name=PRESTIGE_ROLE,
+                    color=discord.Color.gold(),
+                    reason="Marcia prestige collector unlock",
+                )
+            except discord.Forbidden:
+                return
+        if prestige not in member.roles:
+            try:
+                await member.add_roles(prestige, reason="Completed scavenger catalog")
+                await member.send(
+                    f"🏅 You secured every artifact in this sector. Prestige role `{PRESTIGE_ROLE}` granted."
+                )
+            except discord.Forbidden:
+                pass
 
 async def setup(bot):
     await bot.add_cog(Leveling(bot))

@@ -1,23 +1,30 @@
 # Privacy Policy for Marcia OS
-**Last Updated: December 2025**
+**Last Updated: January 2026**
 
-Marcia OS ("the Application") is a tool designed for the Helles Hub community. This policy explains what data we collect and how it is used.
+Marcia OS ("the bot") is operated for the Helles Hub Alliance and public servers. This policy explains what data we collect and how it is used.
 
 ### 1. Data We Collect
-To provide leveling, trading, and translation features, we collect:
-* **User IDs:** To track XP, levels, and inventory.
-* **Fish-Link Data:** We store which fish you own ("Extra") and which you need ("Wanted") to provide matching services.
-* **Message Metadata:** Timestamps are used to enforce a 60-second XP cooldown.
-* **Translation Content:** When you react with a flag, the message text is briefly processed to provide a translation.
+* **Discord identifiers:** User IDs, guild IDs, and role IDs to deliver leveling, inventories, reminders, and Fish-Link matches.
+* **Event and analytics data:** Operation codenames, schedules (UTC-2 timestamps), tags, and aggregated counts per guild.
+* **Message metadata:** Timestamps to enforce XP and scavenging cooldowns; translation requests trigger temporary processing of the original message text.
+* **Inventory & trade data:** Items found via scavenging, trade listings, and template data are stored per guild.
 
 ### 2. How We Use Data
-* **Leveling:** Your XP determines your rank in the Alliance.
-* **Matchmaking:** When a match is found in the Fish-Link Network, we use your ID to send an automated Direct Message (DM).
-* **Translations:** We use the Google Translate API to decode messages. We do not store these translations permanently.
+* **Leveling & progression:** Track XP, levels, loot, and prestige progress for each guild separately.
+* **Reminders & events:** Schedule and post announcements using server-linked channels and optional role mentions.
+* **Trading:** Match spare/wanted fish or items and DM participants when a match appears.
+* **Diagnostics:** Generate per-guild analytics so admins can audit usage; data is never shared across guilds.
 
-### 3. Data Storage & Deletion
-* **Storage:** Data is stored in private JSON files (`levels.json`, `fish_data.json`) on a secure private server.
-* **Deletion:** You can remove your trading data via the "Manage My Trades" button. To wipe your leveling data, contact a Hub Administrator. If the bot is removed from a server, server-specific configuration is deleted.
+### 3. Storage & Retention
+* Data is stored in the SQLite database `marcia_os.db` and server-specific archive files on the host.
+* Trading, leveling, event, and template records are scoped to each guild and are not shared between servers.
+* Data persists while the bot is installed. Removing the bot or requesting deletion from a server admin will purge that server’s records where feasible.
 
 ### 4. Third-Party Sharing
-We **never** sell your data. We only share message text with Google Translate for the "Flag Reaction" feature.
+* We do **not** sell data.
+* Translation requests may send message text to Google Translate; we do not retain these texts after processing.
+
+### 5. Your Controls
+* Remove your trade listings via the Fish-Link UI or ask an admin to clear your data.
+* Server admins can delete templates or missions and may request a guild data wipe.
+* For questions or deletion requests, contact the server’s alliance leadership or the bot maintainers.

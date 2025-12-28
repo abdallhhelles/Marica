@@ -3,44 +3,67 @@ FILE: main.py
 USE: Central entry point for Marcia OS.
 FEATURES: Handles initialization, Cog loading, SQL database connectivity, and persistent views.
 """
+import asyncio
+import logging
+import os
+import sys
+from pathlib import Path
+import random
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def _pin_working_directory() -> None:
+    """Ensure imports resolve relative to the repo root and log the result."""
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
+
+    if Path.cwd() != BASE_DIR:
+        os.chdir(BASE_DIR)
+
+
+_pin_working_directory()
+
 import discord
 from discord.ext import commands
-import os
-import logging
-import asyncio
-import random
 from dotenv import load_dotenv
-from database import init_db
-from assets import MARICA_QUOTES 
 
-# Import View for Persistence
+from assets import MARICA_QUOTES
 from cogs.trading import FishControlView
+from database import init_db
 
-# Setup high-visibility logging for debugging
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s'
-)
-logger = logging.getLogger('MarciaOS')
+logger = logging.getLogger("MarciaOS")
+
+
+def configure_logging() -> None:
+    """Configure a consistent, high-visibility logging format for the bot and Discord."""
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        )
+
 
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
+COG_DIR = BASE_DIR / "cogs"
 
 class MarciaBot(commands.Bot):
     def __init__(self):
         # Setting up required intents
         # Members intent is CRITICAL for the Archive system to list members
         intents = discord.Intents.default()
-        intents.message_content = True 
-        intents.members = True           
-        intents.presences = True 
-        
+        intents.message_content = True
+        intents.members = True
+        intents.presences = True
+
         super().__init__(
-            command_prefix="!", 
-            intents=intents, 
+            command_prefix="!",
+            intents=intents,
             help_command=None,
-            case_insensitive=True
+            case_insensitive=True,
+            allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True),
         )
 
     async def setup_hook(self):
@@ -54,21 +77,12 @@ class MarciaBot(commands.Bot):
             return
 
         # 1. Register Persistent Views (Makes Trading buttons work after restart)
-        self.add_view(FishControlView(self))
+        self.add_view(FishControlView(self, persistent=True))
         logger.info("✔ Persistent Views Registered.")
 
         # 2. Automatically load all cogs
         logger.info("🛰️ Initializing system modules...")
-        if not os.path.exists('./cogs'):
-            os.makedirs('./cogs')
-
-        for filename in os.listdir('./cogs'):
-            if filename.endswith('.py') and not filename.startswith('__'):
-                try:
-                    await self.load_extension(f'cogs.{filename[:-3]}')
-                    logger.info(f"✔ Module Loaded: {filename}")
-                except Exception as e:
-                    logger.error(f"✘ Module Failed [{filename}]: {e}")
+        await self._load_cogs()
 
     async def on_ready(self):
         """Final system check once online."""
@@ -79,7 +93,7 @@ class MarciaBot(commands.Bot):
         logger.info("-" * 30)
         
         await self.change_presence(
-            activity=discord.Game(name="Dark War: Survival | !manual")
+            activity=discord.Game(name="Dark War: Survival | !manual"),
         )
 
     async def on_message(self, message):
@@ -106,8 +120,8 @@ class MarciaBot(commands.Bot):
             await asyncio.sleep(2)
             try:
                 await message.delete()
-            except discord.Forbidden:
-                pass 
+            except (discord.Forbidden, discord.NotFound):
+                pass
 
     async def on_command_error(self, ctx, error):
         """Handles common command errors gracefully."""
@@ -116,10 +130,37 @@ class MarciaBot(commands.Bot):
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
             return
-        
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
+            return
+        if isinstance(error, commands.CommandOnCooldown):
+            retry = int(error.retry_after)
+            await ctx.send(f"⏳ Cooldown active. Try again in {retry}s.")
+            return
+
         logger.error(f"Uncaught Error: {error}")
 
+    async def _load_cogs(self):
+        """Load all discovered cogs in a deterministic order."""
+        COG_DIR.mkdir(exist_ok=True)
+        for cog_path in sorted(COG_DIR.glob("*.py")):
+            if cog_path.stem.startswith("__"):
+                continue
+
+            try:
+                await self.load_extension(f"cogs.{cog_path.stem}")
+                logger.info("✔ Module Loaded: %s", cog_path.name)
+            except Exception:
+                logger.exception("✘ Module Failed [%s]", cog_path.name)
+
 async def main():
+    configure_logging()
+    logger.info("📂 Working directory pinned to %s", BASE_DIR)
+
+    if not TOKEN:
+        logger.error("✘ TOKEN missing. Please set the TOKEN environment variable before starting Marcia OS.")
+        return
+
     bot = MarciaBot()
 
     # Administrative Sync command for Slash Commands (Owner only)

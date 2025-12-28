@@ -5,12 +5,13 @@ FEATURES: Persistent missions, guild-isolated templates, auto-cleanup, and help 
 """
 import discord
 from discord.ext import commands, tasks
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from database import (
-    add_mission, delete_mission, get_all_active_missions, 
-    add_template, get_templates, delete_template
+    add_mission, delete_mission, get_all_active_missions,
+    add_template, get_templates, delete_template, get_upcoming_missions
 )
+from time_utils import now_game, game_to_utc, format_game
 
 logger = logging.getLogger('MarciaOS.Missions')
 
@@ -26,11 +27,11 @@ class Missions(commands.Cog):
     async def mission_updater(self):
         """Background task to check for expired missions."""
         missions = await get_all_active_missions()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         for m in missions:
             try:
-                target_utc = datetime.fromisoformat(m['target_utc'])
+                target_utc = datetime.fromisoformat(m['target_utc']).astimezone(timezone.utc)
                 if now >= target_utc:
                     await delete_mission(m['guild_id'], m['codename'])
                     logger.info(f"🗑️ Mission {m['codename']} expired in guild {m['guild_id']}")
@@ -40,72 +41,31 @@ class Missions(commands.Cog):
     @commands.command()
     async def mission_help(self, ctx):
         """Information and tips on using the Mission System."""
-        embed = discord.Embed(
-            title="🛰️ Marcia OS | Mission Intelligence",
-            description=(
-                "The Mission system allows you to track real-time objectives across the server. "
-                "All data is saved to the SQL databank, so timers continue even if the bot restarts."
-            ),
-            color=0x3498db
+        await ctx.send(
+            "📡 Mission system has been folded into `!event`. Use `!event` to create ops or `!events` to list them."
         )
-        embed.add_field(
-            name="💡 Pro-Tip: Templates", 
-            value="Use `!template_add` for recurring missions like 'Weekly Scavenge'. You can then copy-paste the text when adding a live mission.",
-            inline=False
-        )
-        embed.add_field(
-            name="🕒 Time Logic", 
-            value="Missions use **Hours** as the input. If you want a mission to end in 2 days, use `48`.",
-            inline=False
-        )
-        embed.add_field(
-            name="📋 Command Summary",
-            value=(
-                "`!mission_add [name] [hours] [text]` - Start a timer\n"
-                "`!missions` - View active objectives\n"
-                "`!template_add [name] [text]` - Save a preset"
-            )
-        )
-        await ctx.send(embed=embed)
 
     @commands.command()
     @commands.has_permissions(manage_messages=True)
     async def mission_add(self, ctx, codename: str, hours: int, *, description: str = "No details provided."):
-        """Adds a new mission countdown."""
-        target_utc = datetime.utcnow() + timedelta(hours=hours)
-        target_display = target_utc.strftime("%Y-%m-%d %H:%M UTC")
-
-        await add_mission(
-            ctx.guild.id, 
-            codename.upper(), 
-            description, 
-            target_display, 
-            target_utc.isoformat()
-        )
-
-        embed = discord.Embed(
-            title=f"🚀 MISSION DEPLOYED: {codename.upper()}",
-            description=description,
-            color=0x3498db
-        )
-        embed.add_field(name="Ends At", value=f"`{target_display}`")
-        embed.set_footer(text=f"Deployment Sector: {ctx.guild.name}")
-        await ctx.send(embed=embed)
+        """Legacy alias for creating an event."""
+        await ctx.send("Use `!event` for the guided event creator (UTC-2 clock).")
 
     @commands.command()
     async def missions(self, ctx):
         """Lists active missions for this server."""
-        all_m = await get_all_active_missions()
-        local_m = [m for m in all_m if m['guild_id'] == ctx.guild.id]
-
-        if not local_m:
+        upcoming = await get_upcoming_missions(ctx.guild.id, limit=10)
+        if not upcoming:
             return await ctx.send("📡 *No active missions detected in this sector.*")
 
         embed = discord.Embed(title="🛰️ Active Tactical Missions", color=0x2ecc71)
-        for m in local_m:
+        for m in upcoming:
+            target_utc = datetime.fromisoformat(m['target_utc']).astimezone(timezone.utc)
+            display_time = format_game(target_utc)
+            tag_line = f" | {m['tag']}" if m.get('tag') else ""
             embed.add_field(
-                name=f"🔹 {m['codename']}", 
-                value=f"**Info:** {m['description']}\n**Target:** `{m['target_time']}`", 
+                name=f"🔹 {m['codename']}{tag_line}",
+                value=f"**Info:** {m['description']}\n**Target:** `{display_time}`",
                 inline=False
             )
         await ctx.send(embed=embed)
@@ -115,7 +75,7 @@ class Missions(commands.Cog):
     async def mission_delete(self, ctx, codename: str):
         """Removes a mission manually."""
         await delete_mission(ctx.guild.id, codename.upper())
-        await ctx.send(f"✅ Mission **{codename.upper()}** has been scrubbed from the logs.")
+        await ctx.send(f"✅ Mission **{codename.upper()}** has been scrubbed from the logs. (Use `!event_remove` next time.)")
 
     @commands.command()
     @commands.has_permissions(manage_messages=True)
