@@ -139,9 +139,14 @@ class FishSelect(discord.ui.Select):
         await self.cog.re_anchor_menu(it.channel)
 
 class FishControlView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=None)
-        self.cog = cog
+    def __init__(self, owner, persistent=False):
+        super().__init__(timeout=None if persistent else 60)
+        self.owner = owner
+
+    def _get_cog(self, interaction: discord.Interaction):
+        if isinstance(self.owner, commands.Bot):
+            return interaction.client.get_cog("Trading")
+        return self.owner
 
     @discord.ui.button(label="Add Spare", style=discord.ButtonStyle.success, custom_id="f_add", emoji="📦")
     async def add_btn(self, it, btn): await self.prompt_rarity(it, 'add')
@@ -174,8 +179,11 @@ class FishControlView(discord.ui.View):
         embed.add_field(name="🎣 REQUESTS", value=sort_by_rarity(wanted_list), inline=False)
         view = discord.ui.View()
         b1, b2 = discord.ui.Button(label="Remove Spares", style=discord.ButtonStyle.danger), discord.ui.Button(label="Remove Wanted", style=discord.ButtonStyle.danger)
-        b1.callback = lambda i: i.response.send_message("Select spare:", view=ManageListingsView(self.cog, it.guild.id, it.user.id, "extras", data), ephemeral=True)
-        b2.callback = lambda i: i.response.send_message("Select request:", view=ManageListingsView(self.cog, it.guild.id, it.user.id, "wanted", data), ephemeral=True)
+        cog = self._get_cog(it)
+        if not cog:
+            return await it.response.send_message("📡 Trading module is still booting. Try again in a moment.", ephemeral=True)
+        b1.callback = lambda i: i.response.send_message("Select spare:", view=ManageListingsView(cog, it.guild.id, it.user.id, "extras", data), ephemeral=True)
+        b2.callback = lambda i: i.response.send_message("Select request:", view=ManageListingsView(cog, it.guild.id, it.user.id, "wanted", data), ephemeral=True)
         view.add_item(b1); view.add_item(b2)
         await it.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -183,7 +191,10 @@ class FishControlView(discord.ui.View):
         view = discord.ui.View()
         select = discord.ui.Select(placeholder="Select Rarity...", options=[discord.SelectOption(label=t, value=t) for t in FISH_CONFIG.keys()])
         async def cb(i):
-            v2 = discord.ui.View(); v2.add_item(FishSelect(select.values[0], mode, self.cog))
+            cog = self._get_cog(i)
+            if not cog:
+                return await i.response.send_message("📡 Trading module is still booting. Try again in a moment.", ephemeral=True)
+            v2 = discord.ui.View(); v2.add_item(FishSelect(select.values[0], mode, cog))
             await i.response.edit_message(content=f"📡 Filtering {select.values[0]}...", view=v2)
         select.callback = cb
         view.add_item(select)
@@ -215,15 +226,45 @@ class Trading(commands.Cog):
             logger.error(f"Error in Trading on_ready: {e}")
 
     async def re_anchor_menu(self, channel):
+        """Refresh the trading terminal without spamming the channel."""
+        target_msg = None
+        duplicates = []
         try:
-            async for m in channel.history(limit=25):
+            async for m in channel.history(limit=50):
                 if m.author.id == self.bot.user.id and m.embeds and "Fish-Link" in (m.embeds[0].title or ""):
-                    await m.delete()
-        except: pass
+                    if target_msg is None:
+                        target_msg = m
+                    else:
+                        duplicates.append(m)
+        except Exception:
+            target_msg = None
+
         data = await db_get_trade_data(channel.guild.id)
-        embed = discord.Embed(title="📡 Fish-Link Trading Terminal", description=f"{get_status_report(data)}\n\n**--- OPTIONS ---**\n📦 **Add Spare** | 🔍 **Find Fish**\n🤝 **Matches** | 📜 **My Listings**", color=0x2b2d31)
+        embed = discord.Embed(
+            title="📡 Fish-Link Trading Terminal",
+            description=(
+                f"{get_status_report(data)}\n\n**--- OPTIONS ---**\n"
+                "📦 **Add Spare** | 🔍 **Find Fish**\n🤝 **Matches** | 📜 **My Listings**"
+            ),
+            color=0x2b2d31,
+        )
         embed.set_footer(text=f"Sector: {channel.guild.name} | Marcia OS")
-        await channel.send(embed=embed, view=FishControlView(self))
+        view = FishControlView(self.bot, persistent=True)
+
+        if target_msg:
+            try:
+                await target_msg.edit(embed=embed, view=view)
+            except Exception:
+                target_msg = None
+
+        if not target_msg:
+            await channel.send(embed=embed, view=view)
+
+        for msg in duplicates:
+            try:
+                await msg.delete()
+            except Exception:
+                pass
 
     @commands.command(name="setup_trade")
     @commands.has_permissions(manage_guild=True)
