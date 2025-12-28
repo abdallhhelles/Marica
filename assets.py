@@ -86,6 +86,24 @@ WELCOME_VARIATIONS = [
     "🧊 Keep it cool, {mention}. Get your clearance in <#{verify}> and memorize the <#{rules}>."
 ]
 
+FAREWELL_VARIATIONS = [
+    "📡 Signal faded. {name} slipped off the grid—hope they left a trail we can use.",
+    "🚪 Airlock cycled. {name} walked out. If you see them, tell them Marcia still owes them a glare.",
+    "🌑 Night swallowed {name}. Stay sharp; empty bunks make raiders curious.",
+    "🛰️ Uplink lost on {name}. Archive their ID and seal their locker.",
+    "⚡ Static spike and then silence—{name} disconnected. Guess we're lighter on rations now.",
+    "💀 No pulse on {name}'s band. Maybe they'll ghost back in when they're hungry.",
+    "📜 {name} signed out. Someone grab their coffee mug before it molds.",
+    "🪫 Power down: {name}'s badge just went dark. Keep the door chained.",
+    "🚁 {name} took the last transport. We keep moving without them.",
+    "🔒 {name} logged off. If they return, they better know the new access codes.",
+    "🧭 Tracker shows {name} heading into the dust. Hope they packed filters.",
+    "🧊 Cold trail—{name} is out. Less noise on comms, at least.",
+    "⚙️ One less gear in the machine: {name} bailed. Adjust formation.",
+    "🕯️ {name} stepped into the dark. Leave a light on if you’re feeling generous.",
+    "📦 Inventory updated: {name} removed. More bunk space for the rest of us.",
+]
+
 TIMED_REMINDERS = {
     60: [
         ("📡 **T-MINUS 60:**", "Operation `{name}` is an hour out. Check your mags and calibrate your scopes."),
