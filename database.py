@@ -17,6 +17,7 @@ logger = logging.getLogger('MarciaOS.DB')
 
 # Persist data alongside the codebase (data/marcia_os.db) unless overridden.
 _BASE_DIR = Path(__file__).resolve().parent
+# Default to an ignored data/ directory beside the codebase so git pulls never replace live data.
 _DEFAULT_PATH = _BASE_DIR / "data" / "marcia_os.db"
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
 DB_PATH_OBJ = Path(_ENV_PATH).expanduser() if _ENV_PATH else _DEFAULT_PATH
@@ -499,6 +500,23 @@ async def guild_analytics_snapshot(guild_id: int) -> dict:
             "survivors_tracked": survivors_tracked,
             "items": total_items,
         }
+
+
+async def top_xp_leaderboard(guild_id: int, limit: int = 10):
+    """Return top survivors by XP for a guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT user_id, xp, level
+            FROM user_stats
+            WHERE guild_id = ?
+            ORDER BY xp DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            return await cursor.fetchall()
 
 # --- MISSION & TEMPLATE HELPERS ---
 

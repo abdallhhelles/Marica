@@ -4,6 +4,7 @@ USE: Multi-server RPG system (SQL Version).
 FEATURES: Per-server XP, Scavenging with Rarity, Prestige collectors, and Automated Data Migration.
 """
 import discord
+from discord import app_commands
 from discord.ext import commands
 import json
 import os
@@ -21,6 +22,7 @@ from database import (
     get_inventory,
     update_scavenge_time,
     transfer_inventory,
+    top_xp_leaderboard,
 )
 
 XP_PER_MESSAGE = 12
@@ -61,6 +63,19 @@ class Leveling(commands.Cog):
     def get_next_xp(self, level):
         """Escalating RPG leveling curve for endless progression."""
         return int(BASE_XP * (level ** 1.25))
+
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        base_error = getattr(error, "original", error)
+        if isinstance(base_error, app_commands.CommandOnCooldown):
+            retry = int(base_error.retry_after)
+            mins, secs = divmod(retry, 60)
+            content = f"⌛ Drones cooling down. Try again in {mins}m {secs}s."
+            if interaction.response.is_done():
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+            return
+        raise error
 
     async def apply_role_rewards(self, member, level):
         """Automatically assigns dynamic tier roles based on level reached."""
@@ -228,6 +243,28 @@ class Leveling(commands.Cog):
         await ctx.send(embed=embed)
         await self.check_collector_prestige(ctx.author)
         await self.check_collector_prestige(member)
+
+    @commands.hybrid_command(description="See the top survivors in this sector.")
+    async def leaderboard(self, ctx):
+        rows = await top_xp_leaderboard(ctx.guild.id)
+        if not rows:
+            return await ctx.send("📡 No data yet. Tell your crew to talk, trade, and scavenge.")
+
+        embed = discord.Embed(
+            title="🏆 Sector Leaderboard",
+            description="XP rankings are isolated per sector. Bragging rights stay local.",
+            color=0xe67e22,
+        )
+
+        lines = []
+        for idx, row in enumerate(rows, start=1):
+            member = ctx.guild.get_member(row["user_id"])
+            name = member.display_name if member else f"Unknown {row['user_id']}"
+            lines.append(f"**{idx}. {name}** — Level {row['level']} | {row['xp']} XP")
+
+        embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+        embed.set_footer(text="Data is saved between restarts. Keep grinding.")
+        await ctx.send(embed=embed)
 
     @commands.command()
     @commands.has_permissions(manage_guild=True)

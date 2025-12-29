@@ -11,7 +11,7 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 
 ## Core Systems
 ### Owner Control & Analytics
-- `/akrott` control panel (owner-only) shows XP leaders, global stats, rare drops, economy health, and per-server uptime/link status.
+- Private control panel (owner-only) shows XP leaders, global stats, rare drops, economy health, and per-server uptime/link status.
 - Command usage telemetry keeps a running count of message + slash executions, surfaced in the server health view.
 - Broadcast helpers let the owner DM guild leaders or target a channel with in-character announcements.
 
