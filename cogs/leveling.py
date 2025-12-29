@@ -174,20 +174,64 @@ class Leveling(commands.Cog):
         drone_name = random.choice(DRONE_NAMES)
         outcome = random.choice(SCAVENGE_OUTCOMES)
         flavor, xp_gain, item_name, rarity = outcome
-        
+
+        # Momentum bonus if the survivor keeps scavenging within 90 minutes of the last run
+        user_data = await get_user_stats(ctx.guild.id, ctx.author.id)
+        last_scavenge_ts = user_data["last_scavenge_ts"] if user_data else 0
+        recent_run = last_scavenge_ts and (time.time() - last_scavenge_ts) <= 5400
+        momentum_xp = random.randint(15, 35) if recent_run else 0
+
+        # Surprise bonus cache with reduced XP but extra loot
+        bonus_outcome = None
+        bonus_cache_xp = 0
+        if random.random() < 0.18:
+            bonus_outcome = random.choice(SCAVENGE_OUTCOMES)
+            _, bonus_xp, bonus_item, bonus_rarity = bonus_outcome
+            bonus_cache_xp = max(10, bonus_xp // 2)
+
+        total_xp = xp_gain + momentum_xp + bonus_cache_xp
+
         # Update database
-        await update_user_xp(ctx.guild.id, ctx.author.id, xp_gain)
+        await update_user_xp(ctx.guild.id, ctx.author.id, total_xp)
         await add_to_inventory(ctx.guild.id, ctx.author.id, item_name, 1, rarity)
+        if bonus_outcome:
+            await add_to_inventory(ctx.guild.id, ctx.author.id, bonus_item, 1, bonus_rarity)
         await update_scavenge_time(ctx.guild.id, ctx.author.id)
+
+        # Build richer scavenge report
+        color_choices = [RARITY_COLORS.get(rarity, 0x2b2d31)]
+        description_lines = [f"_{flavor}_"]
+        if recent_run:
+            description_lines.append("⚡ Momentum maintained — drones pushed harder on this route.")
+        if bonus_outcome:
+            description_lines.append(f"🎁 Bonus cache: {bonus_item} [{bonus_rarity}] was tucked under the rubble.")
+            color_choices.append(RARITY_COLORS.get(bonus_rarity, 0x2b2d31))
+        description_lines.append("")
+        description_lines.append(random.choice(MARICA_QUOTES))
 
         embed = discord.Embed(
             title=f"🚁 {drone_name.upper()} RETURNING...",
-            description=f"_{flavor}_\n\n{random.choice(MARICA_QUOTES)}",
-            color=RARITY_COLORS.get(rarity, 0x2b2d31)
+            description="\n".join(description_lines),
+            color=max(color_choices),
         )
         embed.add_field(name="Loot Found", value=f"**{item_name}**", inline=True)
         embed.add_field(name="Rarity", value=f"`{rarity}`", inline=True)
-        embed.add_field(name="Experience", value=f"+{xp_gain} XP", inline=True)
+
+        xp_lines = [f"Base haul: +{xp_gain} XP"]
+        if momentum_xp:
+            xp_lines.append(f"Momentum chain: +{momentum_xp} XP")
+        if bonus_cache_xp:
+            xp_lines.append(f"Salvage cache: +{bonus_cache_xp} XP")
+        xp_lines.append(f"Total: **+{total_xp} XP**")
+        embed.add_field(name="Experience", value="\n".join(xp_lines), inline=True)
+
+        if bonus_outcome:
+            embed.add_field(
+                name="Bonus Loot",
+                value=f"**{bonus_item}** [`{bonus_rarity}`]",
+                inline=True,
+            )
+
         embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
 
         await ctx.reply(embed=embed)

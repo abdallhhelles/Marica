@@ -26,7 +26,8 @@ FLAG_LANG = {
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.translator = Translator()
+        # Use the public translate.googleapis.com endpoint for better uptime
+        self.translator = Translator(service_urls=["translate.googleapis.com"])
 
     # --------------------
     # Shared builders
@@ -41,6 +42,7 @@ class Utility(commands.Cog):
                 "/setup_trade",
                 "/analytics",
                 "/status",
+                "/refresh_commands",
                 "/setup audit",
                 "/missions (legacy list)",
             ],
@@ -132,9 +134,9 @@ class Utility(commands.Cog):
         if str(payload.emoji) in FLAG_LANG:
             channel = self.bot.get_channel(payload.channel_id)
             msg = await channel.fetch_message(payload.message_id)
-            
-            if not msg.content: return 
-            
+
+            if not msg.content: return
+
             dest = FLAG_LANG[str(payload.emoji)]
             try:
                 # Running in thread to prevent blocking the bot
@@ -142,6 +144,10 @@ class Utility(commands.Cog):
                 await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{tr.text}", mention_author=False)
             except Exception as e:
                 print(f"Translation Error: {e}")
+                await msg.reply(
+                    "⚠️ Translation uplink failed. Try again in a moment or pick another flag.",
+                    mention_author=False,
+                )
 
     @commands.hybrid_command(name="commands", aliases=["help"], description="Show Marcia's command directory.")
     async def list_commands(self, ctx):
@@ -207,6 +213,26 @@ class Utility(commands.Cog):
             inline=False,
         )
         await ctx.send(embed=embed)
+
+    @commands.hybrid_command(
+        name="refresh_commands",
+        description="Force-refresh slash commands if Discord desyncs them.",
+    )
+    @commands.has_permissions(manage_guild=True)
+    async def refresh_commands(self, ctx):
+        """Allow admins to re-sync slash commands without restarting the bot."""
+        if getattr(ctx, "interaction", None):
+            await ctx.defer(ephemeral=True)
+        try:
+            synced = await self.bot.tree.sync()
+        except Exception as e:
+            await ctx.reply(f"❌ Sync failed: `{e}`", mention_author=False)
+            return
+
+        await ctx.reply(
+            f"📡 Command uplink refreshed. Registered `{len(synced)}` slash commands.",
+            mention_author=False,
+        )
 
     @commands.hybrid_command(description="Showcase Marcia's capabilities for new crews.")
     async def features(self, ctx):
