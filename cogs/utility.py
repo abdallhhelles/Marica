@@ -3,11 +3,15 @@ FILE: cogs/utility.py
 USE: General helper functions, information, and interactive dialogue.
 FEATURES: Flag-based translation, Polls, Reminders, and Marcia Manuals.
 """
-import discord
-from discord.ext import commands
 import asyncio
 import random
+from typing import Optional
+
+import discord
+from discord import app_commands
+from discord.ext import commands
 from googletrans import Translator
+
 from assets import MARICA_LORE, INTEL_DATABASE
 from database import get_settings, guild_analytics_snapshot
 
@@ -24,26 +28,11 @@ class Utility(commands.Cog):
         self.bot = bot
         self.translator = Translator()
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        """Translation Matrix: React with a flag to translate a message."""
-        if str(payload.emoji) in FLAG_LANG:
-            channel = self.bot.get_channel(payload.channel_id)
-            msg = await channel.fetch_message(payload.message_id)
-            
-            if not msg.content: return 
-            
-            dest = FLAG_LANG[str(payload.emoji)]
-            try:
-                # Running in thread to prevent blocking the bot
-                tr = await asyncio.to_thread(self.translator.translate, msg.content, dest=dest)
-                await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{tr.text}", mention_author=False)
-            except Exception as e:
-                print(f"Translation Error: {e}")
-
-    @commands.command(name="commands", aliases=["help"])
-    async def list_commands(self, ctx):
-        """Displays all available commands categorized by module."""
+    # --------------------
+    # Shared builders
+    # --------------------
+    def _build_command_directory(self, guild_name: Optional[str] = None) -> discord.Embed:
+        """Return a consistent command directory embed for both text and slash calls."""
         categories = {
             "Admin (UTC-2 Clock)": [
                 "/setup",
@@ -77,6 +66,9 @@ class Utility(commands.Cog):
                 "/setup_trade (admins)",
                 "Fish spares/wanted are per-server",
             ],
+            "Owner": [
+                "/akrott (owner console)",
+            ],
         }
 
         embed = discord.Embed(
@@ -87,8 +79,82 @@ class Utility(commands.Cog):
         for title, cmd_list in categories.items():
             embed.add_field(name=f"📦 {title}", value="\n".join(cmd_list), inline=False)
 
-        embed.set_footer(text=f"Marcia OS v3.0 | Sector: {ctx.guild.name}")
+        scope = guild_name or "your sector"
+        embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
+        return embed
+
+    def _build_feature_pack(self, guild_name: Optional[str] = None) -> discord.Embed:
+        """Return a consolidated feature showcase that mirrors the command list."""
+        embed = discord.Embed(
+            title="🛰️ Marcia OS | Feature Pack",
+            color=0x9b59b6,
+            description="What I handle for Dark War Survival alliances (UTC-2 clock).",
+        )
+        embed.add_field(
+            name="Operations",
+            value=(
+                "Event scheduler with `/event`, `/events`, and `/event_remove`, auto reminders, and `/status` health checks"
+                " for linked channels."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Trading Network",
+            value="Fish-Link terminal with auto re-anchoring, `/setup_trade` wiring, donor matching, and server-isolated boards.",
+            inline=False,
+        )
+        embed.add_field(
+            name="Progression & Loot",
+            value=(
+                "Hourly `/scavenge` runs, XP tiers, prestige rewards, `/profile` and `/inventory` tracking, and `/missions`"
+                " for legacy checklists."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Intel & Utilities",
+            value=(
+                "Flag emoji translation, `/intel` quick lookups, `/poll`, `/remindme`, `/clear`, `/manual`, `/tips`, and"
+                " `/support` to reach the handler."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Owner Ops",
+            value="Akrott-exclusive `/akrott` control panel with global dashboards and broadcast tools.",
+            inline=False,
+        )
+        scope = guild_name or "your sector"
+        embed.set_footer(text=f"Built for Dark War Survival alliances | Sector: {scope} | Clock: UTC-2")
+        return embed
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        """Translation Matrix: React with a flag to translate a message."""
+        if str(payload.emoji) in FLAG_LANG:
+            channel = self.bot.get_channel(payload.channel_id)
+            msg = await channel.fetch_message(payload.message_id)
+            
+            if not msg.content: return 
+            
+            dest = FLAG_LANG[str(payload.emoji)]
+            try:
+                # Running in thread to prevent blocking the bot
+                tr = await asyncio.to_thread(self.translator.translate, msg.content, dest=dest)
+                await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{tr.text}", mention_author=False)
+            except Exception as e:
+                print(f"Translation Error: {e}")
+
+    @commands.command(name="commands", aliases=["help"])
+    async def list_commands(self, ctx):
+        """Displays all available commands categorized by module."""
+        embed = self._build_command_directory(ctx.guild.name if ctx.guild else None)
         await ctx.send(embed=embed)
+
+    @app_commands.command(name="commands", description="Show Marcia's command directory.")
+    async def slash_commands(self, interaction: discord.Interaction):
+        embed = self._build_command_directory(interaction.guild.name if interaction.guild else None)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.command()
     async def manual(self, ctx):
@@ -147,36 +213,13 @@ class Utility(commands.Cog):
     @commands.command()
     async def features(self, ctx):
         """Showcase Marcia's capabilities for new crews."""
-        embed = discord.Embed(
-            title="🛰️ Marcia OS | Feature Pack",
-            color=0x9b59b6,
-            description="What I handle for Dark War Survival alliances (UTC-2 clock).",
-        )
-        embed.add_field(
-            name="Operations",
-            value="Guided `!event` creator with role pings, locations, and persistent reminders; members can check `!events` anytime.",
-            inline=False,
-        )
-        embed.add_field(
-            name="Trading Network",
-            value="Fish-Link terminal with automatic re-anchoring on restart, donor matching, and per-server isolation.",
-            inline=False,
-        )
-        embed.add_field(
-            name="Progression",
-            value=(
-                "Endless XP tiers with auto-created rank roles, hourly scavenging with rare/Mythic drops, "
-                "player-to-player loot trades, and prestige rewards for completing the catalog."
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="Intel & Utilities",
-            value="Flag emoji translation, polls, reminders, quick `!manual`, and `!status`/`!analytics` diagnostics.",
-            inline=False,
-        )
-        embed.set_footer(text="Built for Dark War Survival alliances | Clock: UTC-2")
+        embed = self._build_feature_pack(ctx.guild.name if ctx.guild else None)
         await ctx.send(embed=embed)
+
+    @app_commands.command(name="features", description="Show Marcia's feature set.")
+    async def slash_features(self, interaction: discord.Interaction):
+        embed = self._build_feature_pack(interaction.guild.name if interaction.guild else None)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.command()
     async def status(self, ctx):

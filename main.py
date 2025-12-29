@@ -84,6 +84,13 @@ class MarciaBot(commands.Bot):
         logger.info("🛰️ Initializing system modules...")
         await self._load_cogs()
 
+        # 3. Sync slash commands so `/` autocomplete stays fresh
+        try:
+            synced = await self.tree.sync()
+            logger.info("✔ Slash commands synced (%d registered).", len(synced))
+        except Exception:
+            logger.exception("✘ Slash command sync failed")
+
     async def on_ready(self):
         """Final system check once online."""
         logger.info("-" * 30)
