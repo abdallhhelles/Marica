@@ -168,6 +168,12 @@ class AkrottControl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    akrott = app_commands.Group(
+        name="akrott",
+        description="Owner control panel and administrative overview.",
+        default_permissions=discord.Permissions(administrator=True),
+    )
+
     def build_menu_embed(self) -> discord.Embed:
         description_lines = [f"{NUMBER_EMOJIS[i]} {label}" for i, (label, _) in enumerate(MENU_OPTIONS)]
         embed = discord.Embed(
@@ -436,16 +442,15 @@ class AkrottControl(commands.Cog):
         except Exception:
             return False
 
-    @app_commands.command(name="akrott", description="Owner-only control panel for cross-server analytics.")
-    @app_commands.default_permissions(administrator=True)
+    @akrott.command(name="panel", description="Owner-only control panel for cross-server analytics.")
     @app_commands.check(_owner_only)
-    async def akrott(self, interaction: discord.Interaction):
+    async def akrott_panel(self, interaction: discord.Interaction):
         await interaction.response.send_message(
             embed=self.build_menu_embed(), view=ControlPanelMenu(self), ephemeral=True
         )
 
-    @akrott.error
-    async def akrott_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    @akrott_panel.error
+    async def akrott_panel_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CheckFailure):
             await interaction.response.send_message(
                 "❌ Access denied. This console is reserved for akrott.", ephemeral=True
@@ -455,6 +460,44 @@ class AkrottControl(commands.Cog):
                 "⚠️ An unexpected error occurred while opening the console.", ephemeral=True
             )
 
+    @akrott.command(name="overview", description="Administrator-only network server overview.")
+    @app_commands.guild_only()
+    async def akrott_overview(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        lines = []
+        for guild in sorted(self.bot.guilds, key=lambda g: g.name.lower()):
+            owner = guild.owner or guild.get_member(guild.owner_id)
+            if owner is None:
+                try:
+                    owner = await guild.fetch_member(guild.owner_id)
+                except Exception:
+                    owner = None
+
+            owner_username = str(owner) if owner else "Unknown"
+            owner_display = owner.display_name if owner else "Unknown"
+            lines.append(
+                "\n".join(
+                    [
+                        f"**{guild.name}**",
+                        f"ID: `{guild.id}`",
+                        f"Members: {guild.member_count}",
+                        f"Owner: {owner_username}",
+                        f"Display: {owner_display}",
+                    ]
+                )
+            )
+
+        embed = discord.Embed(
+            title="🛰️ Network Server Overview",
+            description="\n\n".join(lines) if lines else "No servers connected.",
+            color=0x2b2d31,
+        )
+        embed.set_footer(text="Administrator access | Read-only overview")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(AkrottControl(bot))
+    cog = AkrottControl(bot)
+    await bot.add_cog(cog)
+    bot.tree.add_command(cog.akrott)
