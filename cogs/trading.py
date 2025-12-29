@@ -9,7 +9,7 @@ import aiosqlite
 import logging
 import asyncio
 from assets import FISH_NAMES
-from database import DB_PATH
+from database import DB_PATH, ensure_seed_trade_pool
 
 logger = logging.getLogger('MarciaOS.Trading')
 
@@ -18,6 +18,8 @@ FISH_CONFIG = {r: len(names) for r, names in FISH_NAMES.items()}
 # --- DATABASE HELPERS ---
 
 async def db_get_trade_data(guild_id):
+    # If listings were wiped by a host refresh, restore them from the bundled seed snapshot.
+    await ensure_seed_trade_pool(guild_id)
     data = {"extras": {}, "wanted": {}}
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(

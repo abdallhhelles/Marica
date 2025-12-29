@@ -3,6 +3,7 @@ FILE: database.py
 USE: Persistent storage for multi-server configurations and trading.
 FEATURES: Server-specific trading network, settings, and migration logic.
 """
+import json
 import os
 import shutil
 from pathlib import Path
@@ -15,20 +16,54 @@ from time_utils import GAME_TZ
 
 logger = logging.getLogger('MarciaOS.DB')
 
-# Persist data outside the code tree to survive restarts, git pulls, and container redeploys.
+# Persist data inside the repo's tracked data directory so pull/push cycles keep live state.
 _BASE_DIR = Path(__file__).resolve().parent
-_HOME_DEFAULT = Path.home() / "marcia_data" / "marcia_os.db"
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
-DB_PATH_OBJ = Path(_ENV_PATH) if _ENV_PATH else _HOME_DEFAULT
+_REPO_DATA_DIR = _BASE_DIR / "data"
+_REPO_DATA_PATH = _REPO_DATA_DIR / "marcia_os.db"
+
+# Legacy locations we may need to hoist into the repo copy when upgrading from older deployments.
+_OLD_HOME_STATE = Path.home() / ".local" / "share" / "marcia_os" / "marcia_os.db"
+_OLD_FALLBACK_DIR = Path.home() / "marcia_data" / "marcia_os.db"
+
+# --- BACKUP & RESTORE HELPERS ---
+
+def _latest_backup(db_path: Path) -> Path | None:
+    """Return the newest backup file if one exists."""
+    backups_dir = db_path.parent / "backups"
+    if not backups_dir.exists():
+        return None
+
+    backups = sorted(backups_dir.glob("marcia_os-*.db"))
+    return backups[-1] if backups else None
+
+
+def _restore_from_backup(db_path: Path) -> bool:
+    """Recover the live DB from the most recent backup, if present."""
+    latest = _latest_backup(db_path)
+    if not latest:
+        return False
+
+    try:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(latest, db_path)
+        logger.info("🧬 Restored database from backup %s", latest)
+        return True
+    except Exception as e:
+        logger.warning("Backup restore failed: %s", e)
+        return False
+
 
 def _migrate_legacy_db(dest: Path) -> None:
-    """Promote any older DB files into the persistent location if missing."""
+    """Promote older DB files into the canonical location if present."""
     legacy_paths = [
-        _BASE_DIR / "data" / "marcia_os.db",
-        _BASE_DIR / "marcia_os.db",
+        _OLD_FALLBACK_DIR,                               # earliest installs
+        _OLD_HOME_STATE,                                 # prior home-scoped persistence
+        _BASE_DIR / "marcia_os.db",                     # root-level drop-ins
+        _REPO_DATA_PATH,                                 # pre-persist repo data folder
     ]
     for src in legacy_paths:
-        if dest.exists() or not src.exists():
+        if dest.exists() or src.resolve() == dest.resolve() or not src.exists():
             continue
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -38,16 +73,69 @@ def _migrate_legacy_db(dest: Path) -> None:
         except Exception as e:
             logger.warning("Could not move legacy DB to %s: %s", dest, e)
 
-_migrate_legacy_db(DB_PATH_OBJ)
-DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
+
+def _snapshot_db(db_path: Path) -> None:
+    """Create timestamped backups so accidental wipes can be recovered after updates."""
+    if not db_path.exists():
+        return
+
+    backups_dir = db_path.parent / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    backup_file = backups_dir / f"marcia_os-{timestamp}.db"
+    try:
+        shutil.copy2(db_path, backup_file)
+        logger.info("🧰 DB backup created at %s", backup_file)
+
+        # Keep the five most recent backups to avoid filling disk.
+        existing = sorted(backups_dir.glob("marcia_os-*.db"))
+        for old in existing[:-5]:
+            old.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning("Backup skipped: %s", e)
+
+
+def _resolve_db_path() -> Path:
+    """Pick the repo-tracked DB location and ensure legacy data is brought forward."""
+    if _ENV_PATH:
+        chosen = Path(_ENV_PATH).expanduser()
+        chosen.parent.mkdir(parents=True, exist_ok=True)
+        return chosen
+
+    # Default to a tracked data folder so pull/push cycles keep live state inside Git.
+    _REPO_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    chosen = _REPO_DATA_PATH
+    if not chosen.exists():
+        _migrate_legacy_db(chosen)
+        if not chosen.exists():
+            # If nothing was migrated, attempt recovery from the newest backup.
+            _restore_from_backup(chosen)
+    elif chosen.stat().st_size == 0:
+        # Defensive: a zero-byte DB usually means a host crash mid-write.
+        restored = _restore_from_backup(chosen)
+        if restored:
+            logger.info("💾 Empty database healed from backup.")
+
+    return chosen
+
+
+DB_PATH_OBJ = _resolve_db_path()
+_snapshot_db(DB_PATH_OBJ)
 DB_PATH = str(DB_PATH_OBJ)
+
+# Seed fish trade listings captured before data loss so we can repopulate wiped hosts.
+_SEED_FILE = _BASE_DIR / "data" / "trade_seed.json"
+_SEED_DEFAULT_GUILD = int(os.getenv("MARCIA_SEED_GUILD_ID", "0"))
+_TRADE_SEED_CACHE: dict | None = None
 
 async def init_db():
     """Initializes the database and migrates legacy data if found."""
     logger.info("🗄️ Database path: %s", DB_PATH)
     async with aiosqlite.connect(DB_PATH) as db:
+        # Favor durability: WAL + synchronous FULL protects against host restarts while keeping writes snappy enough.
         await db.execute("PRAGMA journal_mode=WAL")
-        await db.execute("PRAGMA synchronous=NORMAL")
+        await db.execute("PRAGMA synchronous=FULL")
 
         # 1. Server Settings
         await db.execute('''
@@ -136,6 +224,16 @@ async def init_db():
             )
         ''')
 
+        # 7. Command usage telemetry (guild-isolated)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS command_usage (
+                guild_id INTEGER,
+                command_name TEXT,
+                uses INTEGER DEFAULT 0,
+                PRIMARY KEY (guild_id, command_name)
+            )
+        ''')
+
         # --- AUTOMATIC DATA MIGRATION ---
         try:
             # Check if old table exists
@@ -168,6 +266,10 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.commit()
+
+        # On a fresh DB, repopulate the preserved trade snapshot so lost fish listings return immediately.
+        if _SEED_DEFAULT_GUILD is not None:
+            await ensure_seed_trade_pool(_SEED_DEFAULT_GUILD)
 
         # Backfill newer mission fields for older installs
         await _ensure_column(db, "server_missions", "location", "TEXT")
@@ -203,11 +305,135 @@ async def mark_task_complete(task_name, date_str=None):
     today = date_str or datetime.now(GAME_TZ).strftime("%Y-%m-%d")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
-            INSERT INTO system_logs (task_name, last_run_date) 
-            VALUES (?, ?) 
+            INSERT INTO system_logs (task_name, last_run_date)
+            VALUES (?, ?)
             ON CONFLICT(task_name) DO UPDATE SET last_run_date = excluded.last_run_date
         ''', (task_name, today))
         await db.commit()
+
+# --- TRADE SEED HELPERS ---
+
+def _load_trade_seed() -> dict:
+    """Cache the fish trade seed snapshot stored in the repo."""
+    global _TRADE_SEED_CACHE
+    if _TRADE_SEED_CACHE is not None:
+        return _TRADE_SEED_CACHE
+
+    if not _SEED_FILE.exists():
+        _TRADE_SEED_CACHE = {}
+        return _TRADE_SEED_CACHE
+
+    try:
+        with _SEED_FILE.open("r", encoding="utf-8") as fp:
+            _TRADE_SEED_CACHE = json.load(fp)
+    except Exception as e:
+        logger.warning("Could not load trade seed file: %s", e)
+        _TRADE_SEED_CACHE = {}
+
+    return _TRADE_SEED_CACHE
+
+
+def _select_seed_for_guild(seed: dict, guild_id: int) -> dict:
+    """Return a merged seed map for a specific guild (guild-specific + global)."""
+    if not seed:
+        return {}
+
+    merged = {"extras": {}, "wanted": {}}
+
+    def _merge_into(target: dict, source: dict | None):
+        if not source:
+            return
+        for fid, users in source.items():
+            target.setdefault(fid, [])
+            target[fid].extend(users)
+
+    # Start with the global snapshot so all guilds get the preserved listings.
+    _merge_into(merged["extras"], seed.get("extras"))
+    _merge_into(merged["wanted"], seed.get("wanted"))
+
+    # Then add any guild-specific overrides to reinstate missing listings for that server only.
+    guild_map = seed.get("guilds", {})
+    _merge_into(merged["extras"], guild_map.get(str(guild_id), {}).get("extras"))
+    _merge_into(merged["wanted"], guild_map.get(str(guild_id), {}).get("wanted"))
+
+    return merged
+
+
+async def ensure_seed_trade_pool(guild_id: int, force: bool = False) -> bool:
+    """
+    Repopulate missing trade listings from the bundled seed data.
+
+    Returns True if any seed rows were added.
+    """
+    seed = _select_seed_for_guild(_load_trade_seed(), guild_id)
+    if not seed.get("extras") and not seed.get("wanted"):
+        return False
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT 1 FROM trade_pool WHERE guild_id = ? LIMIT 1", (guild_id,)) as cursor:
+            has_rows = await cursor.fetchone()
+
+        if has_rows and not force:
+            return False
+
+        try:
+            for cat, entries in seed.items():
+                db_type = "spare" if cat == "extras" else "find"
+                for fid, users in entries.items():
+                    rarity, idx_s = fid.split("-")
+                    idx = int(idx_s)
+                    for uid in users:
+                        await db.execute(
+                            '''
+                            INSERT OR IGNORE INTO trade_pool (guild_id, user_id, fish_rarity, fish_index, type)
+                            VALUES (?, ?, ?, ?, ?)
+                            ''',
+                            (guild_id, int(uid), rarity, idx, db_type),
+                        )
+            await db.commit()
+            logger.info("🐟 Seeded trade listings for guild %s", guild_id)
+            return True
+        except Exception as e:
+            logger.warning("Trade seed restore failed for guild %s: %s", guild_id, e)
+            return False
+
+# --- TELEMETRY HELPERS ---
+
+async def increment_command_usage(guild_id: int | None, command_name: str) -> None:
+    """Track how many times commands are executed per guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO command_usage (guild_id, command_name, uses)
+            VALUES (?, ?, 1)
+            ON CONFLICT(guild_id, command_name) DO UPDATE SET uses = uses + 1
+            ''',
+            (guild_id or 0, command_name),
+        )
+        await db.commit()
+
+
+async def command_usage_totals() -> tuple[int, str | None, int]:
+    """Return total uses plus the most-used command and its count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COALESCE(SUM(uses), 0) FROM command_usage") as cursor:
+            total_row = await cursor.fetchone()
+            total = total_row[0] if total_row else 0
+
+        async with db.execute(
+            """
+            SELECT command_name, uses
+            FROM command_usage
+            ORDER BY uses DESC
+            LIMIT 1
+            """
+        ) as cursor:
+            top_row = await cursor.fetchone()
+
+    if not top_row:
+        return total, None, 0
+
+    return total, top_row[0], top_row[1]
 
 # --- TRADING HELPERS ---
 
@@ -449,6 +675,23 @@ async def guild_analytics_snapshot(guild_id: int) -> dict:
             "survivors_tracked": survivors_tracked,
             "items": total_items,
         }
+
+
+async def top_xp_leaderboard(guild_id: int, limit: int = 10):
+    """Return top survivors by XP for a guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT user_id, xp, level
+            FROM user_stats
+            WHERE guild_id = ?
+            ORDER BY xp DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            return await cursor.fetchall()
 
 # --- MISSION & TEMPLATE HELPERS ---
 
