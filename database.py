@@ -15,19 +15,21 @@ from time_utils import GAME_TZ
 
 logger = logging.getLogger('MarciaOS.DB')
 
-# Persist data alongside the codebase (data/marcia_os.db) unless overridden.
+# Persist data outside the repo clone so code pulls never wipe live data.
 _BASE_DIR = Path(__file__).resolve().parent
-# Default to an ignored data/ directory beside the codebase so git pulls never replace live data.
-_DEFAULT_PATH = _BASE_DIR / "data" / "marcia_os.db"
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
-DB_PATH_OBJ = Path(_ENV_PATH).expanduser() if _ENV_PATH else _DEFAULT_PATH
+# Use a stable home-scoped location by default (e.g., /home/container/.local/share/marcia_os/marcia_os.db).
+_STATE_ROOT = Path(os.getenv("MARCIA_STATE_DIR", Path.home() / ".local" / "share" / "marcia_os"))
+_PERSISTENT_PATH = _STATE_ROOT / "marcia_os.db"
+_REPO_DATA_PATH = _BASE_DIR / "data" / "marcia_os.db"
 
 
 def _migrate_legacy_db(dest: Path) -> None:
     """Promote older DB files into the canonical location if present."""
     legacy_paths = [
-        Path.home() / "marcia_data" / "marcia_os.db",
-        _BASE_DIR / "marcia_os.db",
+        Path.home() / "marcia_data" / "marcia_os.db",  # earliest installs
+        _BASE_DIR / "marcia_os.db",                     # root-level drop-ins
+        _REPO_DATA_PATH,                                 # pre-persist repo data folder
     ]
     for src in legacy_paths:
         if dest.exists() or src.resolve() == dest.resolve() or not src.exists():
@@ -41,16 +43,55 @@ def _migrate_legacy_db(dest: Path) -> None:
             logger.warning("Could not move legacy DB to %s: %s", dest, e)
 
 
-_migrate_legacy_db(DB_PATH_OBJ)
-DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
+def _snapshot_db(db_path: Path) -> None:
+    """Create timestamped backups so accidental wipes can be recovered after updates."""
+    if not db_path.exists():
+        return
+
+    backups_dir = db_path.parent / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    backup_file = backups_dir / f"marcia_os-{timestamp}.db"
+    try:
+        shutil.copy2(db_path, backup_file)
+        logger.info("🧰 DB backup created at %s", backup_file)
+
+        # Keep the five most recent backups to avoid filling disk.
+        existing = sorted(backups_dir.glob("marcia_os-*.db"))
+        for old in existing[:-5]:
+            old.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning("Backup skipped: %s", e)
+
+
+def _resolve_db_path() -> Path:
+    """Pick a durable DB location and ensure legacy data is brought forward."""
+    if _ENV_PATH:
+        chosen = Path(_ENV_PATH).expanduser()
+        chosen.parent.mkdir(parents=True, exist_ok=True)
+        return chosen
+
+    # Prefer a home-level state directory that survives repo refreshes.
+    chosen = _PERSISTENT_PATH
+    chosen.parent.mkdir(parents=True, exist_ok=True)
+    if not chosen.exists():
+        _migrate_legacy_db(chosen)
+
+    return chosen
+
+
+DB_PATH_OBJ = _resolve_db_path()
+_snapshot_db(DB_PATH_OBJ)
 DB_PATH = str(DB_PATH_OBJ)
 
 async def init_db():
     """Initializes the database and migrates legacy data if found."""
     logger.info("🗄️ Database path: %s", DB_PATH)
     async with aiosqlite.connect(DB_PATH) as db:
+        # Favor durability: WAL + synchronous FULL protects against host restarts while keeping writes snappy enough.
         await db.execute("PRAGMA journal_mode=WAL")
-        await db.execute("PRAGMA synchronous=NORMAL")
+        await db.execute("PRAGMA synchronous=FULL")
 
         # 1. Server Settings
         await db.execute('''

@@ -25,6 +25,7 @@ def _pin_working_directory() -> None:
 _pin_working_directory()
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -144,7 +145,7 @@ class MarciaBot(commands.Bot):
             return
         if isinstance(error, commands.CommandOnCooldown):
             retry = int(error.retry_after)
-            await ctx.send(f"⏳ Cooldown active. Try again in {retry}s.")
+            await ctx.send(f"⌛ Drones cooling down. Try again in {retry}s.")
             return
 
         logger.error(f"Uncaught Error: {error}")
@@ -162,6 +163,30 @@ class MarciaBot(commands.Bot):
             await increment_command_usage(getattr(interaction.guild, "id", None), command.qualified_name)
         except Exception:
             logger.exception("Failed to record app command usage for %s", command.qualified_name)
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Mirror message-command error handling so slash users see one clear notice."""
+        if getattr(error, "handled", False):
+            return
+
+        if isinstance(error, app_commands.CommandOnCooldown):
+            retry = int(error.retry_after)
+            await interaction.response.send_message(
+                f"⌛ Drones cooling down. Try again in {retry}s.",
+                ephemeral=True,
+            )
+            error.handled = True
+            return
+
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message(
+                "❌ **Access Denied:** Insufficient clearance.",
+                ephemeral=True,
+            )
+            error.handled = True
+            return
+
+        logger.exception("Uncaught app command error", exc_info=error)
 
     async def _load_cogs(self):
         """Load all discovered cogs in a deterministic order."""
