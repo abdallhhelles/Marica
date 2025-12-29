@@ -50,9 +50,11 @@ class Leveling(commands.Cog):
             retry = int(error.retry_after)
             mins, secs = divmod(retry, 60)
             await ctx.send(f"⌛ Drones cooling down. Try again in {mins}m {secs}s.")
+            error.handled = True
             return
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send("❌ Usage: `!trade_item @member <quantity> <item name>`.")
+            error.handled = True
             return
         raise error
 
@@ -122,7 +124,7 @@ class Leveling(commands.Cog):
                 await target.send(embed=embed)
                 await self.apply_role_rewards(message.author, new_lvl)
 
-    @commands.command(name="profile", aliases=["p", "rank"])
+    @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
     async def profile(self, ctx, member: discord.Member = None):
         """Displays user level, XP, and inventory stats."""
         member = member or ctx.author
@@ -150,7 +152,7 @@ class Leveling(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def scavenge(self, ctx):
         """Deploy a drone to find loot and XP. (1 Hour Cooldown)"""
@@ -176,7 +178,7 @@ class Leveling(commands.Cog):
         await ctx.reply(embed=embed)
         await self.check_collector_prestige(ctx.author)
 
-    @commands.command(aliases=["inv", "stash"])
+    @commands.hybrid_command(aliases=["inv", "stash"], description="Show your current sector stash.")
     async def inventory(self, ctx):
         """Displays your current server-specific item stash."""
         rows = await get_inventory(ctx.guild.id, ctx.author.id)
@@ -200,7 +202,7 @@ class Leveling(commands.Cog):
         embed.set_footer(text="Items are local to this sector.")
         await ctx.send(embed=embed)
 
-    @commands.command(name="trade_item")
+    @commands.hybrid_command(name="trade_item", description="Trade scavenged loot to another survivor.")
     async def trade_item(self, ctx, member: discord.Member, quantity: int, *, item_name: str):
         """Trade scavenged loot to another survivor."""
         if member.bot:

@@ -15,20 +15,21 @@ from time_utils import GAME_TZ
 
 logger = logging.getLogger('MarciaOS.DB')
 
-# Persist data outside the code tree to survive restarts, git pulls, and container redeploys.
+# Persist data alongside the codebase (data/marcia_os.db) unless overridden.
 _BASE_DIR = Path(__file__).resolve().parent
-_HOME_DEFAULT = Path.home() / "marcia_data" / "marcia_os.db"
+_DEFAULT_PATH = _BASE_DIR / "data" / "marcia_os.db"
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
-DB_PATH_OBJ = Path(_ENV_PATH) if _ENV_PATH else _HOME_DEFAULT
+DB_PATH_OBJ = Path(_ENV_PATH).expanduser() if _ENV_PATH else _DEFAULT_PATH
+
 
 def _migrate_legacy_db(dest: Path) -> None:
-    """Promote any older DB files into the persistent location if missing."""
+    """Promote older DB files into the canonical location if present."""
     legacy_paths = [
-        _BASE_DIR / "data" / "marcia_os.db",
+        Path.home() / "marcia_data" / "marcia_os.db",
         _BASE_DIR / "marcia_os.db",
     ]
     for src in legacy_paths:
-        if dest.exists() or not src.exists():
+        if dest.exists() or src.resolve() == dest.resolve() or not src.exists():
             continue
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -37,6 +38,7 @@ def _migrate_legacy_db(dest: Path) -> None:
             break
         except Exception as e:
             logger.warning("Could not move legacy DB to %s: %s", dest, e)
+
 
 _migrate_legacy_db(DB_PATH_OBJ)
 DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
@@ -136,6 +138,16 @@ async def init_db():
             )
         ''')
 
+        # 7. Command usage telemetry (guild-isolated)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS command_usage (
+                guild_id INTEGER,
+                command_name TEXT,
+                uses INTEGER DEFAULT 0,
+                PRIMARY KEY (guild_id, command_name)
+            )
+        ''')
+
         # --- AUTOMATIC DATA MIGRATION ---
         try:
             # Check if old table exists
@@ -203,11 +215,49 @@ async def mark_task_complete(task_name, date_str=None):
     today = date_str or datetime.now(GAME_TZ).strftime("%Y-%m-%d")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
-            INSERT INTO system_logs (task_name, last_run_date) 
-            VALUES (?, ?) 
+            INSERT INTO system_logs (task_name, last_run_date)
+            VALUES (?, ?)
             ON CONFLICT(task_name) DO UPDATE SET last_run_date = excluded.last_run_date
         ''', (task_name, today))
         await db.commit()
+
+# --- TELEMETRY HELPERS ---
+
+async def increment_command_usage(guild_id: int | None, command_name: str) -> None:
+    """Track how many times commands are executed per guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO command_usage (guild_id, command_name, uses)
+            VALUES (?, ?, 1)
+            ON CONFLICT(guild_id, command_name) DO UPDATE SET uses = uses + 1
+            ''',
+            (guild_id or 0, command_name),
+        )
+        await db.commit()
+
+
+async def command_usage_totals() -> tuple[int, str | None, int]:
+    """Return total uses plus the most-used command and its count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COALESCE(SUM(uses), 0) FROM command_usage") as cursor:
+            total_row = await cursor.fetchone()
+            total = total_row[0] if total_row else 0
+
+        async with db.execute(
+            """
+            SELECT command_name, uses
+            FROM command_usage
+            ORDER BY uses DESC
+            LIMIT 1
+            """
+        ) as cursor:
+            top_row = await cursor.fetchone()
+
+    if not top_row:
+        return total, None, 0
+
+    return total, top_row[0], top_row[1]
 
 # --- TRADING HELPERS ---
 
