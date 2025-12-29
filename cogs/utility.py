@@ -4,13 +4,14 @@ USE: General helper functions, information, and interactive dialogue.
 FEATURES: Flag-based translation, Polls, Reminders, and Marcia Manuals.
 """
 import asyncio
+import logging
 import random
 from typing import Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
-from googletrans import Translator
+import httpx
 
 from assets import MARICA_LORE, INTEL_DATABASE
 from database import get_settings, guild_analytics_snapshot
@@ -26,8 +27,32 @@ FLAG_LANG = {
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Use the public translate.googleapis.com endpoint for better uptime
-        self.translator = Translator(service_urls=["translate.googleapis.com"])
+        self.http = httpx.AsyncClient(timeout=10.0)
+        self.log = logging.getLogger("MarciaOS.Utility")
+
+    async def cog_unload(self):
+        await self.http.aclose()
+
+    async def _translate_text(self, text: str, dest: str) -> str:
+        """Translate text using the public googleapis endpoint without googletrans."""
+        params = {
+            "client": "gtx",
+            "sl": "auto",
+            "tl": dest,
+            "dt": "t",
+            "q": text,
+        }
+
+        response = await self.http.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params=params,
+        )
+        response.raise_for_status()
+
+        payload = response.json()
+        # API returns [[['translated sentence', 'original sentence', ...], ...], ...]
+        translated_chunks = payload[0]
+        return "".join(chunk[0] for chunk in translated_chunks if chunk and chunk[0])
 
     # --------------------
     # Shared builders
@@ -139,11 +164,10 @@ class Utility(commands.Cog):
 
             dest = FLAG_LANG[str(payload.emoji)]
             try:
-                # Running in thread to prevent blocking the bot
-                tr = await asyncio.to_thread(self.translator.translate, msg.content, dest=dest)
-                await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{tr.text}", mention_author=False)
+                translated = await self._translate_text(msg.content, dest)
+                await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{translated}", mention_author=False)
             except Exception as e:
-                print(f"Translation Error: {e}")
+                self.log.warning("Translation Error: %s", e)
                 await msg.reply(
                     "⚠️ Translation uplink failed. Try again in a moment or pick another flag.",
                     mention_author=False,
@@ -305,19 +329,55 @@ class Utility(commands.Cog):
         else:
             await ctx.reply("❌ Topic not found in the archives.")
 
-    @commands.hybrid_command(description="Create a poll. /poll 'Title' option1 option2 ...")
+    @commands.command(description="Create a poll. /poll 'Title' option1 option2 ...")
     async def poll(self, ctx, question: str, *options):
-        """Create a poll. Usage: !poll \"Title\" Yes No Maybe"""
+        """Message-based polls with up to 10 options."""
         if not options:
             msg = await ctx.send(embed=discord.Embed(title="🗳️ POLL", description=question, color=0x00ffcc))
             await msg.add_reaction("✅")
             await msg.add_reaction("❌")
-        else:
-            if len(options) > 10: return await ctx.send("Limit 10.")
-            reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-            desc = "\n".join([f"{reactions[i]} {opt}" for i, opt in enumerate(options)])
-            msg = await ctx.send(embed=discord.Embed(title=f"🗳️ {question}", description=desc, color=0x00ffcc))
-            for i in range(len(options)): await msg.add_reaction(reactions[i])
+            return
+
+        if len(options) > 10:
+            return await ctx.send("Limit 10.")
+
+        reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        desc = "\n".join([f"{reactions[i]} {opt}" for i, opt in enumerate(options)])
+        msg = await ctx.send(embed=discord.Embed(title=f"🗳️ {question}", description=desc, color=0x00ffcc))
+        for i in range(len(options)):
+            await msg.add_reaction(reactions[i])
+
+    @app_commands.command(name="poll", description="Create a poll with up to five options.")
+    @app_commands.describe(
+        question="Poll question",
+        option1="First option",
+        option2="Second option",
+        option3="Third option (optional)",
+        option4="Fourth option (optional)",
+        option5="Fifth option (optional)",
+    )
+    async def slash_poll(
+        self,
+        interaction: discord.Interaction,
+        question: str,
+        option1: str,
+        option2: str,
+        option3: Optional[str] = None,
+        option4: Optional[str] = None,
+        option5: Optional[str] = None,
+    ):
+        options = [option1, option2]
+        for opt in (option3, option4, option5):
+            if opt:
+                options.append(opt)
+
+        reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+        desc = "\n".join([f"{reactions[i]} {opt}" for i, opt in enumerate(options)])
+        embed = discord.Embed(title=f"🗳️ {question}", description=desc, color=0x00ffcc)
+        await interaction.response.send_message(embed=embed)
+        poll_message = await interaction.original_response()
+        for i in range(len(options)):
+            await poll_message.add_reaction(reactions[i])
 
     @commands.hybrid_command(description="DM reminder after X minutes. /remindme 10 Wake up")
     async def remindme(self, ctx, minutes: int, *, task: str):

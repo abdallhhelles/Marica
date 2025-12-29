@@ -491,6 +491,9 @@ async def get_user_stats(guild_id: int, user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await _ensure_user(db, guild_id, user_id)
+        # Persist the default row so read-only calls (like /profile) don't return empty
+        # data until a write operation happens later in the session.
+        await db.commit()
         async with db.execute(
             """
             SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts
