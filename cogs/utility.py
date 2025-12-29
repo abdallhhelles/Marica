@@ -24,6 +24,67 @@ FLAG_LANG = {
     "🇦🇪": "ar", "🇹🇷": "tr", "🇮🇳": "hi", "🇧🇷": "pt"
 }
 
+# Single source of truth for the in-bot showcase. Keep this list aligned with SHOWCASE.md
+# so Discord users see the same capabilities advertised in documentation/screenshots.
+SHOWCASE_SECTIONS = [
+    {
+        "name": "Lore Snapshot",
+        "lines": [
+            "Former underground hacker who now guards ops and data with her drone fleet (Sparky, Vulture-7, Ghost-Link).",
+            "Protects refugees while keeping morale high with banter; rewards banshees with barbs if they break server safety.",
+            "Keeps all survivor data isolated per server for security—no cross-pollination.",
+        ],
+    },
+    {
+        "name": "Core Systems",
+        "lines": [
+            "📡 Operations (UTC-2 clock): `/event`, `/events`, `/event_remove`, `/setup`, `/audit`, `/status`, `/analytics`.",
+            "🎣 Trading | Fish-Link: `/setup_trade`, `/trade_item`, `/trade`, `/find`, `/my listings`, `/who has my wanted`.",
+            "🛰️ Progression & Scavenging: hourly `/scavenge`, `/leaderboard`, `/profile`, and `/inventory` with set bonuses.",
+        ],
+    },
+    {
+        "name": "Welcomes, Departures, & Automation",
+        "lines": [
+            "`/setup` auto-wires welcome/verify/rules and reminder channels; `/setup audit` reviews links in-line.",
+            "Auto role: optional helper to assign a base role on join for visibility.",
+            "Analytics dashboards summarize command usage so admins know what crews lean on most.",
+        ],
+    },
+    {
+        "name": "Command Directory (quick view)",
+        "lines": [
+            "Admin: `/setup`, `/audit`, `/setup_trade`, `/refresh_commands`, `/event`, `/events`, `/analytics`, `/status`.",
+            "Members: `/events`, `/scavenge`, `/profile`, `/inventory`, flag-reaction translation, `/trade_item`, `/features`, `/commands`.",
+            "Trading: Fish-Link buttons + `/trade_item`.",
+        ],
+    },
+    {
+        "name": "How to Deploy",
+        "lines": [
+            "1) With Mod permissions, run `/setup` to link channels and optional auto-role. Add `/setup audit` to verify wiring.",
+            "2) Launch `/setup_trade` in a trade channel to pin the Fish-Link terminal (seeded in SQLite for persistence).",
+            "3) Run `/event` for mission planning; auto reminders are stored in SQLite with crash-safe WAL mode.",
+            "4) Add event timers to `/scavenge`, `/trade`, and `/trade_item` to keep grind and trades moving.",
+        ],
+    },
+    {
+        "name": "Data & Safety",
+        "lines": [
+            "Events, reminders, and trading data live in `marcia_os.db`; backups are WAL-friendly and seed data restores wiped hosts.",
+            "Trade data is isolated per server; analytics and reminders never cross guild boundaries.",
+        ],
+    },
+    {
+        "name": "Tips for Server Admins",
+        "lines": [
+            "Use `/setup audit` before events to highlight missing channel links or permissions.",
+            "Use `/status` for a fast signal check; `/analytics` shows per-server command usage and trading depth.",
+            "Welcome, rules, and event channels can be kept minimal—Marcia formats reminders and intel automatically.",
+        ],
+    },
+]
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -78,7 +139,7 @@ class Utility(commands.Cog):
                 "/leaderboard",
                 "/missions (legacy list)",
                 "/manual",
-                "/features",
+                "/features / /showcase",
                 "/commands",
             ],
             "Utility": [
@@ -108,47 +169,27 @@ class Utility(commands.Cog):
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
         return embed
 
-    def _build_feature_pack(self, guild_name: Optional[str] = None) -> discord.Embed:
-        """Return a consolidated feature showcase that mirrors the command list."""
+    def _build_showcase_embed(self, guild_name: Optional[str] = None) -> discord.Embed:
+        """
+        Return a consolidated showcase of Marcia's systems.
+
+        The copy mirrors SHOWCASE.md to keep Discord help embeds aligned with the
+        reference screenshot/documentation. Update SHOWCASE_SECTIONS if features
+        are added/removed so both stay in sync.
+        """
         embed = discord.Embed(
-            title="🛰️ Marcia OS | Feature Pack",
+            title="🛰️ Marcia OS | Showcase",
             color=0x9b59b6,
-            description="What I handle for Dark War Survival alliances (UTC-2 clock).",
+            description="Freedom is expensive. Don't waste my time for free. — Marcia",
         )
-        embed.add_field(
-            name="Operations",
-            value=(
-                "Event scheduler with `/event`, `/events`, and `/event_remove`, auto reminders, and `/status` health checks"
-                " for linked channels."
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="Trading Network",
-            value="Fish-Link terminal with auto re-anchoring, `/setup_trade` wiring, donor matching, and server-isolated boards.",
-            inline=False,
-        )
-        embed.add_field(
-            name="Progression & Loot",
-            value=(
-                "Hourly `/scavenge` runs, XP tiers, prestige rewards, `/profile`, `/inventory`, `/leaderboard` tracking, and"
-                " `/missions` for legacy checklists."
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="Intel & Utilities",
-            value=(
-                "Flag emoji translation, `/intel` quick lookups, `/poll`, `/remindme`, `/clear`, `/manual`, `/tips`, and"
-                " `/support` to reach the handler."
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="Owner Ops",
-            value="Private dashboards and broadcast tools accessible only to the handler.",
-            inline=False,
-        )
+
+        for section in SHOWCASE_SECTIONS:
+            embed.add_field(
+                name=section["name"],
+                value="\n".join(section["lines"]),
+                inline=False,
+            )
+
         scope = guild_name or "your sector"
         embed.set_footer(text=f"Built for Dark War Survival alliances | Sector: {scope} | Clock: UTC-2")
         return embed
@@ -258,15 +299,20 @@ class Utility(commands.Cog):
             mention_author=False,
         )
 
-    @commands.hybrid_command(description="Showcase Marcia's capabilities for new crews.")
+    @commands.hybrid_command(description="Showcase Marcia's capabilities for new crews.", aliases=["showcase"])
     async def features(self, ctx):
         """Showcase Marcia's capabilities for new crews."""
-        embed = self._build_feature_pack(ctx.guild.name if ctx.guild else None)
+        embed = self._build_showcase_embed(ctx.guild.name if ctx.guild else None)
         await ctx.send(embed=embed)
 
     @app_commands.command(name="features", description="Show Marcia's feature set.")
     async def slash_features(self, interaction: discord.Interaction):
-        embed = self._build_feature_pack(interaction.guild.name if interaction.guild else None)
+        embed = self._build_showcase_embed(interaction.guild.name if interaction.guild else None)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="showcase", description="Showcase Marcia's capabilities for new crews.")
+    async def slash_showcase(self, interaction: discord.Interaction):
+        embed = self._build_showcase_embed(interaction.guild.name if interaction.guild else None)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.hybrid_command(description="System diagnostic and latency check.")
