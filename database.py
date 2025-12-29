@@ -15,20 +15,21 @@ from time_utils import GAME_TZ
 
 logger = logging.getLogger('MarciaOS.DB')
 
-# Persist data outside the code tree to survive restarts, git pulls, and container redeploys.
+# Persist data alongside the codebase (data/marcia_os.db) unless overridden.
 _BASE_DIR = Path(__file__).resolve().parent
-_HOME_DEFAULT = Path.home() / "marcia_data" / "marcia_os.db"
+_DEFAULT_PATH = _BASE_DIR / "data" / "marcia_os.db"
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
-DB_PATH_OBJ = Path(_ENV_PATH) if _ENV_PATH else _HOME_DEFAULT
+DB_PATH_OBJ = Path(_ENV_PATH).expanduser() if _ENV_PATH else _DEFAULT_PATH
+
 
 def _migrate_legacy_db(dest: Path) -> None:
-    """Promote any older DB files into the persistent location if missing."""
+    """Promote older DB files into the canonical location if present."""
     legacy_paths = [
-        _BASE_DIR / "data" / "marcia_os.db",
+        Path.home() / "marcia_data" / "marcia_os.db",
         _BASE_DIR / "marcia_os.db",
     ]
     for src in legacy_paths:
-        if dest.exists() or not src.exists():
+        if dest.exists() or src.resolve() == dest.resolve() or not src.exists():
             continue
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -37,6 +38,7 @@ def _migrate_legacy_db(dest: Path) -> None:
             break
         except Exception as e:
             logger.warning("Could not move legacy DB to %s: %s", dest, e)
+
 
 _migrate_legacy_db(DB_PATH_OBJ)
 DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
