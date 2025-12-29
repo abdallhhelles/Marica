@@ -30,7 +30,7 @@ from dotenv import load_dotenv
 
 from assets import MARICA_QUOTES
 from cogs.trading import FishControlView
-from database import init_db
+from database import init_db, increment_command_usage
 
 logger = logging.getLogger("MarciaOS")
 
@@ -132,8 +132,10 @@ class MarciaBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         """Handles common command errors gracefully."""
-        if isinstance(error, commands.CommandNotFound): 
-            return 
+        if getattr(error, "handled", False):
+            return
+        if isinstance(error, commands.CommandNotFound):
+            return
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
             return
@@ -146,6 +148,20 @@ class MarciaBot(commands.Bot):
             return
 
         logger.error(f"Uncaught Error: {error}")
+
+    async def on_command_completion(self, ctx):
+        """Log message-command usage for analytics dashboards."""
+        try:
+            await increment_command_usage(getattr(ctx.guild, "id", None), ctx.command.qualified_name)
+        except Exception:
+            logger.exception("Failed to record command usage for %s", ctx.command)
+
+    async def on_app_command_completion(self, interaction: discord.Interaction, command: discord.app_commands.Command):
+        """Log slash-command usage so `/` analytics stay accurate."""
+        try:
+            await increment_command_usage(getattr(interaction.guild, "id", None), command.qualified_name)
+        except Exception:
+            logger.exception("Failed to record app command usage for %s", command.qualified_name)
 
     async def _load_cogs(self):
         """Load all discovered cogs in a deterministic order."""

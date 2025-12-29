@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 import aiosqlite
 
-from database import DB_PATH
+from database import DB_PATH, command_usage_totals
 
 OWNER_ID = 135894953027960833
 
@@ -124,8 +124,9 @@ class BroadcastDMModal(discord.ui.Modal, title="Owner update DM"):
         self.add_item(self.message)
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         sent, failed = await self.cog.broadcast_owner_dm(str(self.message.value))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Sent to {sent} owners. {'⚠️ ' + str(failed) + ' failed.' if failed else ''}",
             ephemeral=True,
         )
@@ -155,11 +156,12 @@ class AnnouncementModal(discord.ui.Modal, title="Channel announcement"):
             await interaction.response.send_message("❌ Invalid channel ID.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
         success = await self.cog.send_channel_announcement(cid, str(self.message.value))
         if success:
-            await interaction.response.send_message("📣 Announcement dispatched.", ephemeral=True)
+            await interaction.followup.send("📣 Announcement dispatched.", ephemeral=True)
         else:
-            await interaction.response.send_message("❌ Failed to send announcement.", ephemeral=True)
+            await interaction.followup.send("❌ Failed to send announcement.", ephemeral=True)
 
 
 class AkrottControl(commands.Cog):
@@ -340,16 +342,43 @@ class AkrottControl(commands.Cog):
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM settings ORDER BY server_name ASC") as cursor:
                 rows = await cursor.fetchall()
+            async with db.execute("SELECT COUNT(DISTINCT user_id) FROM user_stats") as cursor:
+                total_users = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM user_inventory") as cursor:
+                inventory_rows = (await cursor.fetchone())[0]
 
         if not rows:
             embed.description = "No servers configured yet. Run /setup to link sectors."
             return embed
 
+        command_total, top_command, top_uses = await command_usage_totals()
+
+        embed.add_field(name="Connected Servers", value=str(len(rows)), inline=True)
+        embed.add_field(name="Tracked Survivors", value=str(total_users), inline=True)
+        embed.add_field(name="Commands Used", value=str(command_total), inline=True)
+        if top_command:
+            embed.add_field(
+                name="Top Command",
+                value=f"{top_command} ({top_uses} uses)",
+                inline=True,
+            )
+        embed.add_field(name="Inventory Rows", value=str(inventory_rows), inline=True)
+
         lines = []
         for row in rows:
-            configured_links = sum(1 for key in ("event_channel_id", "chat_channel_id", "welcome_channel_id", "rules_channel_id", "verify_channel_id") if row.get(key))
+            configured_links = sum(
+                1
+                for key in (
+                    "event_channel_id",
+                    "chat_channel_id",
+                    "welcome_channel_id",
+                    "rules_channel_id",
+                    "verify_channel_id",
+                )
+                if row[key]
+            )
             status = "✅ Stable" if configured_links >= 4 else "⚠️ Needs links"
-            name = row.get("server_name") or f"Guild {row['guild_id']}"
+            name = row["server_name"] or f"Guild {row['guild_id']}"
             lines.append(f"{name} — {status} ({configured_links}/5 channels linked)")
 
         embed.description = "\n".join(lines[:15])

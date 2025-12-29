@@ -138,6 +138,16 @@ async def init_db():
             )
         ''')
 
+        # 7. Command usage telemetry (guild-isolated)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS command_usage (
+                guild_id INTEGER,
+                command_name TEXT,
+                uses INTEGER DEFAULT 0,
+                PRIMARY KEY (guild_id, command_name)
+            )
+        ''')
+
         # --- AUTOMATIC DATA MIGRATION ---
         try:
             # Check if old table exists
@@ -205,11 +215,49 @@ async def mark_task_complete(task_name, date_str=None):
     today = date_str or datetime.now(GAME_TZ).strftime("%Y-%m-%d")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
-            INSERT INTO system_logs (task_name, last_run_date) 
-            VALUES (?, ?) 
+            INSERT INTO system_logs (task_name, last_run_date)
+            VALUES (?, ?)
             ON CONFLICT(task_name) DO UPDATE SET last_run_date = excluded.last_run_date
         ''', (task_name, today))
         await db.commit()
+
+# --- TELEMETRY HELPERS ---
+
+async def increment_command_usage(guild_id: int | None, command_name: str) -> None:
+    """Track how many times commands are executed per guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO command_usage (guild_id, command_name, uses)
+            VALUES (?, ?, 1)
+            ON CONFLICT(guild_id, command_name) DO UPDATE SET uses = uses + 1
+            ''',
+            (guild_id or 0, command_name),
+        )
+        await db.commit()
+
+
+async def command_usage_totals() -> tuple[int, str | None, int]:
+    """Return total uses plus the most-used command and its count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COALESCE(SUM(uses), 0) FROM command_usage") as cursor:
+            total_row = await cursor.fetchone()
+            total = total_row[0] if total_row else 0
+
+        async with db.execute(
+            """
+            SELECT command_name, uses
+            FROM command_usage
+            ORDER BY uses DESC
+            LIMIT 1
+            """
+        ) as cursor:
+            top_row = await cursor.fetchone()
+
+    if not top_row:
+        return total, None, 0
+
+    return total, top_row[0], top_row[1]
 
 # --- TRADING HELPERS ---
 
