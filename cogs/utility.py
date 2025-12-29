@@ -197,33 +197,46 @@ class Utility(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """Translation Matrix: React with a flag to translate a message."""
-        if str(payload.emoji) in FLAG_LANG:
-            channel = self.bot.get_channel(payload.channel_id)
-            msg = await channel.fetch_message(payload.message_id)
+        emoji = str(payload.emoji)
+        if emoji not in FLAG_LANG:
+            return
 
-            if not msg.content: return
-
-            dest = FLAG_LANG[str(payload.emoji)]
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel is None:
             try:
-                translated = await self._translate_text(msg.content, dest)
-                await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{translated}", mention_author=False)
-            except Exception as e:
-                self.log.warning("Translation Error: %s", e)
-                await msg.reply(
-                    "⚠️ Translation uplink failed. Try again in a moment or pick another flag.",
-                    mention_author=False,
-                )
+                channel = await self.bot.fetch_channel(payload.channel_id)
+            except discord.HTTPException as e:
+                self.log.warning("Translation channel fetch failed: %s", e)
+                return
+
+        try:
+            msg = await channel.fetch_message(payload.message_id)
+        except discord.HTTPException as e:
+            self.log.warning("Translation message fetch failed: %s", e)
+            return
+
+        if not msg.content:
+            return
+
+        if msg.author.bot:
+            return
+
+        dest = FLAG_LANG[emoji]
+        try:
+            translated = await self._translate_text(msg.content, dest)
+            await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{translated}", mention_author=False)
+        except Exception as e:
+            self.log.warning("Translation Error: %s", e)
+            await msg.reply(
+                "⚠️ Translation uplink failed. Try again in a moment or pick another flag.",
+                mention_author=False,
+            )
 
     @commands.hybrid_command(name="commands", aliases=["help"], description="Show Marcia's command directory.")
     async def list_commands(self, ctx):
         """Displays all available commands categorized by module."""
         embed = self._build_command_directory(ctx.guild.name if ctx.guild else None)
         await ctx.send(embed=embed)
-
-    @app_commands.command(name="commands", description="Show Marcia's command directory.")
-    async def slash_commands(self, interaction: discord.Interaction):
-        embed = self._build_command_directory(interaction.guild.name if interaction.guild else None)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.hybrid_command(description="Marcia's quick-start operations manual.")
     async def manual(self, ctx):
@@ -304,11 +317,6 @@ class Utility(commands.Cog):
         """Showcase Marcia's capabilities for new crews."""
         embed = self._build_showcase_embed(ctx.guild.name if ctx.guild else None)
         await ctx.send(embed=embed)
-
-    @app_commands.command(name="features", description="Show Marcia's feature set.")
-    async def slash_features(self, interaction: discord.Interaction):
-        embed = self._build_showcase_embed(interaction.guild.name if interaction.guild else None)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="showcase", description="Showcase Marcia's capabilities for new crews.")
     async def slash_showcase(self, interaction: discord.Interaction):
