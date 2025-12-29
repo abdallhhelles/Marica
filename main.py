@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 
 from assets import MARICA_QUOTES
 from cogs.trading import FishControlView
-from database import init_db, increment_command_usage
+from database import init_db, increment_command_usage, is_channel_ignored
 
 logger = logging.getLogger("MarciaOS")
 
@@ -109,6 +109,9 @@ class MarciaBot(commands.Bot):
         if message.author.bot or not message.guild:
             return
 
+        if await is_channel_ignored(message.guild.id, message.channel.id):
+            return
+
         # 1. Personality Logic: Replies to mentions or direct replies
         is_bot_mentioned = self.user.mentioned_in(message) and not message.mention_everyone
         is_reply = (message.reference and 
@@ -163,6 +166,24 @@ class MarciaBot(commands.Bot):
             await increment_command_usage(getattr(interaction.guild, "id", None), command.qualified_name)
         except Exception:
             logger.exception("Failed to record app command usage for %s", command.qualified_name)
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        if (
+            interaction.guild
+            and interaction.channel
+            and await is_channel_ignored(interaction.guild.id, interaction.channel.id)
+        ):
+            if interaction.type is discord.InteractionType.application_command:
+                try:
+                    await interaction.response.send_message(
+                        "🚫 Marcia is muted in this channel. Try another sector.",
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
+            return
+
+        await super().on_interaction(interaction)
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""

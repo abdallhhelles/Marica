@@ -9,7 +9,7 @@ import discord
 from discord.ext import commands
 
 from assets import FAREWELL_VARIATIONS, WELCOME_VARIATIONS
-from database import get_settings
+from database import get_settings, is_channel_ignored
 
 
 class Automation(commands.Cog):
@@ -41,7 +41,7 @@ class Automation(commands.Cog):
         if not target_channel and settings.get('chat_channel_id'):
             target_channel = self.bot.get_channel(settings['chat_channel_id'])
 
-        if target_channel:
+        if target_channel and not await is_channel_ignored(guild.id, target_channel.id):
             verify_id = settings.get('verify_channel_id') or settings.get('welcome_channel_id') or target_channel.id
             rules_id = settings.get('rules_channel_id') or settings.get('chat_channel_id') or target_channel.id
             line = random.choice(WELCOME_VARIATIONS).format(
@@ -65,7 +65,7 @@ class Automation(commands.Cog):
         if not target_channel and settings.get('chat_channel_id'):
             target_channel = self.bot.get_channel(settings['chat_channel_id'])
 
-        if target_channel:
+        if target_channel and not await is_channel_ignored(member.guild.id, target_channel.id):
             farewell = random.choice(FAREWELL_VARIATIONS).format(name=member.display_name)
             await target_channel.send(farewell)
 
