@@ -14,7 +14,7 @@ from time_utils import now_game, game_to_utc, format_game, utc_to_game
 from database import (
     get_settings, get_templates, add_template, delete_template,
     get_all_active_missions, get_upcoming_missions, add_mission, delete_mission,
-    can_run_daily_task, mark_task_complete
+    can_run_daily_task, mark_task_complete, is_channel_ignored
 )
 
 logger = logging.getLogger('MarciaOS.Events')
@@ -123,7 +123,7 @@ class Events(commands.Cog):
                 
                 if await can_run_daily_task(task_id, date_str=date_key):
                     chan = guild.get_channel(settings['event_channel_id'])
-                    if chan:
+                    if chan and not await is_channel_ignored(guild.id, chan.id):
                         info = DUEL_DATA.get(now_server.weekday(), "No data.")
                         await chan.send(f"@everyone\n📡 **MARCIA OS | DUEL DIRECTIVE**\n\n{info}")
                         await mark_task_complete(task_id, date_str=date_key)
@@ -251,7 +251,7 @@ class Events(commands.Cog):
             settings = await get_settings(ctx.guild.id)
             if settings and settings['event_channel_id']:
                 chan = ctx.guild.get_channel(settings['event_channel_id'])
-                if chan:
+                if chan and not await is_channel_ignored(ctx.guild.id, chan.id):
                     await chan.send("🛰️ **New Operation Logged**", embed=preview)
         except Exception:
             await ctx.author.send("❌ Use: `YYYY-MM-DD HH:MM`.")
@@ -272,7 +272,7 @@ class Events(commands.Cog):
                 continue
 
             chan = self.bot.get_channel(settings['event_channel_id'])
-            if not chan:
+            if not chan or await is_channel_ignored(guild_id, chan.id):
                 continue
 
             drone = random.choice(DRONE_NAMES)

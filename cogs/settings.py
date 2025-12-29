@@ -8,7 +8,13 @@ import random
 import discord
 from discord.ext import commands
 from assets import MARICA_QUOTES
-from database import update_setting, get_settings
+from database import (
+    add_ignored_channel,
+    get_ignored_channels,
+    get_settings,
+    remove_ignored_channel,
+    update_setting,
+)
 
 
 def _marica_line(prefix: str | None = None) -> str:
@@ -87,6 +93,7 @@ class Settings(commands.Cog):
     async def setup(self, ctx):
         """Displays the current server configuration and setup status."""
         data = await get_settings(ctx.guild.id)
+        ignored_channels = await get_ignored_channels(ctx.guild.id)
 
         embed = discord.Embed(
             title="📡 MARCIA OS | System Diagnostics",
@@ -115,11 +122,24 @@ class Settings(commands.Cog):
                 "`/setup events #channel` - Mission/Event broadcasts\n"
                 "`/setup chat #channel` - Main interaction zone\n"
                 "`/setup role @role` - Auto-role for arrivals\n"
+                "`/setup ignore_add #channel` - Block Marcia in a channel\n"
+                "`/setup ignore_remove #channel` - Remove a blocked channel\n"
                 "`/setup help` - View detailed setup guide\n"
                 "Tap the button below for a guided DM setup with Marcia."
             ),
             inline=False
         )
+
+        if ignored_channels:
+            readable = []
+            for cid in ignored_channels:
+                channel = ctx.guild.get_channel(cid)
+                readable.append(channel.mention if channel else f"`#deleted ({cid})`")
+            embed.add_field(
+                name="🚫 Ignored Channels",
+                value=", ".join(readable),
+                inline=False,
+            )
 
         await ctx.send(embed=embed, view=SetupWizardView(self))
 
@@ -216,6 +236,18 @@ class Settings(commands.Cog):
     async def setup_verify(self, ctx, channel: discord.TextChannel):
         await update_setting(ctx.guild.id, "verify_channel_id", channel.id, ctx.guild.name)
         await ctx.send(f"✅ **Verification Sector** linked to {channel.mention}.")
+
+    @setup.command(name="ignore_add")
+    @commands.has_permissions(manage_guild=True)
+    async def setup_ignore_add(self, ctx, channel: discord.TextChannel):
+        await add_ignored_channel(ctx.guild.id, channel.id)
+        await ctx.send(f"🚫 Marcia will stay silent in {channel.mention}.")
+
+    @setup.command(name="ignore_remove")
+    @commands.has_permissions(manage_guild=True)
+    async def setup_ignore_remove(self, ctx, channel: discord.TextChannel):
+        await remove_ignored_channel(ctx.guild.id, channel.id)
+        await ctx.send(f"✅ Channel removed from the ignore list: {channel.mention}.")
 
     @setup.command(name="role")
     @commands.has_permissions(manage_guild=True)

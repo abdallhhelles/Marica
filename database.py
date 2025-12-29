@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import logging
 
 from time_utils import GAME_TZ
+from assets import REMINDER_TEMPLATE_STARTER
 
 logger = logging.getLogger('MarciaOS.DB')
 
@@ -152,7 +153,15 @@ async def init_db():
                 server_offset_hours INTEGER DEFAULT -2
             )
         ''')
-        
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS ignored_channels (
+                guild_id INTEGER,
+                channel_id INTEGER,
+                PRIMARY KEY (guild_id, channel_id)
+            )
+        ''')
+
         # 2. Trading Table (Modern Structure)
         await db.execute('''
             CREATE TABLE IF NOT EXISTS trade_pool (
@@ -173,6 +182,21 @@ async def init_db():
                 template_name TEXT,
                 description TEXT,
                 PRIMARY KEY (guild_id, template_name)
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS reminder_templates (
+                guild_id INTEGER,
+                template_name TEXT,
+                body TEXT,
+                PRIMARY KEY (guild_id, template_name)
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS reminder_template_seed (
+                guild_id INTEGER PRIMARY KEY
             )
         ''')
 
@@ -474,6 +498,47 @@ async def update_setting(guild_id, column, value, server_name=None):
         ''', (guild_id, server_name, value))
         await db.commit()
 
+
+async def get_ignored_channels(guild_id: int) -> list[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT channel_id FROM ignored_channels WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [r[0] for r in rows]
+
+
+async def is_channel_ignored(guild_id: int, channel_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT 1 FROM ignored_channels WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        ) as cursor:
+            return await cursor.fetchone() is not None
+
+
+async def add_ignored_channel(guild_id: int, channel_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT OR IGNORE INTO ignored_channels (guild_id, channel_id)
+            VALUES (?, ?)
+            ''',
+            (guild_id, channel_id),
+        )
+        await db.commit()
+
+
+async def remove_ignored_channel(guild_id: int, channel_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM ignored_channels WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+            
+        )
+        await db.commit()
+
 # --- LEVELING HELPERS ---
 
 async def _ensure_user(db: aiosqlite.Connection, guild_id: int, user_id: int) -> None:
@@ -695,6 +760,67 @@ async def top_xp_leaderboard(guild_id: int, limit: int = 10):
             (guild_id, limit),
         ) as cursor:
             return await cursor.fetchall()
+
+# --- REMINDER TEMPLATE HELPERS ---
+
+
+async def seed_reminder_templates(guild_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT 1 FROM reminder_template_seed WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            if await cursor.fetchone():
+                return
+
+        for template in REMINDER_TEMPLATE_STARTER:
+            await db.execute(
+                '''
+                INSERT OR IGNORE INTO reminder_templates (guild_id, template_name, body)
+                VALUES (?, ?, ?)
+                ''',
+                (guild_id, template["template_name"], template["body"]),
+            )
+
+        await db.execute(
+            "INSERT OR IGNORE INTO reminder_template_seed (guild_id) VALUES (?)",
+            (guild_id,),
+        )
+        await db.commit()
+
+
+async def get_reminder_templates(guild_id: int):
+    await seed_reminder_templates(guild_id)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM reminder_templates WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def add_reminder_template(guild_id: int, name: str, body: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO reminder_templates (guild_id, template_name, body)
+            VALUES (?, ?, ?)
+            ON CONFLICT(guild_id, template_name) DO UPDATE SET body = excluded.body
+            ''',
+            (guild_id, name, body),
+        )
+        await db.commit()
+
+
+async def delete_reminder_template(guild_id: int, name: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM reminder_templates WHERE guild_id = ? AND template_name = ?",
+            (guild_id, name),
+        )
+        await db.commit()
+
 
 # --- MISSION & TEMPLATE HELPERS ---
 

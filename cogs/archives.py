@@ -8,6 +8,8 @@ import os
 import json
 import datetime
 
+from database import is_channel_ignored
+
 class Archives(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -101,7 +103,11 @@ class Archives(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if not message.guild or not self._should_log_message(message.guild):
+        if (
+            not message.guild
+            or not self._should_log_message(message.guild)
+            or await is_channel_ignored(message.guild.id, message.channel.id)
+        ):
             return
 
         channel_info = f"#{message.channel.name} ({message.channel.id})"
@@ -115,7 +121,11 @@ class Archives(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if not before.guild or not self._should_log_message(before.guild):
+        if (
+            not before.guild
+            or not self._should_log_message(before.guild)
+            or await is_channel_ignored(before.guild.id, before.channel.id)
+        ):
             return
 
         channel_info = f"#{before.channel.name} ({before.channel.id})"
@@ -131,7 +141,11 @@ class Archives(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        if not message.guild or not self._should_log_message(message.guild):
+        if (
+            not message.guild
+            or not self._should_log_message(message.guild)
+            or await is_channel_ignored(message.guild.id, message.channel.id)
+        ):
             return
 
         channel_info = f"#{message.channel.name} ({message.channel.id})"

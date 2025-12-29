@@ -23,6 +23,7 @@ from database import (
     update_scavenge_time,
     transfer_inventory,
     top_xp_leaderboard,
+    is_channel_ignored,
 )
 
 XP_PER_MESSAGE = 12
@@ -95,8 +96,10 @@ class Leveling(commands.Cog):
         """Passive XP gain with a 60-second anti-spam cooldown."""
         if message.author.bot or not message.guild:
             return
-        
+
         gid, uid = message.guild.id, message.author.id
+        if await is_channel_ignored(gid, message.channel.id):
+            return
         user_data = await get_user_stats(gid, uid)
         
         current_ts = time.time()

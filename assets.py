@@ -128,6 +128,17 @@ FAREWELL_VARIATIONS = [
     "📦 Inventory updated: {name} removed. More bunk space for the rest of us.",
 ]
 
+REMINDER_TEMPLATE_STARTER = [
+    {
+        "template_name": "Teleport cities back to the hive",
+        "body": "Reminder: teleport your cities back to the hive before the window closes.",
+    },
+    {
+        "template_name": "Check ingame mail",
+        "body": "Reminder: check your in-game mail and clear any pending reports.",
+    },
+]
+
 TIMED_REMINDERS = {
     60: [
         ("📡 **T-MINUS 60:**", "Operation `{name}` is an hour out. Check your mags and calibrate your scopes."),
