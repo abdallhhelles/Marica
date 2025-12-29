@@ -10,6 +10,11 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 - Drones patrol every linked sector; her voice and quotes keep broadcasts human, not robotic.
 
 ## Core Systems
+### Owner Control & Analytics
+- Private control panel (owner-only) shows XP leaders, global stats, rare drops, economy health, and per-server uptime/link status.
+- Command usage telemetry keeps a running count of message + slash executions, surfaced in the server health view.
+- Broadcast helpers let the owner DM guild leaders or target a channel with in-character announcements.
+
 ### Operations (UTC-2 clock)
 - `/event` DM wizard asks for codename, instructions, UTC-2 start, optional location, and role ping.
 - Reminder cadence: 60/30/15/3/0 minutes with Marcia’s quips, drone call-signs, and only the 60-minute alert carrying full directives/location context.
@@ -46,9 +51,9 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 5. Encourage members to `/scavenge`, `/trade_item`, and climb ranks for prestige.
 
 ## Data & Safety
-- All settings, events, leveling, and trading data are stored per guild in `marcia_os.db`; no cross-server leakage.
+- All settings, events, leveling, telemetry, and trading data are stored per guild in `data/marcia_os.db`; no cross-server leakage.
 - Allowed mentions are scoped to avoid unwanted @everyone pings; role pings are opt-in during event creation.
-- Uses WAL-mode SQLite for durability and recovery after restarts.
+- Uses WAL-mode SQLite and startup migrations so data survives restarts, updates, and re-deploys.
 
 ## Tips for Server Admins
 - Keep an events channel with minimal chatter to highlight reminders.
