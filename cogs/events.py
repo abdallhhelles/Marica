@@ -133,7 +133,7 @@ class Events(commands.Cog):
         try: await self.bot.change_presence(activity=discord.Game(name=random.choice(MARICA_STATUSES)))
         except: pass
 
-    @commands.command(name="event")
+    @commands.hybrid_command(name="event", description="Open Marcia's mission control console.")
     @commands.has_permissions(manage_guild=True)
     async def event_cmd(self, ctx):
         """Opens the Mission Control menu."""
@@ -149,7 +149,7 @@ class Events(commands.Cog):
         embed.set_footer(text="Marcia drones on standby. Keep it sharp.")
         await ctx.send(embed=embed, view=EventMenuView(self, ctx))
 
-    @commands.command(name="events")
+    @commands.hybrid_command(name="events", description="See upcoming operations for this sector.")
     async def list_events(self, ctx):
         """Members can view upcoming events in UTC-2."""
         missions = await get_upcoming_missions(ctx.guild.id, limit=10)
@@ -173,7 +173,7 @@ class Events(commands.Cog):
             )
         await ctx.send(embed=embed)
 
-    @commands.command(name="event_remove")
+    @commands.hybrid_command(name="event_remove", description="Delete a scheduled operation.")
     @commands.has_permissions(manage_guild=True)
     async def event_remove(self, ctx, *, codename: str):
         """Remove a scheduled event."""

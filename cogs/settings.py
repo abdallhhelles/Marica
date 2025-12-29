@@ -82,7 +82,7 @@ class Settings(commands.Cog):
             return f"{role.mention} (🚫 **MOVE ME ABOVE**)", "perms"
         return f"{role.mention} (✅ **ACTIVE**)", "ok"
 
-    @commands.group(name="setup", invoke_without_command=True)
+    @commands.hybrid_group(name="setup", invoke_without_command=True, description="Configure Marcia's channels, roles, and offset.")
     @commands.has_permissions(manage_guild=True)
     async def setup(self, ctx):
         """Displays the current server configuration and setup status."""

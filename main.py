@@ -25,12 +25,13 @@ def _pin_working_directory() -> None:
 _pin_working_directory()
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
 from assets import MARICA_QUOTES
 from cogs.trading import FishControlView
-from database import init_db
+from database import init_db, increment_command_usage
 
 logger = logging.getLogger("MarciaOS")
 
@@ -132,8 +133,10 @@ class MarciaBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         """Handles common command errors gracefully."""
-        if isinstance(error, commands.CommandNotFound): 
-            return 
+        if getattr(error, "handled", False):
+            return
+        if isinstance(error, commands.CommandNotFound):
+            return
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
             return
@@ -142,10 +145,48 @@ class MarciaBot(commands.Bot):
             return
         if isinstance(error, commands.CommandOnCooldown):
             retry = int(error.retry_after)
-            await ctx.send(f"⏳ Cooldown active. Try again in {retry}s.")
+            await ctx.send(f"⌛ Drones cooling down. Try again in {retry}s.")
             return
 
         logger.error(f"Uncaught Error: {error}")
+
+    async def on_command_completion(self, ctx):
+        """Log message-command usage for analytics dashboards."""
+        try:
+            await increment_command_usage(getattr(ctx.guild, "id", None), ctx.command.qualified_name)
+        except Exception:
+            logger.exception("Failed to record command usage for %s", ctx.command)
+
+    async def on_app_command_completion(self, interaction: discord.Interaction, command: discord.app_commands.Command):
+        """Log slash-command usage so `/` analytics stay accurate."""
+        try:
+            await increment_command_usage(getattr(interaction.guild, "id", None), command.qualified_name)
+        except Exception:
+            logger.exception("Failed to record app command usage for %s", command.qualified_name)
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Mirror message-command error handling so slash users see one clear notice."""
+        if getattr(error, "handled", False):
+            return
+
+        if isinstance(error, app_commands.CommandOnCooldown):
+            retry = int(error.retry_after)
+            await interaction.response.send_message(
+                f"⌛ Drones cooling down. Try again in {retry}s.",
+                ephemeral=True,
+            )
+            error.handled = True
+            return
+
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message(
+                "❌ **Access Denied:** Insufficient clearance.",
+                ephemeral=True,
+            )
+            error.handled = True
+            return
+
+        logger.exception("Uncaught app command error", exc_info=error)
 
     async def _load_cogs(self):
         """Load all discovered cogs in a deterministic order."""

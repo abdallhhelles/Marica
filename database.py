@@ -15,20 +15,24 @@ from time_utils import GAME_TZ
 
 logger = logging.getLogger('MarciaOS.DB')
 
-# Persist data outside the code tree to survive restarts, git pulls, and container redeploys.
+# Persist data outside the repo clone so code pulls never wipe live data.
 _BASE_DIR = Path(__file__).resolve().parent
-_HOME_DEFAULT = Path.home() / "marcia_data" / "marcia_os.db"
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
-DB_PATH_OBJ = Path(_ENV_PATH) if _ENV_PATH else _HOME_DEFAULT
+# Use a stable home-scoped location by default (e.g., /home/container/.local/share/marcia_os/marcia_os.db).
+_STATE_ROOT = Path(os.getenv("MARCIA_STATE_DIR", Path.home() / ".local" / "share" / "marcia_os"))
+_PERSISTENT_PATH = _STATE_ROOT / "marcia_os.db"
+_REPO_DATA_PATH = _BASE_DIR / "data" / "marcia_os.db"
+
 
 def _migrate_legacy_db(dest: Path) -> None:
-    """Promote any older DB files into the persistent location if missing."""
+    """Promote older DB files into the canonical location if present."""
     legacy_paths = [
-        _BASE_DIR / "data" / "marcia_os.db",
-        _BASE_DIR / "marcia_os.db",
+        Path.home() / "marcia_data" / "marcia_os.db",  # earliest installs
+        _BASE_DIR / "marcia_os.db",                     # root-level drop-ins
+        _REPO_DATA_PATH,                                 # pre-persist repo data folder
     ]
     for src in legacy_paths:
-        if dest.exists() or not src.exists():
+        if dest.exists() or src.resolve() == dest.resolve() or not src.exists():
             continue
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -38,16 +42,56 @@ def _migrate_legacy_db(dest: Path) -> None:
         except Exception as e:
             logger.warning("Could not move legacy DB to %s: %s", dest, e)
 
-_migrate_legacy_db(DB_PATH_OBJ)
-DB_PATH_OBJ.parent.mkdir(parents=True, exist_ok=True)
+
+def _snapshot_db(db_path: Path) -> None:
+    """Create timestamped backups so accidental wipes can be recovered after updates."""
+    if not db_path.exists():
+        return
+
+    backups_dir = db_path.parent / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    backup_file = backups_dir / f"marcia_os-{timestamp}.db"
+    try:
+        shutil.copy2(db_path, backup_file)
+        logger.info("🧰 DB backup created at %s", backup_file)
+
+        # Keep the five most recent backups to avoid filling disk.
+        existing = sorted(backups_dir.glob("marcia_os-*.db"))
+        for old in existing[:-5]:
+            old.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning("Backup skipped: %s", e)
+
+
+def _resolve_db_path() -> Path:
+    """Pick a durable DB location and ensure legacy data is brought forward."""
+    if _ENV_PATH:
+        chosen = Path(_ENV_PATH).expanduser()
+        chosen.parent.mkdir(parents=True, exist_ok=True)
+        return chosen
+
+    # Prefer a home-level state directory that survives repo refreshes.
+    chosen = _PERSISTENT_PATH
+    chosen.parent.mkdir(parents=True, exist_ok=True)
+    if not chosen.exists():
+        _migrate_legacy_db(chosen)
+
+    return chosen
+
+
+DB_PATH_OBJ = _resolve_db_path()
+_snapshot_db(DB_PATH_OBJ)
 DB_PATH = str(DB_PATH_OBJ)
 
 async def init_db():
     """Initializes the database and migrates legacy data if found."""
     logger.info("🗄️ Database path: %s", DB_PATH)
     async with aiosqlite.connect(DB_PATH) as db:
+        # Favor durability: WAL + synchronous FULL protects against host restarts while keeping writes snappy enough.
         await db.execute("PRAGMA journal_mode=WAL")
-        await db.execute("PRAGMA synchronous=NORMAL")
+        await db.execute("PRAGMA synchronous=FULL")
 
         # 1. Server Settings
         await db.execute('''
@@ -136,6 +180,16 @@ async def init_db():
             )
         ''')
 
+        # 7. Command usage telemetry (guild-isolated)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS command_usage (
+                guild_id INTEGER,
+                command_name TEXT,
+                uses INTEGER DEFAULT 0,
+                PRIMARY KEY (guild_id, command_name)
+            )
+        ''')
+
         # --- AUTOMATIC DATA MIGRATION ---
         try:
             # Check if old table exists
@@ -203,11 +257,49 @@ async def mark_task_complete(task_name, date_str=None):
     today = date_str or datetime.now(GAME_TZ).strftime("%Y-%m-%d")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
-            INSERT INTO system_logs (task_name, last_run_date) 
-            VALUES (?, ?) 
+            INSERT INTO system_logs (task_name, last_run_date)
+            VALUES (?, ?)
             ON CONFLICT(task_name) DO UPDATE SET last_run_date = excluded.last_run_date
         ''', (task_name, today))
         await db.commit()
+
+# --- TELEMETRY HELPERS ---
+
+async def increment_command_usage(guild_id: int | None, command_name: str) -> None:
+    """Track how many times commands are executed per guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO command_usage (guild_id, command_name, uses)
+            VALUES (?, ?, 1)
+            ON CONFLICT(guild_id, command_name) DO UPDATE SET uses = uses + 1
+            ''',
+            (guild_id or 0, command_name),
+        )
+        await db.commit()
+
+
+async def command_usage_totals() -> tuple[int, str | None, int]:
+    """Return total uses plus the most-used command and its count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COALESCE(SUM(uses), 0) FROM command_usage") as cursor:
+            total_row = await cursor.fetchone()
+            total = total_row[0] if total_row else 0
+
+        async with db.execute(
+            """
+            SELECT command_name, uses
+            FROM command_usage
+            ORDER BY uses DESC
+            LIMIT 1
+            """
+        ) as cursor:
+            top_row = await cursor.fetchone()
+
+    if not top_row:
+        return total, None, 0
+
+    return total, top_row[0], top_row[1]
 
 # --- TRADING HELPERS ---
 
@@ -449,6 +541,23 @@ async def guild_analytics_snapshot(guild_id: int) -> dict:
             "survivors_tracked": survivors_tracked,
             "items": total_items,
         }
+
+
+async def top_xp_leaderboard(guild_id: int, limit: int = 10):
+    """Return top survivors by XP for a guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT user_id, xp, level
+            FROM user_stats
+            WHERE guild_id = ?
+            ORDER BY xp DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            return await cursor.fetchall()
 
 # --- MISSION & TEMPLATE HELPERS ---
 

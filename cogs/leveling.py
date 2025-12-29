@@ -4,6 +4,7 @@ USE: Multi-server RPG system (SQL Version).
 FEATURES: Per-server XP, Scavenging with Rarity, Prestige collectors, and Automated Data Migration.
 """
 import discord
+from discord import app_commands
 from discord.ext import commands
 import json
 import os
@@ -21,6 +22,7 @@ from database import (
     get_inventory,
     update_scavenge_time,
     transfer_inventory,
+    top_xp_leaderboard,
 )
 
 XP_PER_MESSAGE = 12
@@ -50,15 +52,30 @@ class Leveling(commands.Cog):
             retry = int(error.retry_after)
             mins, secs = divmod(retry, 60)
             await ctx.send(f"⌛ Drones cooling down. Try again in {mins}m {secs}s.")
+            error.handled = True
             return
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send("❌ Usage: `!trade_item @member <quantity> <item name>`.")
+            error.handled = True
             return
         raise error
 
     def get_next_xp(self, level):
         """Escalating RPG leveling curve for endless progression."""
         return int(BASE_XP * (level ** 1.25))
+
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        base_error = getattr(error, "original", error)
+        if isinstance(base_error, app_commands.CommandOnCooldown):
+            retry = int(base_error.retry_after)
+            mins, secs = divmod(retry, 60)
+            content = f"⌛ Drones cooling down. Try again in {mins}m {secs}s."
+            if interaction.response.is_done():
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+            return
+        raise error
 
     async def apply_role_rewards(self, member, level):
         """Automatically assigns dynamic tier roles based on level reached."""
@@ -122,7 +139,7 @@ class Leveling(commands.Cog):
                 await target.send(embed=embed)
                 await self.apply_role_rewards(message.author, new_lvl)
 
-    @commands.command(name="profile", aliases=["p", "rank"])
+    @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
     async def profile(self, ctx, member: discord.Member = None):
         """Displays user level, XP, and inventory stats."""
         member = member or ctx.author
@@ -150,7 +167,7 @@ class Leveling(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def scavenge(self, ctx):
         """Deploy a drone to find loot and XP. (1 Hour Cooldown)"""
@@ -176,7 +193,7 @@ class Leveling(commands.Cog):
         await ctx.reply(embed=embed)
         await self.check_collector_prestige(ctx.author)
 
-    @commands.command(aliases=["inv", "stash"])
+    @commands.hybrid_command(aliases=["inv", "stash"], description="Show your current sector stash.")
     async def inventory(self, ctx):
         """Displays your current server-specific item stash."""
         rows = await get_inventory(ctx.guild.id, ctx.author.id)
@@ -200,7 +217,7 @@ class Leveling(commands.Cog):
         embed.set_footer(text="Items are local to this sector.")
         await ctx.send(embed=embed)
 
-    @commands.command(name="trade_item")
+    @commands.hybrid_command(name="trade_item", description="Trade scavenged loot to another survivor.")
     async def trade_item(self, ctx, member: discord.Member, quantity: int, *, item_name: str):
         """Trade scavenged loot to another survivor."""
         if member.bot:
@@ -226,6 +243,28 @@ class Leveling(commands.Cog):
         await ctx.send(embed=embed)
         await self.check_collector_prestige(ctx.author)
         await self.check_collector_prestige(member)
+
+    @commands.hybrid_command(description="See the top survivors in this sector.")
+    async def leaderboard(self, ctx):
+        rows = await top_xp_leaderboard(ctx.guild.id)
+        if not rows:
+            return await ctx.send("📡 No data yet. Tell your crew to talk, trade, and scavenge.")
+
+        embed = discord.Embed(
+            title="🏆 Sector Leaderboard",
+            description="XP rankings are isolated per sector. Bragging rights stay local.",
+            color=0xe67e22,
+        )
+
+        lines = []
+        for idx, row in enumerate(rows, start=1):
+            member = ctx.guild.get_member(row["user_id"])
+            name = member.display_name if member else f"Unknown {row['user_id']}"
+            lines.append(f"**{idx}. {name}** — Level {row['level']} | {row['xp']} XP")
+
+        embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+        embed.set_footer(text="Data is saved between restarts. Keep grinding.")
+        await ctx.send(embed=embed)
 
     @commands.command()
     @commands.has_permissions(manage_guild=True)

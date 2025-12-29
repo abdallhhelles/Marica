@@ -48,6 +48,7 @@ class Utility(commands.Cog):
                 "/events",
                 "/profile / /inventory / /trade_item",
                 "/scavenge (loot + XP)",
+                "/leaderboard",
                 "/missions (legacy list)",
                 "/manual",
                 "/features",
@@ -65,9 +66,6 @@ class Utility(commands.Cog):
                 "Interact with Fish-Link buttons",
                 "/setup_trade (admins)",
                 "Fish spares/wanted are per-server",
-            ],
-            "Owner": [
-                "/akrott (owner console)",
             ],
         }
 
@@ -106,8 +104,8 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Progression & Loot",
             value=(
-                "Hourly `/scavenge` runs, XP tiers, prestige rewards, `/profile` and `/inventory` tracking, and `/missions`"
-                " for legacy checklists."
+                "Hourly `/scavenge` runs, XP tiers, prestige rewards, `/profile`, `/inventory`, `/leaderboard` tracking, and"
+                " `/missions` for legacy checklists."
             ),
             inline=False,
         )
@@ -121,7 +119,7 @@ class Utility(commands.Cog):
         )
         embed.add_field(
             name="Owner Ops",
-            value="Akrott-exclusive `/akrott` control panel with global dashboards and broadcast tools.",
+            value="Private dashboards and broadcast tools accessible only to the handler.",
             inline=False,
         )
         scope = guild_name or "your sector"
@@ -145,7 +143,7 @@ class Utility(commands.Cog):
             except Exception as e:
                 print(f"Translation Error: {e}")
 
-    @commands.command(name="commands", aliases=["help"])
+    @commands.hybrid_command(name="commands", aliases=["help"], description="Show Marcia's command directory.")
     async def list_commands(self, ctx):
         """Displays all available commands categorized by module."""
         embed = self._build_command_directory(ctx.guild.name if ctx.guild else None)
@@ -156,7 +154,7 @@ class Utility(commands.Cog):
         embed = self._build_command_directory(interaction.guild.name if interaction.guild else None)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @commands.command()
+    @commands.hybrid_command(description="Marcia's quick-start operations manual.")
     async def manual(self, ctx):
         """A quick-start guide for new users and admins."""
         embed = discord.Embed(title="📖 Marcia OS | Operations Manual", color=0xf1c40f)
@@ -177,7 +175,7 @@ class Utility(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command(description="Random survival and bot tips from Marcia.")
     async def tips(self, ctx):
         """Random survival tips and bot tricks."""
         tips_list = [
@@ -188,7 +186,7 @@ class Utility(commands.Cog):
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
 
-    @commands.command()
+    @commands.hybrid_command(description="How to report issues or contact Marcia's handler.")
     async def support(self, ctx):
         """Share feedback, report bugs, or support development."""
         embed = discord.Embed(
@@ -210,7 +208,7 @@ class Utility(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command(description="Showcase Marcia's capabilities for new crews.")
     async def features(self, ctx):
         """Showcase Marcia's capabilities for new crews."""
         embed = self._build_feature_pack(ctx.guild.name if ctx.guild else None)
@@ -221,7 +219,7 @@ class Utility(commands.Cog):
         embed = self._build_feature_pack(interaction.guild.name if interaction.guild else None)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @commands.command()
+    @commands.hybrid_command(description="System diagnostic and latency check.")
     async def status(self, ctx):
         """System diagnostic and latency check."""
         latency = round(self.bot.latency * 1000)
@@ -244,10 +242,10 @@ class Utility(commands.Cog):
             value="UTC-2 (Dark War Survival global time)",
             inline=False,
         )
-        embed.set_footer(text="Need a deeper check? Use !setup audit for a full report.")
+        embed.set_footer(text="Need a deeper check? Use /setup audit for a full report.")
         await ctx.reply(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command(description="Per-server analytics (admins).")
     @commands.has_permissions(manage_guild=True)
     async def analytics(self, ctx):
         """Detailed per-server analytics for admins."""
@@ -268,7 +266,7 @@ class Utility(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command(description="Query survival intel topics (e.g., /intel trucks).")
     async def intel(self, ctx, topic: str = None):
         """Query survival topics (e.g., !intel trucks)."""
         if not topic: 
@@ -281,7 +279,7 @@ class Utility(commands.Cog):
         else:
             await ctx.reply("❌ Topic not found in the archives.")
 
-    @commands.command()
+    @commands.hybrid_command(description="Create a poll. /poll 'Title' option1 option2 ...")
     async def poll(self, ctx, question: str, *options):
         """Create a poll. Usage: !poll \"Title\" Yes No Maybe"""
         if not options:
@@ -295,14 +293,14 @@ class Utility(commands.Cog):
             msg = await ctx.send(embed=discord.Embed(title=f"🗳️ {question}", description=desc, color=0x00ffcc))
             for i in range(len(options)): await msg.add_reaction(reactions[i])
 
-    @commands.command()
+    @commands.hybrid_command(description="DM reminder after X minutes. /remindme 10 Wake up")
     async def remindme(self, ctx, minutes: int, *, task: str):
         """Set a reminder. !remindme 10 Wake Up"""
         await ctx.reply(f"⏰ Affirmative. Reminder set for `{task}`.")
         await asyncio.sleep(minutes * 60)
         await ctx.author.send(f"🔔 **REMINDER:** {task}")
 
-    @commands.command()
+    @commands.hybrid_command(description="Purge chat history (admins).")
     @commands.has_permissions(manage_messages=True)
     async def clear(self, ctx, amount: int = 5):
         """Purge chat history."""
