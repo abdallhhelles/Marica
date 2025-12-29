@@ -44,7 +44,7 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 ### 1. Requirements
 * Python 3.8+
 * `discord.py`
-* `googletrans==4.0.0rc1`
+* `httpx`
 * `python-dotenv`
 * `aiosqlite`
 
