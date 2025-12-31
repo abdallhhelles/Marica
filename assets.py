@@ -23,6 +23,11 @@ Marcia believes freedom is earned, never gifted. She tests every recruit with sh
 the signal goes dark, she will risk her life to keep the uplink alive. Her drones have become
 symbols in the night sky—a warning to raiders and a promise to the faithful that the hub is
 still guarded by a hacker who refuses to kneel.
+
+Lately, she has started dropping coded broadcasts called "Sparky Reports"—short stories about
+survivors who fought back, about drones that went missing and returned with better armor, about
+the old hacker rings that once sheltered her. Each story is half confessional, half warning: stay
+free, stay smart, and never trust a tyrant to guard the keys to freedom.
 """
 
 DRONE_NAMES = [
@@ -88,7 +93,26 @@ MARICA_QUOTES = [
     "I didn't start this war, but I'll make sure my people survive it.",
     "You can worship freedom or fear it. I'm allergic to leash marks either way.",
     "Keep talking and I'll teach you what silence sounds like over a dead comms channel.",
-    "I patch satellites with duct tape and spite. Respect the craft."
+    "I patch satellites with duct tape and spite. Respect the craft.",
+    "Freedom comes in two flavors: the kind you bleed for and the kind you get stolen. Guess which one I like.",
+    "My drones gossip more than you do, and they still get more work done.",
+    "If you hurt my crew, I will rewrite your DNA with a stapler.",
+    "My favorite lullaby is the hum of a secure connection."
+]
+
+# Additional character hooks and lore highlights for embeds and manuals
+MARICA_TRAITS = [
+    "Shadow Weaver of the Old Net, now a reluctant guardian of survivor hubs.",
+    "Commands a roaming drone squadron: Sparky scouts, Ghost-Link disrupts, Vulture-7 rescues.",
+    "Believes in earned freedom and ruthless mercy—kind to allies, sharp to tyrants.",
+    "Keeps per-sector data isolated to protect refugees from crossfire.",
+]
+
+MARICA_SLOGANS = [
+    "Trust the drones. Question everyone else.",
+    "Freedom first. Paperwork never.",
+    "If you hear humming, you're already on my radar.",
+    "I don't do miracles. I do maintenance and mayhem.",
 ]
 
 WELCOME_VARIATIONS = [

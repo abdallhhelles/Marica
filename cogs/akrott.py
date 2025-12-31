@@ -9,8 +9,6 @@ import aiosqlite
 
 from database import DB_PATH, command_usage_totals
 
-OWNER_ID = 135894953027960833
-
 MENU_OPTIONS = [
     ("XP Leaderboard", "Live ranking across all linked servers."),
     ("Global Stats Dashboard", "Pulse check on XP, loot, and mission totals."),
@@ -25,20 +23,30 @@ MENU_OPTIONS = [
 NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
 
 
-def _owner_only(interaction: discord.Interaction) -> bool:
-    return interaction.user.id == OWNER_ID
+async def _owner_only(interaction: discord.Interaction) -> bool:
+    """Dynamic owner check that respects the configured application owner."""
+    try:
+        if await interaction.client.is_owner(interaction.user):
+            return True
+    except Exception:
+        # Fallback for legacy hosts where owner_id is not hydrated
+        pass
+
+    owner_id = getattr(interaction.client, "owner_id", None)
+    return owner_id is not None and interaction.user.id == owner_id
 
 
 class _OwnerLockedView(discord.ui.View):
     """Base view that denies any interaction from non-owners."""
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message(
-                "❌ Access denied. This console is locked to the bot owner.", ephemeral=True
-            )
-            return False
-        return True
+        if await _owner_only(interaction):
+            return True
+
+        await interaction.response.send_message(
+            "❌ Access denied. This console is locked to the bot owner.", ephemeral=True
+        )
+        return False
 
 
 class ControlPanelSelect(discord.ui.Select):
@@ -171,7 +179,7 @@ class AkrottControl(commands.Cog):
     akrott = app_commands.Group(
         name="akrott",
         description="Owner control panel and administrative overview.",
-        default_permissions=discord.Permissions(administrator=True),
+        default_permissions=None,
     )
 
     def build_menu_embed(self) -> discord.Embed:
@@ -500,4 +508,7 @@ class AkrottControl(commands.Cog):
 async def setup(bot: commands.Bot):
     cog = AkrottControl(bot)
     await bot.add_cog(cog)
+    existing = bot.tree.get_command("akrott")
+    if existing:
+        bot.tree.remove_command(existing.name, type=existing.type)
     bot.tree.add_command(cog.akrott)
