@@ -209,7 +209,7 @@ class MarciaBot(commands.Bot):
         ):
             return
 
-        await super().on_interaction(interaction)
+        await self.process_application_commands(interaction)
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""
