@@ -85,12 +85,46 @@ class MarciaBot(commands.Bot):
         logger.info("🛰️ Initializing system modules...")
         await self._load_cogs()
 
+        # 2.5. Guard slash commands from ignored channels and hook error reporting
+        self.tree.add_check(self._interaction_channel_gate)
+        self.tree.on_error = self._on_app_command_error
+
         # 3. Sync slash commands so `/` autocomplete stays fresh
         try:
             synced = await self.tree.sync()
             logger.info("✔ Slash commands synced (%d registered).", len(synced))
         except Exception:
             logger.exception("✘ Slash command sync failed")
+
+    async def _interaction_channel_gate(self, interaction: discord.Interaction) -> bool:
+        """Block slash commands inside ignored channels without spamming responses."""
+        if interaction.guild and interaction.channel_id:
+            try:
+                if await is_channel_ignored(interaction.guild.id, interaction.channel_id):
+                    logger.info(
+                        "🔇 Ignored channel interaction (%s | %s)",
+                        interaction.guild.id,
+                        interaction.channel_id,
+                    )
+                    return False
+            except Exception:
+                logger.exception("Channel gate check failed")
+        return True
+
+    async def _on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Handle app command errors while keeping ignored channels silent."""
+        if isinstance(error, app_commands.CheckFailure):
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        "🔒 That channel is on radio silence. Try a different room.",
+                        ephemeral=True,
+                    )
+                except Exception:
+                    logger.debug("Could not ack blocked command")
+            return
+
+        logger.exception("App command error: %s", error)
 
     async def on_ready(self):
         """Final system check once online."""
@@ -173,14 +207,6 @@ class MarciaBot(commands.Bot):
             and interaction.channel
             and await is_channel_ignored(interaction.guild.id, interaction.channel.id)
         ):
-            if interaction.type is discord.InteractionType.application_command:
-                try:
-                    await interaction.response.send_message(
-                        "🚫 Marcia is muted in this channel. Try another sector.",
-                        ephemeral=True,
-                    )
-                except Exception:
-                    pass
             return
 
         await super().on_interaction(interaction)

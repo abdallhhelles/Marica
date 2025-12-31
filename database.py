@@ -22,6 +22,7 @@ _BASE_DIR = Path(__file__).resolve().parent
 _ENV_PATH = os.getenv("MARCIA_DB_PATH")
 _REPO_DATA_DIR = _BASE_DIR / "data"
 _REPO_DATA_PATH = _REPO_DATA_DIR / "marcia_os.db"
+_FEEDBACK_LOG_FILE = _REPO_DATA_DIR / "feedback.log"
 
 # Legacy locations we may need to hoist into the repo copy when upgrading from older deployments.
 _OLD_HOME_STATE = Path.home() / ".local" / "share" / "marcia_os" / "marcia_os.db"
@@ -258,6 +259,17 @@ async def init_db():
             )
         ''')
 
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS feedback_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER,
+                user_id INTEGER,
+                channel_id INTEGER,
+                feedback TEXT,
+                created_at TEXT
+            )
+        ''')
+
         # --- AUTOMATIC DATA MIGRATION ---
         try:
             # Check if old table exists
@@ -289,6 +301,7 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_mission_guild ON server_missions(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
         await db.commit()
 
         # On a fresh DB, repopulate the preserved trade snapshot so lost fish listings return immediately.
@@ -458,6 +471,37 @@ async def command_usage_totals() -> tuple[int, str | None, int]:
         return total, None, 0
 
     return total, top_row[0], top_row[1]
+
+
+# --- FEEDBACK HELPERS ---
+
+async def log_feedback_entry(
+    guild_id: int | None,
+    user_id: int | None,
+    channel_id: int | None,
+    feedback_text: str,
+) -> None:
+    """Persist user feedback in the database and append to a plaintext journal."""
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO feedback_entries (guild_id, user_id, channel_id, feedback, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ''',
+            (guild_id or 0, user_id or 0, channel_id or 0, feedback_text, created_at),
+        )
+        await db.commit()
+
+    try:
+        _FEEDBACK_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with _FEEDBACK_LOG_FILE.open("a", encoding="utf-8") as fp:
+            fp.write(
+                f"{created_at} | guild={guild_id or 'DM'} | user={user_id or 'unknown'} | channel={channel_id or 'n/a'} | {feedback_text}\n"
+            )
+    except Exception as exc:  # pragma: no cover - logging only
+        logger.warning("Could not append feedback journal entry: %s", exc)
 
 # --- TRADING HELPERS ---
 

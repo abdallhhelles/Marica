@@ -13,8 +13,8 @@ from discord import app_commands
 from discord.ext import commands
 import httpx
 
-from assets import MARICA_LORE, INTEL_DATABASE
-from database import get_settings, guild_analytics_snapshot
+from assets import INTEL_DATABASE, MARICA_LORE, MARICA_SLOGANS, MARICA_TRAITS
+from database import get_settings, guild_analytics_snapshot, log_feedback_entry
 
 # Expanded Language Library
 FLAG_LANG = {
@@ -90,6 +90,7 @@ class Utility(commands.Cog):
         self.bot = bot
         self.http = httpx.AsyncClient(timeout=10.0)
         self.log = logging.getLogger("MarciaOS.Utility")
+        self._app_owner = None
 
     async def cog_unload(self):
         await self.http.aclose()
@@ -118,42 +119,103 @@ class Utility(commands.Cog):
     # --------------------
     # Shared builders
     # --------------------
+    async def _resolve_owner_user(self) -> Optional[discord.abc.User]:
+        """Return the application owner or team owner for DM relays."""
+        if self._app_owner:
+            return self._app_owner
+
+        try:
+            info = await self.bot.application_info()
+            owner = info.owner or (info.team.owner if info.team else None)
+            if owner:
+                self._app_owner = owner
+            return owner
+        except Exception as exc:
+            self.log.warning("Owner lookup failed: %s", exc)
+            return None
+
+    def _build_about_embed(self, guild_name: Optional[str]) -> discord.Embed:
+        """Concise lore, traits, and rally slogans for Marcia."""
+        scope = guild_name or "your sector"
+        embed = discord.Embed(
+            title="🛰️ About Marcia OS",
+            description="Shadow Weaver, drone wrangler, and sarcastic guardian of refugees.",
+            color=0x5865F2,
+        )
+        embed.add_field(name="Lore (signal tap)", value="\n".join(MARICA_LORE.strip().split("\n")[:4]), inline=False)
+        embed.add_field(name="Traits", value="\n".join(f"• {t}" for t in MARICA_TRAITS), inline=False)
+        embed.add_field(name="Slogans", value="\n".join(f"“{s}”" for s in MARICA_SLOGANS), inline=False)
+        embed.set_footer(text=f"Sector: {scope} | Data never leaves your guild")
+        return embed
+
+    def _build_featureboard(self, guild_name: Optional[str] = None) -> discord.Embed:
+        """Readable feature grid to pair with the showcase command."""
+        scope = guild_name or "your sector"
+        embed = discord.Embed(
+            title="🗄️ Marcia OS | Featureboard",
+            description="Pick a lane and I'll automate it. Everything stays siloed per guild.",
+            color=0x9b59b6,
+        )
+        embed.add_field(
+            name="Operations",
+            value="\n".join([
+                "• `/event`, `/events`, `/event_remove` for UTC-2 planning",
+                "• `/remind` with templates, schedule, and immediate blasts",
+                "• `/status` & `/analytics` for uptime, wiring, and usage",
+            ]),
+            inline=False,
+        )
+        embed.add_field(
+            name="Community & Safety",
+            value="\n".join([
+                "• Channel ignore keeps blacked-out rooms fully silent",
+                "• `/manual`, `/commands`, `/features`, `/about` to onboard crews",
+                "• `/feedback` to DM my handler without leaking server data",
+            ]),
+            inline=False,
+        )
+        embed.add_field(
+            name="Economy & Progression",
+            value="\n".join([
+                "• Trading terminal with persistent Fish-Link inventory",
+                "• `/scavenge`, `/inventory`, `/leaderboard` for grind cycles",
+                "• Analytics per guild; nothing crosses sectors",
+            ]),
+            inline=False,
+        )
+        embed.set_footer(text=f"Sector: {scope} | Clock: UTC-2 | Personality: spicy")
+        return embed
+
     def _build_command_directory(self, guild_name: Optional[str] = None) -> discord.Embed:
         """Return a consistent command directory embed for both text and slash calls."""
         categories = {
             "Admin (UTC-2 Clock)": [
-                "/setup",
-                "/event",
-                "/event_remove <codename>",
-                "/setup_trade",
-                "/analytics",
-                "/status",
-                "/refresh_commands",
-                "/setup audit",
-                "/missions (legacy list)",
+                "`/setup` • wire welcome/verify/rules",
+                "`/event` • plan ops | `/event_remove`",
+                "`/setup_trade` • deploy Fish-Link",
+                "`/status` • quick signal | `/analytics`",
+                "`/refresh_commands` • resync slash",
+                "`/setup audit` • wiring audit",
             ],
             "Members": [
-                "/events",
-                "/profile / /inventory / /trade_item",
-                "/scavenge (loot + XP)",
-                "/leaderboard",
-                "/missions (legacy list)",
-                "/manual",
-                "/features / /showcase",
-                "/commands",
+                "`/events` • see ops",
+                "`/profile` | `/inventory` | `/leaderboard`",
+                "`/scavenge` • loot+XP",
+                "`/manual` + `/features` + `/about`",
+                "`/commands` • categorized index",
             ],
-            "Utility": [
-                "/intel <topic>",
-                "/poll 'Question' opt1 opt2",
-                "/remindme <minutes> <task>",
-                "/clear <amount>",
-                "/tips",
-                "/support",
+            "Utility & Safety": [
+                "`/intel <topic>` • lore+game tips",
+                "`/poll` • reaction polls",
+                "`/remindme` • DM timer",
+                "`/remind` • channel scheduler",
+                "`/feedback` + `/support` • ping handler",
+                "`/clear` • purge",
             ],
             "Trading": [
-                "Interact with Fish-Link buttons",
-                "/setup_trade (admins)",
-                "Fish spares/wanted are per-server",
+                "Fish-Link buttons: Spares / Find",
+                "`/trade_item` • text fallback",
+                "Per-server inventory; no cross-bleed",
             ],
         }
 
@@ -168,6 +230,44 @@ class Utility(commands.Cog):
         scope = guild_name or "your sector"
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
         return embed
+
+    async def _submit_feedback(self, ctx, feedback_text: str, category: Optional[str]):
+        """Persist feedback, notify the owner, and acknowledge the user."""
+        category_label = (category or "general").strip() or "general"
+        packaged = f"[{category_label}] {feedback_text}".strip()
+
+        guild_id = ctx.guild.id if ctx.guild else None
+        channel_id = ctx.channel.id if getattr(ctx, "channel", None) else None
+        user_id = ctx.author.id if getattr(ctx, "author", None) else None
+
+        await log_feedback_entry(guild_id, user_id, channel_id, packaged)
+
+        owner = await self._resolve_owner_user()
+        if owner:
+            embed = discord.Embed(
+                title="📮 New Feedback Packet",
+                description=feedback_text,
+                color=0x2ecc71,
+            )
+            embed.add_field(name="Category", value=category_label.title(), inline=True)
+            if ctx.guild:
+                embed.add_field(name="Guild", value=f"{ctx.guild.name} ({ctx.guild.id})", inline=True)
+            embed.add_field(name="Sender", value=f"{ctx.author} ({ctx.author.id})", inline=False)
+            if channel_id:
+                embed.set_footer(text=f"Channel ID: {channel_id}")
+            try:
+                await owner.send(embed=embed)
+            except Exception as exc:
+                self.log.warning("Feedback DM failed: %s", exc)
+
+        ack = "📡 Feedback transmitted. I'll ping my handler quietly."
+        if getattr(ctx, "interaction", None):
+            if not ctx.interaction.response.is_done():
+                await ctx.interaction.response.send_message(ack, ephemeral=True)
+            else:
+                await ctx.interaction.followup.send(ack, ephemeral=True)
+        else:
+            await ctx.reply(ack, mention_author=False)
 
     def _build_showcase_embed(self, guild_name: Optional[str] = None) -> discord.Embed:
         """
@@ -238,6 +338,12 @@ class Utility(commands.Cog):
         embed = self._build_command_directory(ctx.guild.name if ctx.guild else None)
         await ctx.send(embed=embed)
 
+    @commands.hybrid_command(description="Marcia's lore, values, and operating scope.")
+    async def about(self, ctx):
+        """Share Marcia's lore and promise to the guild."""
+        embed = self._build_about_embed(ctx.guild.name if ctx.guild else None)
+        await ctx.send(embed=embed)
+
     @commands.hybrid_command(description="Marcia's quick-start operations manual.")
     async def manual(self, ctx):
         """A quick-start guide for new users and admins."""
@@ -259,6 +365,11 @@ class Utility(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    @commands.hybrid_command(description="Send feedback, ideas, or bug reports to my handler.")
+    @app_commands.describe(message="What do you want to report?", category="bug, idea, praise, or anything else")
+    async def feedback(self, ctx, *, message: str, category: Optional[str] = None):
+        await self._submit_feedback(ctx, message, category)
+
     @commands.hybrid_command(description="Random survival and bot tips from Marcia.")
     async def tips(self, ctx):
         """Random survival tips and bot tricks."""
@@ -276,7 +387,7 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title="🛰️ Marcia OS | Support Channel",
             description=(
-                "Report issues or drop feedback and I'll relay it to my handler.\n\n"
+                "Report issues or drop feedback and I'll relay it to my handler. Use `/feedback` for a direct ping.\n\n"
                 "Creator: **akrott**\n"
                 "Support the uptime: https://www.buymeacoffee.com/akrott"
             ),
@@ -316,12 +427,14 @@ class Utility(commands.Cog):
     async def features(self, ctx):
         """Showcase Marcia's capabilities for new crews."""
         embed = self._build_showcase_embed(ctx.guild.name if ctx.guild else None)
-        await ctx.send(embed=embed)
+        featureboard = self._build_featureboard(ctx.guild.name if ctx.guild else None)
+        await ctx.send(embeds=[featureboard, embed])
 
     @app_commands.command(name="showcase", description="Showcase Marcia's capabilities for new crews.")
     async def slash_showcase(self, interaction: discord.Interaction):
         embed = self._build_showcase_embed(interaction.guild.name if interaction.guild else None)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        featureboard = self._build_featureboard(interaction.guild.name if interaction.guild else None)
+        await interaction.response.send_message(embeds=[featureboard, embed], ephemeral=True)
 
     @commands.hybrid_command(description="System diagnostic and latency check.")
     async def status(self, ctx):

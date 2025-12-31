@@ -19,7 +19,7 @@ class Archives(commands.Cog):
 
         # Server-scoped chat logging
         self.chat_log_server_id = 1403997721962086480
-        self._history_seeded: set[int] = set()
+        self._seeded_channels: set[int] = set()
 
     def _channel_log_name(self, channel: discord.abc.GuildChannel) -> str:
         safe_name = str(channel.name).replace(" ", "_") or "channel"
@@ -84,9 +84,19 @@ class Archives(commands.Cog):
         for guild in self.bot.guilds:
             await self.update_server_files(guild)
 
-            if self._should_log_message(guild) and guild.id not in self._history_seeded:
-                # Fire-and-forget initial history sweep per channel to backfill logs
-                self.bot.loop.create_task(self._seed_chat_history(guild))
+            if self._should_log_message(guild):
+                for channel in guild.text_channels:
+                    if channel.id not in self._seeded_channels:
+                        self.bot.loop.create_task(self._seed_chat_history(guild, channel))
+
+    @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
+        if (
+            isinstance(channel, discord.TextChannel)
+            and self._should_log_message(channel.guild)
+            and channel.id not in self._seeded_channels
+        ):
+            self.bot.loop.create_task(self._seed_chat_history(channel.guild, channel))
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
@@ -157,40 +167,30 @@ class Archives(commands.Cog):
         line += self._format_attachments(message)
         self._write_chat_log(message.guild, message.channel, line)
 
-    async def _seed_chat_history(self, guild: discord.Guild):
-        """Backfill logs with existing channel history on first run for the target guild."""
+    async def _seed_chat_history(self, guild: discord.Guild, channel: discord.TextChannel):
+        """Backfill logs with existing channel history for the target guild."""
 
-        if guild.id in self._history_seeded:
+        if channel.id in self._seeded_channels:
             return
 
-        path = self.get_server_path(guild)
-        marker = os.path.join(path, ".history_seeded")
-        if os.path.exists(marker):
-            self._history_seeded.add(guild.id)
+        try:
+            async for message in channel.history(limit=None, oldest_first=True):
+                content = message.content or "[No content]"
+                line = (
+                    f"MESSAGE {message.id} | #{channel.name} ({channel.id}) | "
+                    f"{message.author} ({message.author.id}): {content}"
+                )
+                line += self._format_attachments(message)
+                self._write_chat_log(
+                    guild,
+                    channel,
+                    line,
+                    timestamp=message.created_at or datetime.datetime.now(),
+                )
+        except Exception:
             return
 
-        for channel in guild.text_channels:
-            try:
-                async for message in channel.history(limit=None, oldest_first=True):
-                    content = message.content or "[No content]"
-                    line = (
-                        f"MESSAGE {message.id} | #{channel.name} ({channel.id}) | "
-                        f"{message.author} ({message.author.id}): {content}"
-                    )
-                    line += self._format_attachments(message)
-                    self._write_chat_log(
-                        guild,
-                        channel,
-                        line,
-                        timestamp=message.created_at or datetime.datetime.now(),
-                    )
-            except Exception:
-                continue
-
-        with open(marker, "w", encoding="utf-8") as flag:
-            flag.write(datetime.datetime.now().isoformat())
-
-        self._history_seeded.add(guild.id)
+        self._seeded_channels.add(channel.id)
 
 async def setup(bot):
     await bot.add_cog(Archives(bot))
