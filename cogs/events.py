@@ -12,12 +12,24 @@ from datetime import datetime, timezone, timedelta
 from assets import TIMED_REMINDERS, DRONE_NAMES, MARICA_STATUSES, MARICA_QUOTES
 from time_utils import now_game, game_to_utc, format_game, utc_to_game
 from database import (
-    get_settings, get_templates, add_template, delete_template,
-    get_all_active_missions, get_upcoming_missions, add_mission, delete_mission,
-    can_run_daily_task, mark_task_complete, is_channel_ignored
+    add_mission,
+    add_mission_opt_in,
+    can_run_daily_task,
+    clear_mission_opt_ins,
+    delete_mission,
+    get_all_active_missions,
+    get_mission_opt_ins,
+    get_settings,
+    get_templates,
+    get_upcoming_missions,
+    is_channel_ignored,
+    lookup_dm_prompt,
+    mark_task_complete,
+    upsert_dm_prompt,
 )
 
 logger = logging.getLogger('MarciaOS.Events')
+DM_OPT_IN_EMOJI = "📬"
 
 DUEL_DATA = {
     0: "**MONDAY – Day 1: Research / Building / Gathering**\n\n✅ **DO:**\n• Send gatherers before reset.\n• Duel points count on Return.\n• Use gathering heroes: Musashimaru, Bob, Joe.\n📊 **SP SLOTS:** Shelter → Hero → Unit → Science → Arms.",
@@ -125,7 +137,10 @@ class Events(commands.Cog):
                     chan = guild.get_channel(settings['event_channel_id'])
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         info = DUEL_DATA.get(now_server.weekday(), "No data.")
-                        await chan.send(f"@everyone\n📡 **MARCIA OS | DUEL DIRECTIVE**\n\n{info}")
+                        await chan.send(
+                            f"@everyone\n📡 **MARCIA OS | DUEL DIRECTIVE**\n\n{info}",
+                            allowed_mentions=discord.AllowedMentions(everyone=True),
+                        )
                         await mark_task_complete(task_id, date_str=date_key)
 
     @tasks.loop(minutes=30)
@@ -220,7 +235,7 @@ class Events(commands.Cog):
             t_msg = await self.bot.wait_for('message', check=check, timeout=180)
             await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_role)
         except asyncio.TimeoutError:
-            await ctx.author.send("⌛ Timed out. Ping me again with `!event` when you're ready.")
+            await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
     async def finalize_mission(self, ctx, name, desc, t_str, location, ping_role):
         try:
@@ -288,13 +303,28 @@ class Events(commands.Cog):
                 msg = (
                     f"{mention}\n{title} {quote}\n"
                     f"{body}\n\n"
-                    f"{desc}{location_line}\n\n*Drone: {drone}*"
+                    f"{desc}{location_line}\n\n"
+                    f"React with {DM_OPT_IN_EMOJI} to get DM pings for the next alerts."
+                    f"\n\n*Drone: {drone}*"
                 )
             else:
                 msg = f"{mention}\n{title} {quote}\n{body}\n\n*Drone: {drone}*"
-            await chan.send(msg)
+            sent = await chan.send(
+                msg,
+                allowed_mentions=discord.AllowedMentions(everyone=True, roles=True),
+            )
+
+            if mins == 60:
+                try:
+                    await sent.add_reaction(DM_OPT_IN_EMOJI)
+                except Exception:
+                    logger.warning("Could not add DM opt-in reaction for %s", name)
+                await upsert_dm_prompt(guild_id, name, sent.id)
+            else:
+                await self._notify_dm_opt_ins(guild_id, name, mins, desc, location)
 
         await delete_mission(guild_id, name)
+        await clear_mission_opt_ins(guild_id, name)
 
     def _build_event_embed(self, guild, name, desc, utc_dt, location=None, ping_role_id=None):
         embed = discord.Embed(
@@ -310,6 +340,65 @@ class Events(commands.Cog):
             embed.add_field(name="👥 Ping", value=role.mention if role else "@everyone", inline=True)
         embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
         return embed
+
+    async def _notify_dm_opt_ins(self, guild_id: int, codename: str, mins: int, desc: str, location: str | None) -> None:
+        subscribers = await get_mission_opt_ins(guild_id, codename)
+        if not subscribers:
+            return
+
+        guild = self.bot.get_guild(guild_id)
+        location_line = f"\n📍 {location}" if location else ""
+        countdown = "now" if mins == 0 else f"in {mins} minutes"
+
+        for uid in subscribers:
+            member = guild.get_member(uid) if guild else None
+            user = member or self.bot.get_user(uid)
+            if not user or getattr(user, "bot", False):
+                continue
+
+            try:
+                await user.send(
+                    f"📡 `{codename}` hits {countdown}.\n{desc}{location_line}\n\n"
+                    "You raised your hand for DM alerts. I'll keep them coming for this op."
+                )
+            except Exception:
+                logger.debug("Failed to DM opt-in user %s for %s", uid, codename)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if str(payload.emoji) != DM_OPT_IN_EMOJI:
+            return
+
+        if payload.user_id == getattr(self.bot.user, "id", None):
+            return
+
+        prompt = await lookup_dm_prompt(payload.message_id)
+        if not prompt:
+            return
+
+        guild_id, codename = prompt
+        if payload.guild_id and payload.guild_id != guild_id:
+            return
+
+        guild = self.bot.get_guild(guild_id)
+        member = guild.get_member(payload.user_id) if guild else None
+        if member is None and guild:
+            try:
+                member = await guild.fetch_member(payload.user_id)
+            except Exception:
+                member = None
+
+        user = member or self.bot.get_user(payload.user_id)
+        if not user or getattr(user, "bot", False):
+            return
+
+        await add_mission_opt_in(guild_id, codename, user.id)
+        try:
+            await user.send(
+                f"📡 Locked in. I'll DM you the next `{codename}` reminders for **{guild.name if guild else 'this sector'}**."
+            )
+        except Exception:
+            logger.debug("Could not DM opt-in confirmation to %s", user.id)
 
     async def _resolve_ping(self, ctx, msg_content):
         text = msg_content.strip().lower()

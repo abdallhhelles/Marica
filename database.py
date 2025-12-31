@@ -217,6 +217,23 @@ async def init_db():
             )
         ''')
 
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS mission_dm_prompts (
+                guild_id INTEGER,
+                codename TEXT,
+                message_id INTEGER PRIMARY KEY
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS mission_dm_opt_ins (
+                guild_id INTEGER,
+                codename TEXT,
+                user_id INTEGER,
+                PRIMARY KEY (guild_id, codename, user_id)
+            )
+        ''')
+
         # 5. System Tracking
         await db.execute('''
             CREATE TABLE IF NOT EXISTS system_logs (
@@ -302,6 +319,12 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mission_prompt_guild ON mission_dm_prompts(guild_id)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mission_optins_guild ON mission_dm_opt_ins(guild_id)"
+        )
         await db.commit()
 
         # On a fresh DB, repopulate the preserved trade snapshot so lost fish listings return immediately.
@@ -471,6 +494,57 @@ async def command_usage_totals() -> tuple[int, str | None, int]:
         return total, None, 0
 
     return total, top_row[0], top_row[1]
+
+
+async def top_commands(limit: int = 5) -> list[aiosqlite.Row]:
+    """Return the most-used commands across all guilds."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT command_name, SUM(uses) AS total
+            FROM command_usage
+            GROUP BY command_name
+            ORDER BY total DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def top_guild_usage(limit: int = 10) -> list[aiosqlite.Row]:
+    """Return guilds ranked by total command usage."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT guild_id, SUM(uses) AS total
+            FROM command_usage
+            WHERE guild_id IS NOT NULL AND guild_id != 0
+            GROUP BY guild_id
+            ORDER BY total DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def top_global_xp(limit: int = 10) -> list[aiosqlite.Row]:
+    """Return highest XP survivors across all guilds."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT guild_id, user_id, xp, level
+            FROM user_stats
+            ORDER BY xp DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cursor:
+            return await cursor.fetchall()
 
 
 # --- FEEDBACK HELPERS ---
@@ -937,4 +1011,70 @@ async def add_mission(guild_id, codename, description, target_time, target_utc, 
 async def delete_mission(guild_id, codename):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM server_missions WHERE guild_id = ? AND codename = ?", (guild_id, codename))
+        await db.execute(
+            "DELETE FROM mission_dm_prompts WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.execute(
+            "DELETE FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.commit()
+
+
+async def upsert_dm_prompt(guild_id: int, codename: str, message_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO mission_dm_prompts (guild_id, codename, message_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(message_id) DO UPDATE SET guild_id = excluded.guild_id, codename = excluded.codename
+            ''',
+            (guild_id, codename, message_id),
+        )
+        await db.commit()
+
+
+async def lookup_dm_prompt(message_id: int) -> tuple[int, str] | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT guild_id, codename FROM mission_dm_prompts WHERE message_id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return (row[0], row[1]) if row else None
+
+
+async def add_mission_opt_in(guild_id: int, codename: str, user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT OR IGNORE INTO mission_dm_opt_ins (guild_id, codename, user_id)
+            VALUES (?, ?, ?)
+            ''',
+            (guild_id, codename, user_id),
+        )
+        await db.commit()
+
+
+async def get_mission_opt_ins(guild_id: int, codename: str) -> list[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT user_id FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+
+
+async def clear_mission_opt_ins(guild_id: int, codename: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM mission_dm_prompts WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.execute(
+            "DELETE FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
         await db.commit()

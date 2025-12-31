@@ -209,7 +209,25 @@ class MarciaBot(commands.Bot):
         ):
             return
 
-        await self.process_application_commands(interaction)
+        if interaction.type in (
+            discord.InteractionType.application_command,
+            discord.InteractionType.autocomplete,
+            discord.InteractionType.modal_submit,
+        ):
+            try:
+                await self.process_application_commands(interaction)
+            except Exception:
+                logger.exception("Failed to process application interaction")
+            return
+
+        await super().on_interaction(interaction)
+
+    async def process_application_commands(self, interaction: discord.Interaction):
+        """Compatibility shim so app commands route even on discord.py builds without it."""
+        try:
+            await self.tree._call(interaction)
+        except Exception:
+            logger.exception("Application command dispatch failed")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""

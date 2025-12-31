@@ -1,17 +1,42 @@
 [
   {
     "note": "Test guild channels auto-provision with playbook categories and seeded guidance.",
-    "author": "automation",
-    "added_at": "2024-07-01T00:00:00Z"
+    "added_at": "2024-07-01T00:00:00Z",
+    "author": "automation"
   },
   {
     "note": "Patch notes now read from data/patch_notes.json and clear after successful broadcast.",
-    "author": "automation",
-    "added_at": "2024-07-01T00:00:00Z"
+    "added_at": "2024-07-01T00:00:00Z",
+    "author": "automation"
   },
   {
     "note": "DevHub automation is documented so future contributors know how channels and notes behave.",
-    "author": "automation",
-    "added_at": "2024-07-01T00:00:00Z"
+    "added_at": "2024-07-01T00:00:00Z",
+    "author": "automation"
+  },
+  {
+    "note": "Event reminders now collect DM opt-ins via \ud83d\udcec reactions and DM every later ping while @everyone actually fires.",
+    "added_at": "2025-12-31T19:47:32+00:00",
+    "author": "assistant"
+  },
+  {
+    "note": "Added /global_leaderboard and /network to surface global XP, server usage, and top commands with server tags.",
+    "added_at": "2025-12-31T19:47:32+00:00",
+    "author": "assistant"
+  },
+  {
+    "note": "Cleaned remaining legacy !command prompts so onboarding points to slash workflows.",
+    "added_at": "2025-12-31T19:47:32+00:00",
+    "author": "assistant"
+  },
+  {
+    "note": "Fixed interaction routing to use the bot superclass handler so slash commands no longer crash with missing process_application_commands.",
+    "added_at": "2025-12-31T22:24:58+00:00",
+    "author": "assistant"
+  },
+  {
+    "note": "Added a compatibility shim so slash, autocomplete, and modal interactions dispatch even on discord.py builds missing process_application_commands.",
+    "added_at": "2025-12-31T22:38:00+00:00",
+    "author": "assistant"
   }
 ]
