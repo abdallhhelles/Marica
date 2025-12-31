@@ -28,5 +28,15 @@
     "note": "Cleaned remaining legacy !command prompts so onboarding points to slash workflows.",
     "added_at": "2025-12-31T19:47:32+00:00",
     "author": "assistant"
+  },
+  {
+    "note": "Fixed interaction routing to use the bot superclass handler so slash commands no longer crash with missing process_application_commands.",
+    "added_at": "2025-12-31T22:24:58+00:00",
+    "author": "assistant"
+  },
+  {
+    "note": "Added a compatibility shim so slash, autocomplete, and modal interactions dispatch even on discord.py builds missing process_application_commands.",
+    "added_at": "2025-12-31T22:38:00+00:00",
+    "author": "assistant"
   }
 ]
