@@ -397,7 +397,7 @@ class Utility(commands.Cog):
             description=(
                 "Report issues or drop feedback and I'll relay it to my handler. Use `/feedback` for a direct ping.\n\n"
                 "Creator: **akrott**\n"
-                "Support the uptime: https://www.buymeacoffee.com/akrott"
+                "Support the uptime: https://www.buymeacoffee.com/akrot"
             ),
             color=0x5865f2,
         )
