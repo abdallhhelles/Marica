@@ -65,6 +65,42 @@ class Archives(commands.Cog):
     def _should_log_message(self, guild):
         return guild and guild.id == self.chat_log_server_id
 
+    def _seed_marker_path(self, guild: discord.Guild) -> str:
+        return os.path.join(self.get_server_path(guild), "_history_seeded")
+
+    def _restore_seed_state(self, guild: discord.Guild):
+        """Hydrate the in-memory seeded cache from disk markers."""
+        try:
+            with open(self._seed_marker_path(guild), "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except FileNotFoundError:
+            return
+        except Exception:
+            return
+
+        for cid in payload.get("channels", []):
+            try:
+                self._seeded_channels.add(int(cid))
+            except (TypeError, ValueError):
+                continue
+
+    def _persist_seed_marker(self, guild: discord.Guild):
+        """Write a marker file documenting which channels have been backfilled."""
+        channels = sorted(
+            channel.id for channel in guild.text_channels if channel.id in self._seeded_channels
+        )
+        payload = {
+            "guild_id": guild.id,
+            "seeded_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "channels": channels,
+        }
+
+        try:
+            with open(self._seed_marker_path(guild), "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=4)
+        except Exception:
+            return
+
     def _write_chat_log(self, guild, channel, line, *, timestamp: datetime.datetime | None = None):
         path = self.get_server_path(guild)
         log_name = self._channel_log_name(channel)
@@ -83,6 +119,9 @@ class Archives(commands.Cog):
         # When bot starts, update info for all servers
         for guild in self.bot.guilds:
             await self.update_server_files(guild)
+
+            # Hydrate seeded cache so we do not double-write history on restarts
+            self._restore_seed_state(guild)
 
             if self._should_log_message(guild):
                 for channel in guild.text_channels:
@@ -191,6 +230,7 @@ class Archives(commands.Cog):
             return
 
         self._seeded_channels.add(channel.id)
+        self._persist_seed_marker(guild)
 
 async def setup(bot):
     await bot.add_cog(Archives(bot))

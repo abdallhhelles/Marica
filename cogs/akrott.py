@@ -23,17 +23,20 @@ MENU_OPTIONS = [
 NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
 
 
+OWNER_USERNAME = "akrott"
+
+
 async def _owner_only(interaction: discord.Interaction) -> bool:
     """Dynamic owner check that respects the configured application owner."""
     try:
-        if await interaction.client.is_owner(interaction.user):
-            return True
+        is_owner = await interaction.client.is_owner(interaction.user)
     except Exception:
         # Fallback for legacy hosts where owner_id is not hydrated
-        pass
+        owner_id = getattr(interaction.client, "owner_id", None)
+        is_owner = owner_id is not None and interaction.user.id == owner_id
 
-    owner_id = getattr(interaction.client, "owner_id", None)
-    return owner_id is not None and interaction.user.id == owner_id
+    has_username = interaction.user.name.lower() == OWNER_USERNAME
+    return bool(is_owner and has_username)
 
 
 class _OwnerLockedView(discord.ui.View):
@@ -180,6 +183,7 @@ class AkrottControl(commands.Cog):
         name="akrott",
         description="Owner control panel and administrative overview.",
         default_permissions=None,
+        dm_permission=True,
     )
 
     def build_menu_embed(self) -> discord.Embed:
@@ -470,6 +474,7 @@ class AkrottControl(commands.Cog):
 
     @akrott.command(name="overview", description="Administrator-only network server overview.")
     @app_commands.guild_only()
+    @app_commands.check(_owner_only)
     async def akrott_overview(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
@@ -503,6 +508,21 @@ class AkrottControl(commands.Cog):
         )
         embed.set_footer(text="Administrator access | Read-only overview")
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @akrott_overview.error
+    async def akrott_overview_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ):
+        if isinstance(error, app_commands.CheckFailure):
+            await interaction.response.send_message(
+                "❌ Access denied. This overview is reserved for akrott.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                "⚠️ An unexpected error occurred while preparing the overview.",
+                ephemeral=True,
+            )
 
 
 async def setup(bot: commands.Bot):
