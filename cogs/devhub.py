@@ -370,15 +370,25 @@ class DevServerManager(commands.Cog):
         body = "\n".join(f"• {line}" for line in notes)
         desired_content = f"Patch `{tag}`\n{body}"
 
-        async for message in channel.history(limit=15):
-            if message.author == self.bot.user and tag in (message.content or ""):
-                if message.content != desired_content:
+        async for message in channel.history(limit=200):
+            if message.author != self.bot.user:
+                continue
+
+            content = message.content or ""
+            if tag in content:
+                if content != desired_content:
                     try:
                         await message.edit(content=desired_content)
                     except discord.Forbidden:
                         logger.warning("Missing permissions to edit patch notes")
                     except Exception:
                         logger.exception("Failed to edit patch notes message")
+                self.patch_notes.clear()
+                return
+
+            if content.strip() == desired_content.strip():
+                # Avoid reposting identical bodies to preserve concise history.
+                self.patch_notes.clear()
                 return
 
         try:
