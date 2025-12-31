@@ -14,6 +14,7 @@ from discord.ext import commands, tasks
 from database import command_usage_totals
 
 DEV_GUILD_ID = 1455313963507257486
+TEST_GUILD_ID = 1454704176662843525
 INFO_CHANNEL_NAME = "marica-info"
 PATCH_NOTES_CHANNEL_NAME = "marica-patch-notes"
 EXTRA_CHANNELS = [
@@ -40,14 +41,16 @@ class DevServerManager(commands.Cog):
 
     async def _bootstrap(self):
         await self.bot.wait_until_ready()
-        guild = self.bot.get_guild(DEV_GUILD_ID)
-        if not guild:
-            logger.warning("Marica Devs guild not found (ID: %s)", DEV_GUILD_ID)
-            return
 
-        await self._ensure_channels(guild)
-        await self._publish_info_panel(guild)
-        await self._post_patch_notes(guild)
+        for guild_id in (DEV_GUILD_ID, TEST_GUILD_ID):
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                logger.warning("Managed guild not found (ID: %s)", guild_id)
+                continue
+
+            await self._ensure_channels(guild)
+            await self._publish_info_panel(guild)
+            await self._post_patch_notes(guild)
 
         if not self.info_updater.is_running():
             self.info_updater.start()
@@ -164,11 +167,14 @@ class DevServerManager(commands.Cog):
             if message.author == self.bot.user and tag in message.content:
                 return
 
+        # ✍️ Update this list whenever new work ships so the bot announces the latest changes
+        # on the next restart/deploy. Keep bullets concise, user-facing, and specific to the
+        # build you're deploying.
         notes = [
-            "New Marica Devs automation active.",
-            "Stats board now mirrors live server/member counts and command usage totals.",
-            "Patch notes broadcast with each deployment so updates stay transparent.",
-            "Additional ops/ideas/bug channels created for faster collaboration.",
+            "Dev automation now manages Marica Devs and the test guild (1454704176662843525).",
+            "Stats board refreshes every 30 minutes with live server/member/channel counts and command usage.",
+            "Patch notes broadcast with each deployment—refresh this list before shipping new work.",
+            "Ops, ideas, and bug triage channels are auto-created for faster collaboration.",
         ]
         body = "\n".join(f"• {line}" for line in notes)
         try:
@@ -178,10 +184,11 @@ class DevServerManager(commands.Cog):
 
     @tasks.loop(minutes=30)
     async def info_updater(self):
-        guild = self.bot.get_guild(DEV_GUILD_ID)
-        if not guild:
-            return
-        await self._publish_info_panel(guild)
+        for guild_id in (DEV_GUILD_ID, TEST_GUILD_ID):
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                continue
+            await self._publish_info_panel(guild)
 
 
 async def setup(bot: commands.Bot):
