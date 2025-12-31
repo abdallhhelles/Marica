@@ -1,0 +1,17 @@
+[
+  {
+    "note": "Test guild channels auto-provision with playbook categories and seeded guidance.",
+    "author": "automation",
+    "added_at": "2024-07-01T00:00:00Z"
+  },
+  {
+    "note": "Patch notes now read from data/patch_notes.json and clear after successful broadcast.",
+    "author": "automation",
+    "added_at": "2024-07-01T00:00:00Z"
+  },
+  {
+    "note": "DevHub automation is documented so future contributors know how channels and notes behave.",
+    "author": "automation",
+    "added_at": "2024-07-01T00:00:00Z"
+  }
+]
