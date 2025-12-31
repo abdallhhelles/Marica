@@ -508,4 +508,7 @@ class AkrottControl(commands.Cog):
 async def setup(bot: commands.Bot):
     cog = AkrottControl(bot)
     await bot.add_cog(cog)
+    existing = bot.tree.get_command("akrott")
+    if existing:
+        bot.tree.remove_command(existing.name, type=existing.type)
     bot.tree.add_command(cog.akrott)

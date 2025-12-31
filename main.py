@@ -86,7 +86,7 @@ class MarciaBot(commands.Bot):
         await self._load_cogs()
 
         # 2.5. Guard slash commands from ignored channels and hook error reporting
-        self.tree.add_check(self._interaction_channel_gate)
+        self.tree.interaction_check = self._interaction_channel_gate
         self.tree.on_error = self._on_app_command_error
 
         # 3. Sync slash commands so `/` autocomplete stays fresh
