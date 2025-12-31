@@ -12,6 +12,7 @@ import random
 import time
 import aiosqlite
 from datetime import datetime
+from bug_logging import log_command_exception
 from assets import SCAVENGE_OUTCOMES, DRONE_NAMES, MARICA_QUOTES, PRESTIGE_ROLE
 from database import (
     DB_PATH,
@@ -49,17 +50,35 @@ class Leveling(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
+        """Send a response for both message and slash contexts without double-acking."""
+
+        interaction = getattr(ctx, "interaction", None)
+        if interaction:
+            if interaction.response.is_done():
+                return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
+            return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
+
+        kwargs.pop("ephemeral", None)
+        return await ctx.send(**kwargs)
+
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
             retry = int(error.retry_after)
             mins, secs = divmod(retry, 60)
-            await ctx.send(f"⌛ Drones cooling down. Try again in {mins}m {secs}s.")
+            await self._safe_send(ctx, content=f"⌛ Drones cooling down. Try again in {mins}m {secs}s.")
             error.handled = True
             return
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Usage: `/trade_item @member <quantity> <item name>`.")
+            await self._safe_send(
+                ctx,
+                content="❌ Usage: `/trade_item @member <quantity> <item name>`.",
+                ephemeral=True,
+            )
             error.handled = True
             return
+
+        await log_command_exception(self.bot, error, ctx=ctx)
         raise error
 
     def get_next_xp(self, level):
@@ -146,15 +165,29 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
     async def profile(self, ctx, member: discord.Member = None):
         """Displays user level, XP, and inventory stats."""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="❌ Profiles are only available inside servers.",
+                ephemeral=True,
+            )
+
         member = member or ctx.author
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
         data = await get_user_stats(ctx.guild.id, member.id)
-        
+
         lvl = data['level'] if data else 1
         xp = data['xp'] if data else 0
         next_xp_req = self.get_next_xp(lvl)
-        
+
         # Calculate progress bar
         progress = int((xp / next_xp_req) * 10) if xp > 0 else 0
+        progress = min(progress, 10)
         bar = "▰" * progress + "▱" * (10 - progress)
 
         embed = discord.Embed(title=f"📡 DISPATCH: {member.display_name}", color=0x3498db)
@@ -169,7 +202,7 @@ class Leveling(commands.Cog):
         unique_count = len({item['item_id'] for item in inv})
         embed.add_field(name="Inventory", value=f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique", inline=True)
         
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
     @commands.cooldown(1, 3600, commands.BucketType.user)

@@ -30,6 +30,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from assets import MARICA_QUOTES
+from bug_logging import log_command_exception
 from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
 
@@ -185,6 +186,7 @@ class MarciaBot(commands.Bot):
             await ctx.send(f"⌛ Drones cooling down. Try again in {retry}s.")
             return
 
+        await log_command_exception(self, error, ctx=ctx, source="message-command")
         logger.error(f"Uncaught Error: {error}")
 
     async def on_command_completion(self, ctx):
@@ -251,6 +253,9 @@ class MarciaBot(commands.Bot):
             error.handled = True
             return
 
+        await log_command_exception(
+            self, error, interaction=interaction, source="app-command"
+        )
         logger.exception("Uncaught app command error", exc_info=error)
 
     async def _load_cogs(self):
