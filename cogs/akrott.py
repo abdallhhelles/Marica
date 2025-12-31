@@ -507,8 +507,10 @@ class AkrottControl(commands.Cog):
 
 async def setup(bot: commands.Bot):
     cog = AkrottControl(bot)
-    await bot.add_cog(cog)
+    # Clean up any stale registration (e.g., from a prior partial sync) before
+    # adding the cog, so we avoid duplicate group collisions on reload.
     existing = bot.tree.get_command("akrott")
     if existing:
         bot.tree.remove_command(existing.name, type=existing.type)
-    bot.tree.add_command(cog.akrott)
+
+    await bot.add_cog(cog)
