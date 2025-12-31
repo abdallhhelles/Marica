@@ -298,7 +298,7 @@ class Settings(commands.Cog):
                     await update_setting(guild.id, setting_key, channel.id, guild.name)
                     await user.send(f"✅ Linked **{channel.mention}**.")
                 else:
-                    await user.send("❌ Couldn't read that channel. Try `!setup events #channel` later.")
+                    await user.send("❌ Couldn't read that channel. Try `/setup events #channel` later.")
 
             await user.send("🎚️ Mention the auto-role for new arrivals (or say `skip`).")
             role_msg = await self.bot.wait_for("message", check=check, timeout=120)
@@ -308,7 +308,7 @@ class Settings(commands.Cog):
                     await update_setting(guild.id, "auto_role_id", role.id, guild.name)
                     await user.send(f"✅ I'll tag newcomers with **{role.name}**.")
                 else:
-                    await user.send("❌ Couldn't find that role. Use `!setup role @role` later.")
+                    await user.send("❌ Couldn't find that role. Use `/setup role @role` later.")
             else:
                 await user.send(_marica_line("Leaving auto-role untouched."))
 
@@ -316,10 +316,10 @@ class Settings(commands.Cog):
             await user.send("🕒 Clock set to **UTC-2** (game time). I'll ignore local clocks.")
 
             await user.send(
-                "🎉 Setup pass complete. Run `!setup` in the server to verify links."
+                "🎉 Setup pass complete. Run `/setup` in the server to verify links."
             )
         except asyncio.TimeoutError:
-            await user.send("⌛ Timeout. Ping me again with `!setup` when you're ready.")
+            await user.send("⌛ Timeout. Ping me again with `/setup` when you're ready.")
 
 async def setup(bot):
     bot.remove_command("setup")

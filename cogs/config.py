@@ -53,7 +53,7 @@ class Configuration(commands.Cog):
     async def view_config(self, ctx):
         s = await get_settings(ctx.guild.id)
         if not s:
-            return await ctx.send("❌ This server has not been configured yet. Use `!setup`.")
+            return await ctx.send("❌ This server has not been configured yet. Use `/setup`.")
 
         embed = discord.Embed(title=f"📡 System Configuration: {ctx.guild.name}", color=0x2ecc71)
         embed.add_field(name="Chat Channel", value=f"<#{s['chat_channel_id']}>" if s['chat_channel_id'] else "Not Set")
