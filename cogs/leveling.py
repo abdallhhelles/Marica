@@ -23,6 +23,7 @@ from database import (
     update_scavenge_time,
     transfer_inventory,
     top_xp_leaderboard,
+    top_global_xp,
     is_channel_ignored,
 )
 
@@ -56,7 +57,7 @@ class Leveling(commands.Cog):
             error.handled = True
             return
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Usage: `!trade_item @member <quantity> <item name>`.")
+            await ctx.send("❌ Usage: `/trade_item @member <quantity> <item name>`.")
             error.handled = True
             return
         raise error
@@ -246,7 +247,9 @@ class Leveling(commands.Cog):
         rows = await get_inventory(ctx.guild.id, ctx.author.id)
 
         if not rows:
-            return await ctx.send("🎒 Your stash is empty. Deploy a drone with `!scavenge` to find gear!")
+            return await ctx.send(
+                "🎒 Your stash is empty. Deploy a drone with `/scavenge` to find gear!"
+            )
 
         # Sort items by rarity (Mythics first)
         sorted_items = sorted(rows, key=lambda x: RARITY_ORDER.get(x['rarity'], 99))
@@ -311,6 +314,37 @@ class Leveling(commands.Cog):
 
         embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
         embed.set_footer(text="Data is saved between restarts. Keep grinding.")
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name="global_leaderboard", description="See the top survivors across every linked server.")
+    async def global_leaderboard(self, ctx):
+        rows = await top_global_xp(10)
+        if not rows:
+            return await ctx.send(
+                "📡 No global data yet. Start chatting and running `/scavenge` to claim the top slots."
+            )
+
+        embed = discord.Embed(
+            title="🌐 Network Leaderboard",
+            description=(
+                "Top performers across Marcia's entire network. Each survivor is tagged with their home sector"
+                " so bragging rights stay clear."
+            ),
+            color=0x3498db,
+        )
+
+        lines = []
+        for idx, row in enumerate(rows, start=1):
+            guild = self.bot.get_guild(row["guild_id"])
+            guild_name = guild.name if guild else f"Guild {row['guild_id']}"
+            user = self.bot.get_user(row["user_id"])
+            user_display = user.mention if user else f"<@{row['user_id']}>"
+            lines.append(
+                f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']} XP ({guild_name})"
+            )
+
+        embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+        embed.set_footer(text="Run your alliance like a war machine. /scavenge and climb.")
         await ctx.send(embed=embed)
 
     @commands.command()

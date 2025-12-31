@@ -14,7 +14,14 @@ from discord.ext import commands
 import httpx
 
 from assets import INTEL_DATABASE, MARICA_LORE, MARICA_SLOGANS, MARICA_TRAITS
-from database import get_settings, guild_analytics_snapshot, log_feedback_entry
+from database import (
+    get_settings,
+    guild_analytics_snapshot,
+    log_feedback_entry,
+    top_commands,
+    top_global_xp,
+    top_guild_usage,
+)
 
 # Expanded Language Library
 FLAG_LANG = {
@@ -91,6 +98,7 @@ class Utility(commands.Cog):
         self.http = httpx.AsyncClient(timeout=10.0)
         self.log = logging.getLogger("MarciaOS.Utility")
         self._app_owner = None
+        self._share_link = "https://bit.ly/49z28IZ"
 
     async def cog_unload(self):
         await self.http.aclose()
@@ -483,9 +491,57 @@ class Utility(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @commands.hybrid_command(description="Global network leaderboard and usage pulse.")
+    async def network(self, ctx):
+        """Shows global XP leaders, server usage, and top commands."""
+        xp_rows = await top_global_xp(5)
+        usage_rows = await top_guild_usage(5)
+        command_rows = await top_commands(5)
+
+        embed = discord.Embed(
+            title="🌐 Network Pulse",
+            description=(
+                "Live signal from every connected sector. Share me with allies to climb these boards."
+            ),
+            color=0x5865F2,
+        )
+
+        if xp_rows:
+            lines = []
+            for idx, row in enumerate(xp_rows, start=1):
+                guild = self.bot.get_guild(row["guild_id"])
+                guild_name = guild.name if guild else f"Guild {row['guild_id']}"
+                user = self.bot.get_user(row["user_id"])
+                handle = user.mention if user else f"<@{row['user_id']}>"
+                lines.append(
+                    f"{idx}. {handle} — {row['xp']} XP (L{row['level']} | {guild_name})"
+                )
+            embed.add_field(name="Top Survivors", value="\n".join(lines), inline=False)
+        else:
+            embed.add_field(name="Top Survivors", value="No XP data yet.", inline=False)
+
+        if usage_rows:
+            usage_lines = []
+            for idx, row in enumerate(usage_rows, start=1):
+                guild = self.bot.get_guild(row["guild_id"])
+                guild_name = guild.name if guild else f"Guild {row['guild_id']}"
+                usage_lines.append(f"{idx}. {guild_name} — {row['total']} commands")
+            embed.add_field(name="Server Usage", value="\n".join(usage_lines), inline=False)
+        else:
+            embed.add_field(name="Server Usage", value="No command traffic yet.", inline=False)
+
+        if command_rows:
+            cmd_lines = [f"`{row['command_name']}` — {row['total']} runs" for row in command_rows]
+            embed.add_field(name="Most Used Commands", value="\n".join(cmd_lines), inline=False)
+        else:
+            embed.add_field(name="Most Used Commands", value="No command telemetry yet.", inline=False)
+
+        embed.set_footer(text=f"Invite link: {self._share_link} | Commanders don't remind. Systems do.")
+        await ctx.send(embed=embed)
+
     @commands.hybrid_command(description="Query survival intel topics (e.g., /intel trucks).")
     async def intel(self, ctx, topic: str = None):
-        """Query survival topics (e.g., !intel trucks)."""
+        """Query survival topics (e.g., /intel trucks)."""
         if not topic: 
             return await ctx.reply(f"Available Intel Topics: `{', '.join(INTEL_DATABASE.keys())}`")
         
