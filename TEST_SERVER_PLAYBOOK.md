@@ -8,6 +8,7 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
   - `#changelog` — Ship notes for every deploy. Keep only Marica/staff posts.
   - `#announcements` — Major milestones, maintenance notices, and beta calls.
   - `#mod-log` — Private; pipe moderation actions and transcripts here.
+  - `#about` — Overview of Marica OS, its purpose, and what testers should expect.
 - **[Category] Operations (UTC-2)**
   - `#events` — Quiet channel for `/event` reminders (60/30/15/3/0) and schedules.
   - `#ops-planning` — Player chatter for raid/defense prep.
@@ -28,6 +29,7 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
   - `#lounge` — Free chat for testers.
   - `#showcase` — Screenshots and clips of Marica in action.
   - `#intel` — `/intel` answers, FAQs, guides.
+  - `#usage-guide` — Step-by-step setup and usage flow for new testers.
 
 ## Roles
 - `Control` — Admins; ensure Marica sits above this for permission checks.
@@ -40,7 +42,7 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 
 ### #readme (pin this)
 > **Marica:** "Welcome to the test grid. I don’t babysit — I calibrate."
-> 
+>
 > **Setup:** Run `/setup` to link `events`, `welcome`, `verify`, `rules`, and auto-role. Data is siloed per guild in `data/marcia_os.db`. Use `/setup audit` after perms change.
 > 
 > **Clock:** Ops run on UTC-2. Use `/event` to schedule raids/sieges/briefings. Reminders fire at 60/30/15/3/0 with drone tags.
@@ -50,8 +52,37 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 > **Progression:** Chat for XP (60s cooldown). `/scavenge` hourly for Common → Mythic loot. `/trade_item` to barter. Finish the catalog to earn **Vaultwalker**.
 > 
 > **Tools:** `/commands`, `/features`, `/manual`, `/intel <topic>`, `/poll`, flag reactions for translations.
-> 
+>
 > **Conduct:** No spam in events/level-up channels. Keep repro steps clear in QA threads. Freedom is expensive — don’t waste my time for free.
+
+### #about
+> **Marica:** "I’m the ops spine for your raids, trades, and ranks."
+>
+> **What I do:**
+> - Automate ops reminders on UTC-2 with `/event`.
+> - Anchor Fish-Link trading with `/setup_trade` and smart donor matching.
+> - Track XP/ranks and grant roles per guild without cross-contamination.
+> - Answer intel quickly: `/intel <topic>`, `/manual`, `/features`.
+>
+> **How to help:**
+> - Keep channel links current (`/setup audit`).
+> - Report broken flows in `#bug-reports` with repro steps.
+> - Stress the buttons in `#load-tests` before major pushes.
+
+### #usage-guide
+> **Goal:** Get Marica online in under 5 minutes.
+>
+> **1) Permissions:** Invite with message content + Manage Roles. Place Marica’s role above auto-roles.
+>
+> **2) Core setup:** Run `/setup` and map: `events`, `welcome`, `verify`, `rules`, auto-role. Confirm in `/setup audit`.
+>
+> **3) Trading:** In `#fish-link`, run `/setup_trade`. Pin the terminal. Use **Add Spare**, **Find Fish**, **My Listings**, **Who Has My Wanted?**
+>
+> **4) Events:** Schedule with `/event` (UTC-2). Reminders: 60/30/15/3/0. Keep channel read-only.
+>
+> **5) Progression:** Encourage chat for XP. Use `/scavenge` hourly. Track prestige and assign **Vaultwalker** for catalog completions.
+>
+> **6) Intel & support:** Use `/commands`, `/features`, `/manual`, `/intel <topic>`. If something breaks, post in `#bug-reports` with timestamp + screenshot.
 
 ### #changelog (template)
 > **Build vX.Y.Z —** summarize fixes/features. Link PR if public.
