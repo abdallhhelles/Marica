@@ -14,6 +14,7 @@ from time_utils import now_game, game_to_utc, format_game, utc_to_game
 from database import (
     add_mission,
     add_mission_opt_in,
+    add_template,
     can_run_daily_task,
     clear_mission_opt_ins,
     delete_mission,
@@ -227,24 +228,24 @@ class Events(commands.Cog):
                 "👥 **Ping who?** Mention a role, type `everyone`, or `none` to stay quiet."
             )
             ping_msg = await self.bot.wait_for('message', check=check, timeout=120)
-            ping_role = await self._resolve_ping(ctx, ping_msg.content)
+            ping_target = await self._resolve_ping(ctx, ping_msg.content)
 
             await ctx.author.send(
                 f"⏰ **Target Time?** `YYYY-MM-DD HH:MM` using the game clock (UTC-2)."
             )
             t_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_role)
+            await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_target)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
-    async def finalize_mission(self, ctx, name, desc, t_str, location, ping_role):
+    async def finalize_mission(self, ctx, name, desc, t_str, location, ping_target):
         try:
             target_dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M")
             utc_dt = game_to_utc(target_dt)
             if utc_dt < datetime.now(timezone.utc):
                 return await ctx.author.send("❌ Past time.")
 
-            ping_role_id = ping_role.id if ping_role else None
+            ping_role_id = ping_target.id if isinstance(ping_target, discord.Role) else ping_target
             await add_mission(
                 ctx.guild.id,
                 name,
@@ -292,8 +293,15 @@ class Events(commands.Cog):
 
             drone = random.choice(DRONE_NAMES)
             guild = chan.guild
-            role = guild.get_role(ping_role_id) if ping_role_id else None
-            mention = role.mention if role else "@everyone"
+            role = guild.get_role(ping_role_id) if isinstance(ping_role_id, int) and ping_role_id >= 0 else None
+            mention = ""
+            allowed_mentions = discord.AllowedMentions(everyone=False, roles=False)
+            if ping_role_id == -1:
+                mention = "@everyone"
+                allowed_mentions = discord.AllowedMentions(everyone=True, roles=False)
+            elif role:
+                mention = role.mention
+                allowed_mentions = discord.AllowedMentions(everyone=False, roles=True)
             location_line = f"\n📍 {location}" if location else ""
             title, body = random.choice(TIMED_REMINDERS.get(mins, [("📡 **ALERT:**", "`{name}` is coming up.")]))
             body = body.format(name=name, drone=drone)
@@ -301,17 +309,19 @@ class Events(commands.Cog):
 
             if mins == 60:
                 msg = (
-                    f"{mention}\n{title} {quote}\n"
+                    f"{title} {quote}\n"
                     f"{body}\n\n"
                     f"{desc}{location_line}\n\n"
                     f"React with {DM_OPT_IN_EMOJI} to get DM pings for the next alerts."
                     f"\n\n*Drone: {drone}*"
                 )
+                if mention:
+                    msg = f"{mention}\n" + msg
             else:
-                msg = f"{mention}\n{title} {quote}\n{body}\n\n*Drone: {drone}*"
+                msg = (f"{mention}\n" if mention else "") + f"{title} {quote}\n{body}\n\n*Drone: {drone}*"
             sent = await chan.send(
                 msg,
-                allowed_mentions=discord.AllowedMentions(everyone=True, roles=True),
+                allowed_mentions=allowed_mentions,
             )
 
             if mins == 60:
@@ -335,9 +345,13 @@ class Events(commands.Cog):
         embed.add_field(name="⏰ Game Time", value=format_game(utc_dt), inline=False)
         if location:
             embed.add_field(name="📍 Location", value=location, inline=True)
-        if ping_role_id:
-            role = guild.get_role(ping_role_id)
-            embed.add_field(name="👥 Ping", value=role.mention if role else "@everyone", inline=True)
+        if ping_role_id is not None:
+            if ping_role_id == -1:
+                ping_display = "@everyone"
+            else:
+                role = guild.get_role(ping_role_id)
+                ping_display = role.mention if role else "🔇 None"
+            embed.add_field(name="👥 Ping", value=ping_display, inline=True)
         embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
         return embed
 
@@ -405,7 +419,7 @@ class Events(commands.Cog):
         if text == "none":
             return None
         if text == "everyone":
-            return ctx.guild.default_role
+            return -1
         # Try mention syntax
         if msg_content.startswith("<@&") and msg_content.endswith(">"):
             role_id = int(msg_content[3:-1])
