@@ -103,6 +103,18 @@ class Utility(commands.Cog):
     async def cog_unload(self):
         await self.http.aclose()
 
+    async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
+        """Send a response for both message and slash contexts without double-acking."""
+
+        interaction = getattr(ctx, "interaction", None)
+        if interaction:
+            if interaction.response.is_done():
+                return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
+            return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
+
+        kwargs.pop("ephemeral", None)
+        return await ctx.send(**kwargs)
+
     async def _translate_text(self, text: str, dest: str) -> str:
         """Translate text using the public googleapis endpoint without googletrans."""
         params = {
@@ -436,7 +448,7 @@ class Utility(commands.Cog):
         """Showcase Marcia's capabilities for new crews."""
         embed = self._build_showcase_embed(ctx.guild.name if ctx.guild else None)
         featureboard = self._build_featureboard(ctx.guild.name if ctx.guild else None)
-        await ctx.send(embeds=[featureboard, embed])
+        await self._safe_send(ctx, embeds=[featureboard, embed])
 
     @app_commands.command(name="showcase", description="Showcase Marcia's capabilities for new crews.")
     async def slash_showcase(self, interaction: discord.Interaction):
@@ -468,7 +480,7 @@ class Utility(commands.Cog):
             inline=False,
         )
         embed.set_footer(text="Need a deeper check? Use /setup audit for a full report.")
-        await ctx.reply(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Per-server analytics (admins).")
     @commands.has_permissions(manage_guild=True)
@@ -489,7 +501,7 @@ class Utility(commands.Cog):
         embed.add_field(name="🎒 Items Logged", value=str(snapshot["items"]), inline=True)
         embed.set_footer(text="Clock: UTC-2 | Data never crosses sectors.")
 
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Global network leaderboard and usage pulse.")
     async def network(self, ctx):
@@ -537,20 +549,23 @@ class Utility(commands.Cog):
             embed.add_field(name="Most Used Commands", value="No command telemetry yet.", inline=False)
 
         embed.set_footer(text=f"Invite link: {self._share_link} | Commanders don't remind. Systems do.")
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Query survival intel topics (e.g., /intel trucks).")
     async def intel(self, ctx, topic: str = None):
         """Query survival topics (e.g., /intel trucks)."""
         if not topic: 
-            return await ctx.reply(f"Available Intel Topics: `{', '.join(INTEL_DATABASE.keys())}`")
+            return await self._safe_send(
+                ctx,
+                content=f"Available Intel Topics: `{', '.join(INTEL_DATABASE.keys())}`",
+            )
         
         info = INTEL_DATABASE.get(topic.lower())
         if info: 
             embed = discord.Embed(title=f"📥 INTEL: {topic.upper()}", description=info, color=0x3498db)
-            await ctx.send(embed=embed)
+            await self._safe_send(ctx, embed=embed)
         else:
-            await ctx.reply("❌ Topic not found in the archives.")
+            await self._safe_send(ctx, content="❌ Topic not found in the archives.")
 
     @commands.command(description="Create a poll. /poll 'Title' option1 option2 ...")
     async def poll(self, ctx, question: str, *options):
@@ -605,7 +620,7 @@ class Utility(commands.Cog):
     @commands.hybrid_command(description="DM reminder after X minutes. /remindme 10 Wake up")
     async def remindme(self, ctx, minutes: int, *, task: str):
         """Set a reminder. !remindme 10 Wake Up"""
-        await ctx.reply(f"⏰ Affirmative. Reminder set for `{task}`.")
+        await self._safe_send(ctx, content=f"⏰ Affirmative. Reminder set for `{task}`.")
         await asyncio.sleep(minutes * 60)
         await ctx.author.send(f"🔔 **REMINDER:** {task}")
 

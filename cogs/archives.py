@@ -1,12 +1,15 @@
 """
 FILE: cogs/archives.py
-USE: Local file-system logging for server intel and member activity.
+USE: Local file-system logging for server intel and member activity. All logging is silent—no Discord messages are sent while
+backfilling or recording events.
 """
+import datetime
+import json
+import os
+from typing import AsyncIterator
+
 import discord
 from discord.ext import commands
-import os
-import json
-import datetime
 
 from database import is_channel_ignored
 
@@ -86,9 +89,7 @@ class Archives(commands.Cog):
 
     def _persist_seed_marker(self, guild: discord.Guild):
         """Write a marker file documenting which channels have been backfilled."""
-        channels = sorted(
-            channel.id for channel in guild.text_channels if channel.id in self._seeded_channels
-        )
+        channels = sorted(self._seeded_channels)
         payload = {
             "guild_id": guild.id,
             "seeded_at": datetime.datetime.utcnow().isoformat() + "Z",
@@ -114,6 +115,27 @@ class Archives(commands.Cog):
         urls = ", ".join(att.url for att in message.attachments)
         return f" | Attachments: {urls}"
 
+    async def _iter_log_targets(
+        self, guild: discord.Guild
+    ) -> AsyncIterator[discord.abc.GuildChannel]:
+        """Yield text channels and their threads so we can log them consistently."""
+
+        for channel in guild.text_channels:
+            yield channel
+
+            # Active threads the bot can currently see
+            for thread in channel.threads:
+                yield thread
+
+            # Archived threads are not covered by channel.threads; fetch both public
+            # and private archives to ensure historical messages are captured.
+            for private in (False, True):
+                try:
+                    async for thread in channel.archived_threads(limit=None, private=private):
+                        yield thread
+                except Exception:
+                    continue
+
     @commands.Cog.listener()
     async def on_ready(self):
         # When bot starts, update info for all servers
@@ -124,7 +146,7 @@ class Archives(commands.Cog):
             self._restore_seed_state(guild)
 
             if self._should_log_message(guild):
-                for channel in guild.text_channels:
+                async for channel in self._iter_log_targets(guild):
                     if channel.id not in self._seeded_channels:
                         self.bot.loop.create_task(self._seed_chat_history(guild, channel))
 
@@ -136,6 +158,14 @@ class Archives(commands.Cog):
             and channel.id not in self._seeded_channels
         ):
             self.bot.loop.create_task(self._seed_chat_history(channel.guild, channel))
+
+    @commands.Cog.listener()
+    async def on_thread_create(self, thread: discord.Thread):
+        if (
+            self._should_log_message(thread.guild)
+            and thread.id not in self._seeded_channels
+        ):
+            self.bot.loop.create_task(self._seed_chat_history(thread.guild, thread))
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
@@ -206,8 +236,10 @@ class Archives(commands.Cog):
         line += self._format_attachments(message)
         self._write_chat_log(message.guild, message.channel, line)
 
-    async def _seed_chat_history(self, guild: discord.Guild, channel: discord.TextChannel):
-        """Backfill logs with existing channel history for the target guild."""
+    async def _seed_chat_history(
+        self, guild: discord.Guild, channel: discord.TextChannel | discord.Thread
+    ):
+        """Backfill logs with existing channel or thread history for the target guild."""
 
         if channel.id in self._seeded_channels:
             return
@@ -226,7 +258,11 @@ class Archives(commands.Cog):
                     line,
                     timestamp=message.created_at or datetime.datetime.now(),
                 )
-        except Exception:
+        except Exception as exc:
+            print(
+                f"[Archives] Failed to seed history for {channel} ({channel.id}): {exc}",
+                flush=True,
+            )
             return
 
         self._seeded_channels.add(channel.id)

@@ -85,6 +85,14 @@ class Leveling(commands.Cog):
         """Escalating RPG leveling curve for endless progression."""
         return int(BASE_XP * (level ** 1.25))
 
+    def _format_cooldown(self, seconds: int) -> str:
+        """Human-friendly cooldown string like `10m 05s` or `45s`."""
+        total = max(0, int(seconds))
+        mins, secs = divmod(total, 60)
+        if mins:
+            return f"{mins}m {secs:02d}s"
+        return f"{secs}s"
+
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         base_error = getattr(error, "original", error)
         if isinstance(base_error, app_commands.CommandOnCooldown):
@@ -205,7 +213,6 @@ class Leveling(commands.Cog):
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
-    @commands.cooldown(1, 3600, commands.BucketType.user)
     async def scavenge(self, ctx):
         """Deploy a drone to find loot and XP. (1 Hour Cooldown)"""
         drone_name = random.choice(DRONE_NAMES)
@@ -215,7 +222,18 @@ class Leveling(commands.Cog):
         # Momentum bonus if the survivor keeps scavenging within 90 minutes of the last run
         user_data = await get_user_stats(ctx.guild.id, ctx.author.id)
         last_scavenge_ts = user_data["last_scavenge_ts"] if user_data else 0
-        recent_run = last_scavenge_ts and (time.time() - last_scavenge_ts) <= 5400
+        now_ts = time.time()
+        if last_scavenge_ts:
+            cooldown_remaining = int(3600 - (now_ts - last_scavenge_ts))
+            if cooldown_remaining > 0:
+                pretty_wait = self._format_cooldown(cooldown_remaining)
+                await self._safe_send(
+                    ctx,
+                    content=f"⌛ Drones cooling down. Try again in {pretty_wait}.",
+                    mention_author=False,
+                )
+                return
+        recent_run = last_scavenge_ts and (now_ts - last_scavenge_ts) <= 5400
         momentum_xp = random.randint(15, 35) if recent_run else 0
 
         # Surprise bonus cache with reduced XP but extra loot
@@ -271,7 +289,7 @@ class Leveling(commands.Cog):
 
         embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
 
-        await ctx.reply(embed=embed)
+        await self._safe_send(ctx, embed=embed)
         await self.check_collector_prestige(ctx.author)
 
     @commands.hybrid_command(aliases=["inv", "stash"], description="Show your current sector stash.")
@@ -280,8 +298,9 @@ class Leveling(commands.Cog):
         rows = await get_inventory(ctx.guild.id, ctx.author.id)
 
         if not rows:
-            return await ctx.send(
-                "🎒 Your stash is empty. Deploy a drone with `/scavenge` to find gear!"
+            return await self._safe_send(
+                ctx,
+                content="🎒 Your stash is empty. Deploy a drone with `/scavenge` to find gear!",
             )
 
         # Sort items by rarity (Mythics first)
@@ -298,7 +317,7 @@ class Leveling(commands.Cog):
             color=0x95a5a6
         )
         embed.set_footer(text="Items are local to this sector.")
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(name="trade_item", description="Trade scavenged loot to another survivor.")
     async def trade_item(self, ctx, member: discord.Member, quantity: int, *, item_name: str):
@@ -331,7 +350,10 @@ class Leveling(commands.Cog):
     async def leaderboard(self, ctx):
         rows = await top_xp_leaderboard(ctx.guild.id)
         if not rows:
-            return await ctx.send("📡 No data yet. Tell your crew to talk, trade, and scavenge.")
+            return await self._safe_send(
+                ctx,
+                content="📡 No data yet. Tell your crew to talk, trade, and scavenge.",
+            )
 
         embed = discord.Embed(
             title="🏆 Sector Leaderboard",
@@ -347,14 +369,18 @@ class Leveling(commands.Cog):
 
         embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
         embed.set_footer(text="Data is saved between restarts. Keep grinding.")
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(name="global_leaderboard", description="See the top survivors across every linked server.")
     async def global_leaderboard(self, ctx):
         rows = await top_global_xp(10)
         if not rows:
-            return await ctx.send(
-                "📡 No global data yet. Start chatting and running `/scavenge` to claim the top slots."
+            return await self._safe_send(
+                ctx,
+                content=(
+                    "📡 No global data yet. Start chatting and running `/scavenge` "
+                    "to claim the top slots."
+                ),
             )
 
         embed = discord.Embed(
@@ -378,7 +404,7 @@ class Leveling(commands.Cog):
 
         embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
         embed.set_footer(text="Run your alliance like a war machine. /scavenge and climb.")
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.command()
     @commands.has_permissions(manage_guild=True)
