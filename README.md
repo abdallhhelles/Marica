@@ -8,6 +8,8 @@
 
 **Marcia** is a custom tactical bot built for the **Helles Hub Alliance**. She is a cunning hacker turned hub guardian who manages survivor ranks, wasteland scavenging, and the "Fish-Link" trade network.
 
+Quick start and command reference: see [docs/USAGE.md](docs/USAGE.md).
+
 ### Bot Profile Blurb (≤400 chars)
 Dark War Survival liaison. Marcia tracks UTC-2 ops, pings squads with lorey drone chatter, manages Fish-Link trades, endless leveling, mythic scavenging, intel, translations, reminders, and analytics across alliances. Built to keep survivors organized, supplied, and hyped.
 
@@ -57,7 +59,7 @@ TOKEN=your_discord_bot_token_here
 
 *Data persistence:* All per-server links (event/chat/welcome/verify/rules/auto-role) and progression data live in `data/marcia_os.db` by default. The bot creates this folder automatically and reuses it across restarts and git pulls. Override with `MARCIA_DB_PATH` if your host prefers a custom data mount.
 
-*Moderation logging:* For the moderated guild (`1403997721962086480`), per-channel transcripts live under `archives/<ServerName>_<ServerID>/`, one `<channel>_<channel_id>.log` file per text channel. A `.history_seeded` marker appears after the first full backfill.
+*Moderation logging:* For the moderated guild (`1403997721962086480`), transcripts live under `archives/<ServerName>_<ServerID>/`, one `<channel>_<channel_id>.log` file per text channel or thread. A `.history_seeded` marker appears after the first full backfill (includes archived threads), and new channels/threads are automatically added going forward. Logging is silent: the bot does not post in channels when backfilling or writing transcripts.
 
 ### 3. Troubleshooting
 * **`ModuleNotFoundError: cogs`** — The bot forces its working directory to this repository root at startup. If you still see this error on hosts like Pterodactyl, double-check that `main.py` and the `cogs/` folder stay together and that your start command runs from this folder.
