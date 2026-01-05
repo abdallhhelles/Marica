@@ -781,7 +781,8 @@ async def get_profile_snapshot(guild_id: int, user_id: int):
             """,
             (guild_id, user_id),
         ) as cursor:
-            return await cursor.fetchone()
+            row = await cursor.fetchone()
+            return dict(row) if row else None
 
 
 async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
