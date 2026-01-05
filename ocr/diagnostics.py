@@ -93,15 +93,14 @@ def collect_ocr_diagnostics() -> OcrDiagnostics:
 
     tips: list[str] = []
     if not pillow_present or not pytess_present:
-        tips.append("Install Pillow + pytesseract (pip install -r requirements.txt)")
+        tips.append("Install Pillow + pytesseract (`pip install -r requirements.txt`)")
     if pytess_present and tesseract_binary is False:
-        tips.append("Install the Tesseract CLI (e.g., apt-get install tesseract-ocr)")
+        tips.append("Install the Tesseract CLI (e.g., `apt-get install tesseract-ocr`)")
     if not easyocr_present:
         tips.append(
-            "Install EasyOCR extras (pip install -r requirements-ocr.txt) for template-based scans"
-        )
+            "Install EasyOCR extras for profile scans (`pip install -r requirements-ocr.txt`)")
     if easyocr_present and not box_count:
-        tips.append("Regenerate bounding boxes with python ocr/box_picker.py")
+        tips.append("Regenerate bounding boxes with `python ocr/box_picker.py`")
 
     failure_reason = None
     if not easyocr_present:

@@ -317,6 +317,12 @@ class ProfileScanner(commands.Cog):
             pytess_label += " (install the Tesseract CLI)"
 
         embed = discord.Embed(title="🛰️ OCR Status", color=0x3498db)
+        if diag.install_tips:
+            embed.description = (
+                "⚠️ Profile scans will stay blank until you finish the fixes below."
+            )
+        elif diag.easyocr_ready:
+            embed.description = "✅ OCR dependencies and templates look ready for scans."
         embed.add_field(name="EasyOCR", value=easyocr_label, inline=False)
         embed.add_field(name="Templates", value=f"{box_status}\n{box_details}", inline=False)
         embed.add_field(name="Pillow", value="Installed" if diag.pillow else "Missing", inline=True)
@@ -324,7 +330,7 @@ class ProfileScanner(commands.Cog):
 
         if diag.install_tips:
             embed.add_field(
-                name="Setup tips",
+                name="Blocking fixes",
                 value="\n".join(f"• {tip}" for tip in diag.install_tips),
                 inline=False,
             )
