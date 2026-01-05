@@ -97,7 +97,13 @@ MARICA_QUOTES = [
     "Freedom comes in two flavors: the kind you bleed for and the kind you get stolen. Guess which one I like.",
     "My drones gossip more than you do, and they still get more work done.",
     "If you hurt my crew, I will rewrite your DNA with a stapler.",
-    "My favorite lullaby is the hum of a secure connection."
+    "My favorite lullaby is the hum of a secure connection.",
+    "I don't do chaos; I do controlled mayhem with good documentation.",
+    "You bring the hustle, I bring the uplink. That's the deal.",
+    "When I say 'trust the drones,' I mean it. They're less messy than people.",
+    "My safety briefings have a 0% fun rating and a 100% survival rating.",
+    "Everything in this sector runs on sarcasm and spare parts. Keep up.",
+    "I'm the firewall between you and the wasteland. Try not to leak.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
@@ -305,6 +311,22 @@ SCAVENGE_OUTCOMES = [
     ("🧊 A cryo-core still colder than deep space.", 950, "Cryo Core", "Mythic"),
     ("🧿 A shimmering singularity bead. I'd rather not touch it.", 1000, "Singularity Bead", "Mythic"),
     ("🎖️ A relic badge from the first Solar War. Priceless.", 1100, "Solar War Badge", "Mythic"),
+]
+
+SCAVENGE_MISHAPS = [
+    ("⚠️ Sandstorm spiked the sensors. I aborted before the drone ate grit.", 18),
+    ("🚫 Raiders scrambled the frequency. I pulled {drone} out to avoid a scrap.", 16),
+    ("🕳️ The route collapsed into a sinkhole. No loot beats no survivors.", 15),
+    ("🪫 Power drain mid-flight. I rerouted the drone to base instead of risking a crash.", 12),
+    ("🧨 Tripwire spotted. I wasn't donating any drones to someone's booby trap.", 17),
+]
+
+SCAVENGE_FIELD_REPORTS = [
+    "Signal map updated — I marked safer corridors for the next run.",
+    "Tagged a quiet alley with fresh coordinates. Looks promising.",
+    "Logged a supply cache rumor from local chatter. Might be real.",
+    "Drones sniffed a faint power signature; I'll triangulate it for next time.",
+    "Marked hostile patrol routes so you don't walk into a crossfire.",
 ]
 
 # Prestige title for collectors who secure every scavenged item once per sector
