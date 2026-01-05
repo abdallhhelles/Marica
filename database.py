@@ -6,6 +6,7 @@ FEATURES: Server-specific trading network, settings, and migration logic.
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 
 import aiosqlite
@@ -192,6 +193,33 @@ async def init_db():
                 template_name TEXT,
                 body TEXT,
                 PRIMARY KEY (guild_id, template_name)
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS profile_channels (
+                guild_id INTEGER PRIMARY KEY,
+                channel_id INTEGER
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS profile_snapshots (
+                guild_id INTEGER,
+                user_id INTEGER,
+                player_name TEXT,
+                alliance TEXT,
+                server TEXT,
+                cp INTEGER,
+                kills INTEGER,
+                likes INTEGER,
+                vip_level INTEGER,
+                level INTEGER,
+                avatar_url TEXT,
+                last_image_url TEXT,
+                raw_ocr TEXT,
+                last_updated INTEGER,
+                PRIMARY KEY (guild_id, user_id)
             )
         ''')
 
@@ -653,9 +681,134 @@ async def remove_ignored_channel(guild_id: int, channel_id: int) -> None:
         await db.execute(
             "DELETE FROM ignored_channels WHERE guild_id = ? AND channel_id = ?",
             (guild_id, channel_id),
-            
         )
         await db.commit()
+
+# --- PROFILE SNAPSHOT HELPERS ---
+
+
+async def set_profile_channel(guild_id: int, channel_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO profile_channels (guild_id, channel_id)
+            VALUES (?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id
+            ''',
+            (guild_id, channel_id),
+        )
+        await db.commit()
+
+
+async def get_profile_channel(guild_id: int) -> int | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT channel_id FROM profile_channels WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+
+async def upsert_profile_snapshot(
+    guild_id: int,
+    user_id: int,
+    *,
+    player_name: str | None = None,
+    alliance: str | None = None,
+    server: str | None = None,
+    cp: int | None = None,
+    kills: int | None = None,
+    likes: int | None = None,
+    vip_level: int | None = None,
+    level: int | None = None,
+    avatar_url: str | None = None,
+    last_image_url: str | None = None,
+    raw_ocr: str | None = None,
+) -> None:
+    now_ts = int(time.time())
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO profile_snapshots (
+                guild_id, user_id, player_name, alliance, server, cp, kills, likes,
+                vip_level, level, avatar_url, last_image_url, raw_ocr, last_updated
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                player_name = COALESCE(excluded.player_name, profile_snapshots.player_name),
+                alliance = COALESCE(excluded.alliance, profile_snapshots.alliance),
+                server = COALESCE(excluded.server, profile_snapshots.server),
+                cp = COALESCE(excluded.cp, profile_snapshots.cp),
+                kills = COALESCE(excluded.kills, profile_snapshots.kills),
+                likes = COALESCE(excluded.likes, profile_snapshots.likes),
+                vip_level = COALESCE(excluded.vip_level, profile_snapshots.vip_level),
+                level = COALESCE(excluded.level, profile_snapshots.level),
+                avatar_url = COALESCE(excluded.avatar_url, profile_snapshots.avatar_url),
+                last_image_url = COALESCE(excluded.last_image_url, profile_snapshots.last_image_url),
+                raw_ocr = COALESCE(excluded.raw_ocr, profile_snapshots.raw_ocr),
+                last_updated = excluded.last_updated
+            ''',
+            (
+                guild_id,
+                user_id,
+                player_name,
+                alliance,
+                server,
+                cp,
+                kills,
+                likes,
+                vip_level,
+                level,
+                avatar_url,
+                last_image_url,
+                raw_ocr,
+                now_ts,
+            ),
+        )
+        await db.commit()
+
+
+async def get_profile_snapshot(guild_id: int, user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT guild_id, user_id, player_name, alliance, server, cp, kills, likes,
+                   vip_level, level, avatar_url, last_image_url, raw_ocr, last_updated
+            FROM profile_snapshots
+            WHERE guild_id = ? AND user_id = ?
+            """,
+            (guild_id, user_id),
+        ) as cursor:
+            return await cursor.fetchone()
+
+
+async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
+    allowed = {
+        "cp": "cp",
+        "kills": "kills",
+        "likes": "likes",
+        "vip": "vip_level",
+        "level": "level",
+    }
+    target = allowed.get(column)
+    if not target:
+        return []
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f'''
+            SELECT user_id, player_name, {target} as value
+            FROM profile_snapshots
+            WHERE guild_id = ? AND {target} IS NOT NULL
+            ORDER BY {target} DESC
+            LIMIT ?
+            ''',
+            (guild_id, limit),
+        ) as cursor:
+            return await cursor.fetchall()
 
 # --- LEVELING HELPERS ---
 

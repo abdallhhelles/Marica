@@ -23,6 +23,22 @@ A quick guide for running Marica's most-used tools inside your server. Times use
 - **View profile:** `/profile [@member]` for level/xp, cooldown state, and stash summary.
 - **Trade loot:** `/trade_item @member <quantity> <item name>` moves scavenged items between survivors.
 
+## Profile Screenshot Scanner
+- **Set the intake channel:** `/setup_profile_channel #channel` tells Marcia where to watch for in-game profile screenshots.
+- **Auto-capture stats:** dropping a profile screenshot in that channel logs CP, kills, likes, VIP, level, server, and alliance to the uploader.
+- **Review your scan:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor.
+- **Compare stats:** `/profile_leaderboard <stat>` lists the top CP/kills/likes/VIP/level from scanned profiles.
+
+### Quick testing routine
+1. **Dependencies:** Ensure `tesseract` is installed on the host and Python dependencies are synced (`pip install -r requirements.txt`).
+2. **Configure channel:** Run `/setup_profile_channel #channel` in a test server and note the confirmation embed.
+3. **Happy path:** Post a known-good profile screenshot in the configured channel. Expect a reply embed summarizing parsed CP/kills/likes/vip/level/alliance/server.
+4. **Profile view:** Run `/profile_stats` for yourself and confirm it matches the prior reply and shows `Last scanned` timestamp.
+5. **Leaderboard:** Run `/profile_leaderboard cp` (and other stats if populated). Verify ordering matches expected values and that users without values are skipped.
+6. **OCR-off fallback:** Temporarily uninstall or disable `tesseract` and post another screenshot. Confirm the bot replies with `OCR unavailable` in the footer and still records the upload with your display name.
+7. **Channel guard:** Post a screenshot in a different channel and confirm the bot ignores it (no DB write/response).
+8. **Audit storage:** Inspect the SQLite DB (`data/marcia_os.db`, `profile_snapshots` table) to confirm `player_name`, metrics, `last_image_url`, and `raw_ocr` are populated for the test guild/user.
+
 ## Leaderboard & Roles
 - **Local leaderboard:** `/leaderboard` to see the top survivors in your server.
 - **Global leaderboard:** `/global_leaderboard` compares across servers.
