@@ -145,7 +145,10 @@ class MarciaBot(commands.Bot):
             return
 
         interaction_command_types = {
-            discord.MessageType.chat_input_command,
+            # Modern discord.py emits `application_command` while older
+            # versions use `chat_input_command`; support both plus context menus.
+            getattr(discord.MessageType, "application_command", None),
+            getattr(discord.MessageType, "chat_input_command", None),
             getattr(discord.MessageType, "context_menu_command", None),
         }
         if message.type in interaction_command_types:
