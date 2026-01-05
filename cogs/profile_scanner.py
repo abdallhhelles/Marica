@@ -15,6 +15,7 @@ from pathlib import Path
 
 import discord
 from discord import app_commands
+from discord.errors import HTTPException
 from discord.ext import commands
 
 from database import (
@@ -131,12 +132,17 @@ class ProfileScanner(commands.Cog):
     async def cog_unload(self):
         pass
 
-    async def _safe_send(self, ctx, **kwargs):
+    async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         interaction = getattr(ctx, "interaction", None)
         if interaction:
-            if interaction.response.is_done():
-                return await interaction.followup.send(**kwargs)
-            return await interaction.response.send_message(**kwargs)
+            try:
+                if interaction.response.is_done():
+                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
+                return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
+            except HTTPException as exc:
+                if exc.code == 40060:
+                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
+                raise
 
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
@@ -330,8 +336,17 @@ class ProfileScanner(commands.Cog):
         loop = asyncio.get_running_loop()
 
         def _scan() -> str:
-            with Image.open(io.BytesIO(image_bytes)) as img:
-                return pytesseract.image_to_string(img)
+            try:
+                with Image.open(io.BytesIO(image_bytes)) as img:
+                    return pytesseract.image_to_string(img)
+            except Exception as exc:
+                # Gracefully handle missing tesseract binaries instead of crashing the task
+                if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
+                    exc, pytesseract.TesseractNotFoundError
+                ):
+                    self.log.warning("Tesseract binary missing; skipping pytesseract fallback")
+                    return ""
+                raise
 
         return await loop.run_in_executor(None, _scan)
 

@@ -1,6 +1,17 @@
-import os
+import importlib.util
 import json
+import os
 import re
+
+_CV2_SPEC = importlib.util.find_spec("cv2")
+_EASYOCR_SPEC = importlib.util.find_spec("easyocr")
+
+if not (_CV2_SPEC and _EASYOCR_SPEC):  # pragma: no cover - CLI helper guard
+    raise SystemExit(
+        "EasyOCR runner requires easyocr and opencv-python-headless. "
+        "Install with `pip install -r requirements-ocr.txt` before running."
+    )
+
 import cv2
 import easyocr
 

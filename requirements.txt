@@ -4,6 +4,3 @@ python-dotenv
 aiosqlite
 pillow
 pytesseract
-easyocr
-opencv-python-headless
-numpy

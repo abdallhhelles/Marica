@@ -28,6 +28,7 @@ A quick guide for running Marica's most-used tools inside your server. Times use
 - **Auto-capture stats:** dropping a profile screenshot in that channel logs CP, kills, likes, VIP, level, server, and alliance to the uploader.
 - **Review your scan:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor.
 - **Compare stats:** `/profile_leaderboard <stat>` lists the top CP/kills/likes/VIP/level from scanned profiles.
+- **OCR dependencies:** Tesseract+pytesseract are enough for basic scans. For higher accuracy, install `requirements-ocr.txt` (easyocr, opencv, numpy), but skip them on low-memory hosts.
 
 ### Quick testing routine
 1. **Dependencies:** Ensure `tesseract` is installed on the host and Python dependencies are synced (`pip install -r requirements.txt`).
