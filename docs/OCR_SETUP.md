@@ -3,11 +3,11 @@
 Follow these steps to make the profile scanner's OCR feature work reliably.
 
 ## Install Python dependencies
-1. Base packages (bot + pytesseract):
+1. Base packages (bot + pytesseract/Pillow):
    ```bash
    pip install -r requirements.txt
    ```
-2. EasyOCR extras (template-driven scans):
+2. EasyOCR extras (template-driven scans, also re-installs Pillow + pytesseract for convenience):
    ```bash
    pip install -r requirements-ocr.txt
    ```

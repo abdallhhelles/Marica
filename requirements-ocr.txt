@@ -1,3 +1,5 @@
+pillow
+pytesseract
 easyocr
 opencv-python-headless
 numpy
