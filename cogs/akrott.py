@@ -183,7 +183,6 @@ class AkrottControl(commands.Cog):
         name="akrott",
         description="Owner control panel and administrative overview.",
         default_permissions=None,
-        dm_permission=True,
     )
 
     def build_menu_embed(self) -> discord.Embed:

@@ -142,6 +142,9 @@ class Leveling(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
+        if message.type is not discord.MessageType.default:
+            return
+
         gid, uid = message.guild.id, message.author.id
         if await is_channel_ignored(gid, message.channel.id):
             return
