@@ -49,6 +49,7 @@ A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
 * `httpx`
 * `python-dotenv`
 * `aiosqlite`
+* Optional OCR boost: `easyocr`, `opencv-python-headless`, and `numpy` (install with `pip install -r requirements-ocr.txt`). These are heavy; skip them on low-memory hosts and the bot will fall back to the lighter Tesseract pipeline.
 
 ### 2. Local Setup
 1. Clone this repository to your private server.
