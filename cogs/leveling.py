@@ -14,7 +14,14 @@ import time
 import aiosqlite
 from datetime import datetime
 from bug_logging import log_command_exception
-from assets import SCAVENGE_OUTCOMES, DRONE_NAMES, MARICA_QUOTES, PRESTIGE_ROLE
+from assets import (
+    SCAVENGE_FIELD_REPORTS,
+    SCAVENGE_MISHAPS,
+    SCAVENGE_OUTCOMES,
+    DRONE_NAMES,
+    MARICA_QUOTES,
+    PRESTIGE_ROLE,
+)
 from database import (
     DB_PATH,
     get_settings,
@@ -135,6 +142,9 @@ class Leveling(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
+        if message.type is not discord.MessageType.default:
+            return
+
         gid, uid = message.guild.id, message.author.id
         if await is_channel_ignored(gid, message.channel.id):
             return
@@ -233,8 +243,6 @@ class Leveling(commands.Cog):
     async def scavenge(self, ctx):
         """Deploy a drone to find loot and XP. (1 Hour Cooldown)"""
         drone_name = random.choice(DRONE_NAMES)
-        outcome = random.choice(SCAVENGE_OUTCOMES)
-        flavor, xp_gain, item_name, rarity = outcome
 
         # Momentum bonus if the survivor keeps scavenging within 90 minutes of the last run
         user_data = await get_user_stats(ctx.guild.id, ctx.author.id)
@@ -252,6 +260,36 @@ class Leveling(commands.Cog):
                 return
         recent_run = last_scavenge_ts and (now_ts - last_scavenge_ts) <= 5400
         momentum_xp = random.randint(15, 35) if recent_run else 0
+        field_report = random.choice(SCAVENGE_FIELD_REPORTS)
+
+        # Failure factor: sometimes the drones return empty-handed but with intel
+        if random.random() < 0.16:
+            mishap_reason, mishap_xp = random.choice(SCAVENGE_MISHAPS)
+            mishap_reason = mishap_reason.format(drone=drone_name)
+            total_xp = mishap_xp + momentum_xp
+
+            await update_user_xp(ctx.guild.id, ctx.author.id, total_xp)
+            await update_scavenge_time(ctx.guild.id, ctx.author.id)
+
+            description_lines = [f"_{mishap_reason}_", "", field_report, "", random.choice(MARICA_QUOTES)]
+            embed = discord.Embed(
+                title=f"🚫 {drone_name.upper()} RETURNED EMPTY",
+                description="\n".join(description_lines),
+                color=0xe67e22,
+            )
+            embed.add_field(name="Status", value="Mission scrubbed — no salvage recovered.", inline=False)
+            xp_lines = [f"Recon data: +{mishap_xp} XP"]
+            if momentum_xp:
+                xp_lines.append(f"Momentum chain: +{momentum_xp} XP")
+            xp_lines.append(f"Total: **+{total_xp} XP**")
+            embed.add_field(name="Experience", value="\n".join(xp_lines), inline=False)
+            embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
+
+            await self._safe_send(ctx, embed=embed)
+            return
+
+        outcome = random.choice(SCAVENGE_OUTCOMES)
+        flavor, xp_gain, item_name, rarity = outcome
 
         # Surprise bonus cache with reduced XP but extra loot
         bonus_outcome = None
@@ -272,22 +310,19 @@ class Leveling(commands.Cog):
 
         # Build richer scavenge report
         color_choices = [RARITY_COLORS.get(rarity, 0x2b2d31)]
-        description_lines = [f"_{flavor}_"]
+        description_lines = [f"_{flavor}_", "", field_report, random.choice(MARICA_QUOTES)]
         if recent_run:
-            description_lines.append("⚡ Momentum maintained — drones pushed harder on this route.")
+            description_lines.insert(1, "⚡ Momentum maintained — drones pushed harder on this route.")
         if bonus_outcome:
-            description_lines.append(f"🎁 Bonus cache: {bonus_item} [{bonus_rarity}] was tucked under the rubble.")
+            description_lines.insert(2, f"🎁 Bonus cache: {bonus_item} [{bonus_rarity}] was tucked under the rubble.")
             color_choices.append(RARITY_COLORS.get(bonus_rarity, 0x2b2d31))
-        description_lines.append("")
-        description_lines.append(random.choice(MARICA_QUOTES))
 
         embed = discord.Embed(
             title=f"🚁 {drone_name.upper()} RETURNING...",
             description="\n".join(description_lines),
             color=max(color_choices),
         )
-        embed.add_field(name="Loot Found", value=f"**{item_name}**", inline=True)
-        embed.add_field(name="Rarity", value=f"`{rarity}`", inline=True)
+        embed.add_field(name="Loot", value=f"**{item_name}** [`{rarity}`]", inline=True)
 
         xp_lines = [f"Base haul: +{xp_gain} XP"]
         if momentum_xp:

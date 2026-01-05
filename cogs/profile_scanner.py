@@ -334,6 +334,13 @@ class ProfileScanner(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
+        # Ignore messages that are already being handled as bot commands to avoid
+        # double-processing an uploaded screenshot (e.g., when invoking the hybrid
+        # command with an attachment).
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
+            return
+
         channel_id = await get_profile_channel(message.guild.id)
         if not channel_id or message.channel.id != channel_id:
             return
@@ -392,7 +399,7 @@ class ProfileScanner(commands.Cog):
         self.log.info(
             "Profile OCR summary | fields=%s | raw_lines=%s | note=%s",
             {k: v for k, v in parsed.items() if v is not None},
-            raw_text.count("\n") + (1 if raw_text else 0),
+            self._raw_line_count(raw_text),
             debug_note,
         )
 
@@ -614,7 +621,7 @@ class ProfileScanner(commands.Cog):
         parsed_fields = [name for name, value in parsed.items() if value not in (None, "")]
         if parsed_fields:
             field_list = ", ".join(parsed_fields)
-            raw_hint = f"raw lines={raw_text.count('\n') + (1 if raw_text else 0)}"
+            raw_hint = f"raw lines={self._raw_line_count(raw_text)}"
             return self._truncate_debug(f"Captured fields: {field_list} ({raw_hint}).")
 
         notes: list[str] = []
@@ -644,6 +651,11 @@ class ProfileScanner(commands.Cog):
     @staticmethod
     def _truncate_debug(text: str, limit: int = 950) -> str:
         return text if len(text) <= limit else text[: limit - 3] + "..."
+
+    @staticmethod
+    def _raw_line_count(raw_text: str) -> int:
+        """Count OCR output lines while tolerating empty payloads."""
+        return raw_text.count("\n") + (1 if raw_text else 0)
 
 
 async def setup(bot):
