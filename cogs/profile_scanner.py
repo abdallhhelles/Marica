@@ -690,7 +690,16 @@ class ProfileScanner(commands.Cog):
         if self._pytesseract_missing:
             self._append_unique(notes, "Install the Tesseract binary so pytesseract can run.")
 
-        combined = " | ".join(notes)
+        # Surface setup instructions directly on the confirmation embed so server owners
+        # know how to enable OCR when dependencies are missing.
+        diag = collect_ocr_diagnostics()
+        for tip in diag.install_tips:
+            self._append_unique(notes, tip)
+
+        if notes:
+            self._append_unique(notes, "Run `/ocr_status` for a full setup checklist.")
+
+        combined = "\n".join(f"• {note}" for note in notes)
         return self._truncate_debug(combined)
 
     @staticmethod
