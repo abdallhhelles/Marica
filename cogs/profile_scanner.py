@@ -127,7 +127,9 @@ class ProfileScanner(commands.Cog):
         self._easyocr_reader: easyocr.Reader | None = None
         self._easyocr_boxes: dict[str, list[float]] | None = None
         self._easyocr_ready: bool | None = None
+        self._easyocr_failure_reason: str | None = None
         self._easyocr_lock = asyncio.Lock()
+        self._pytesseract_missing = False
 
     async def cog_unload(self):
         pass
@@ -195,11 +197,11 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
 
-        parsed, raw_text = await self._perform_ocr(image_bytes)
+        parsed, raw_text, ocr_note = await self._perform_ocr(image_bytes)
         payload = self._build_payload(ctx.author, image.url, parsed, raw_text)
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
-        embed = self._build_confirmation_embed(payload)
+        embed = self._build_confirmation_embed(payload, ocr_note)
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
@@ -306,28 +308,38 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return
 
-        parsed, raw_text = await self._perform_ocr(image_bytes)
+        parsed, raw_text, ocr_note = await self._perform_ocr(image_bytes)
         payload = self._build_payload(message.author, attachment.url, parsed, raw_text)
 
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
-        await self._post_confirmation(message, payload)
+        await self._post_confirmation(message, payload, ocr_note)
 
-    async def _perform_ocr(self, image_bytes: bytes) -> tuple[dict, str]:
+    async def _perform_ocr(self, image_bytes: bytes) -> tuple[dict, str, str | None]:
         parsed: dict[str, str | int | None] = {}
         raw_text = ""
+        ocr_note: str | None = None
 
         easyocr_results = await self._run_easyocr(image_bytes)
         if easyocr_results:
             parsed.update(easyocr_results["parsed"])
             raw_text = easyocr_results["raw"]
+        elif self._easyocr_ready is False and self._easyocr_failure_reason:
+            ocr_note = self._easyocr_failure_reason
 
         if not parsed:
             pytesseract_text = await self._run_pytesseract(image_bytes)
             raw_text = pytesseract_text or raw_text
             if pytesseract_text:
                 parsed.update(_parse_profile_text(pytesseract_text))
+            elif ocr_note is None:
+                if self._pytesseract_missing:
+                    ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
+                elif not (pytesseract and Image):
+                    ocr_note = "OCR dependencies are missing; install requirements-ocr.txt."
+                else:
+                    ocr_note = "OCR could not read this image."
 
-        return parsed, raw_text
+        return parsed, raw_text, ocr_note
 
     async def _run_pytesseract(self, image_bytes: bytes) -> str:
         if not (pytesseract and Image):
@@ -344,6 +356,7 @@ class ProfileScanner(commands.Cog):
                 if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
                     exc, pytesseract.TesseractNotFoundError
                 ):
+                    self._pytesseract_missing = True
                     self.log.warning("Tesseract binary missing; skipping pytesseract fallback")
                     return ""
                 raise
@@ -356,6 +369,10 @@ class ProfileScanner(commands.Cog):
 
         if not (easyocr and cv2 and np):
             self._easyocr_ready = False
+            self._easyocr_failure_reason = (
+                "EasyOCR unavailable: install easyocr, opencv-python-headless, and numpy."
+            )
+            self.log.warning(self._easyocr_failure_reason)
             return False
 
         async with self._easyocr_lock:
@@ -364,6 +381,8 @@ class ProfileScanner(commands.Cog):
 
             if not BOXES_PATH.exists():
                 self._easyocr_ready = False
+                self._easyocr_failure_reason = f"OCR bounding boxes not found at {BOXES_PATH}."
+                self.log.warning(self._easyocr_failure_reason)
                 return False
 
             loop = asyncio.get_running_loop()
@@ -379,6 +398,9 @@ class ProfileScanner(commands.Cog):
             self._easyocr_boxes = boxes
             self._easyocr_reader = reader
             self._easyocr_ready = bool(boxes)
+            self._easyocr_failure_reason = None if self._easyocr_ready else "OCR templates are empty."
+            if not self._easyocr_ready:
+                self.log.warning(self._easyocr_failure_reason)
             return self._easyocr_ready
 
     async def _run_easyocr(self, image_bytes: bytes):
@@ -475,29 +497,29 @@ class ProfileScanner(commands.Cog):
         }
 
     def _is_image_attachment(self, attachment: discord.Attachment) -> bool:
-        if not attachment.content_type:
-            return False
-        content_type = attachment.content_type.lower()
-        allowed = {"image/png", "image/jpeg", "image/webp"}
-        return content_type in allowed
+        allowed = {"png", "jpeg", "jpg", "webp"}
 
-    async def _post_confirmation(self, message: discord.Message, payload: dict) -> None:
-        embed = self._build_confirmation_embed(payload)
+        if attachment.content_type:
+            content_type = attachment.content_type.lower()
+            if any(content_type.endswith(ext) for ext in allowed):
+                return True
 
-        if not payload.get("raw_ocr"):
-            embed.set_footer(
-                text=(
-                    "OCR unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
-                    " auto-parsing."
-                )
-            )
+        suffix = Path(attachment.filename).suffix.lower().lstrip(".") if attachment.filename else ""
+        return suffix in allowed
+
+    async def _post_confirmation(
+        self, message: discord.Message, payload: dict, ocr_note: str | None
+    ) -> None:
+        embed = self._build_confirmation_embed(payload, ocr_note)
 
         try:
             await message.reply(embed=embed, mention_author=False)
         except Exception:  # pragma: no cover - Discord edge
             self.log.exception("Failed to reply with profile confirmation")
 
-    def _build_confirmation_embed(self, payload: dict) -> discord.Embed:
+    def _build_confirmation_embed(
+        self, payload: dict, ocr_note: str | None = None
+    ) -> discord.Embed:
         embed = discord.Embed(
             title="🛰️ Profile logged",
             description=(
@@ -511,6 +533,13 @@ class ProfileScanner(commands.Cog):
         embed.add_field(name="Kills", value=_format_metric(payload.get("kills")), inline=True)
         embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
         embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
+
+        if not payload.get("raw_ocr"):
+            footer = ocr_note or (
+                "OCR unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
+                " auto-parsing."
+            )
+            embed.set_footer(text=footer)
         return embed
 
 
