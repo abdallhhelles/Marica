@@ -144,6 +144,13 @@ class MarciaBot(commands.Bot):
         if message.author.bot or not message.guild:
             return
 
+        interaction_command_types = {
+            discord.MessageType.chat_input_command,
+            getattr(discord.MessageType, "context_menu_command", None),
+        }
+        if message.type in interaction_command_types:
+            return
+
         if await is_channel_ignored(message.guild.id, message.channel.id):
             return
 
