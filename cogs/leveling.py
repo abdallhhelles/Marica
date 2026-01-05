@@ -54,6 +54,10 @@ class Leveling(commands.Cog):
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         """Send a response for both message and slash contexts without double-acking."""
 
+        mention_author = kwargs.pop("mention_author", None)
+        if mention_author is False and "allowed_mentions" not in kwargs:
+            kwargs["allowed_mentions"] = discord.AllowedMentions(replied_user=False)
+
         interaction = getattr(ctx, "interaction", None)
         if interaction:
             try:
