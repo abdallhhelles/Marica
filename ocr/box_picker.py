@@ -15,6 +15,11 @@ WINDOW_H = 1800
 
 
 def list_images(folder: str):
+    if not os.path.isdir(folder):
+        raise SystemExit(
+            f"Input folder '{folder}' is missing. Create it and drop profile screenshots inside."
+        )
+
     exts = (".png", ".jpg", ".jpeg", ".webp")
     files = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
     files.sort()
