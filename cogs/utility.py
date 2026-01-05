@@ -10,6 +10,7 @@ from typing import Optional
 
 import discord
 from discord import app_commands
+from discord.errors import HTTPException
 from discord.ext import commands
 import httpx
 
@@ -108,9 +109,14 @@ class Utility(commands.Cog):
 
         interaction = getattr(ctx, "interaction", None)
         if interaction:
-            if interaction.response.is_done():
-                return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
-            return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
+            try:
+                if interaction.response.is_done():
+                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
+                return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
+            except HTTPException as exc:
+                if exc.code == 40060:
+                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
+                raise
 
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
