@@ -172,8 +172,15 @@ class Leveling(commands.Cog):
                 target = message.channel
                 if settings and settings['chat_channel_id']:
                     target = self.bot.get_channel(settings['chat_channel_id']) or message.channel
-                
-                await target.send(embed=embed)
+
+                try:
+                    await target.send(embed=embed)
+                except discord.Forbidden:
+                    if target != message.channel:
+                        try:
+                            await message.channel.send(embed=embed)
+                        except discord.Forbidden:
+                            pass
                 await self.apply_role_rewards(message.author, new_lvl)
 
     @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
