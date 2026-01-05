@@ -296,7 +296,10 @@ class Events(commands.Cog):
             role = guild.get_role(ping_role_id) if isinstance(ping_role_id, int) and ping_role_id >= 0 else None
             mention = ""
             allowed_mentions = discord.AllowedMentions(everyone=False, roles=False)
-            if ping_role_id == -1:
+            if mins == 60:
+                mention = "@everyone"
+                allowed_mentions = discord.AllowedMentions(everyone=True, roles=False)
+            elif ping_role_id == -1:
                 mention = "@everyone"
                 allowed_mentions = discord.AllowedMentions(everyone=True, roles=False)
             elif role:
@@ -317,14 +320,11 @@ class Events(commands.Cog):
                 )
                 if mention:
                     msg = f"{mention}\n" + msg
-            else:
-                msg = (f"{mention}\n" if mention else "") + f"{title} {quote}\n{body}\n\n*Drone: {drone}*"
-            sent = await chan.send(
-                msg,
-                allowed_mentions=allowed_mentions,
-            )
+                sent = await chan.send(
+                    msg,
+                    allowed_mentions=allowed_mentions,
+                )
 
-            if mins == 60:
                 try:
                     await sent.add_reaction(DM_OPT_IN_EMOJI)
                 except Exception:
