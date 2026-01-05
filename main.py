@@ -26,6 +26,7 @@ _pin_working_directory()
 
 import discord
 from discord import app_commands
+from discord.errors import HTTPException
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -86,9 +87,8 @@ class MarciaBot(commands.Bot):
         logger.info("🛰️ Initializing system modules...")
         await self._load_cogs()
 
-        # 2.5. Guard slash commands from ignored channels and hook error reporting
+        # 2.5. Guard slash commands from ignored channels
         self.tree.interaction_check = self._interaction_channel_gate
-        self.tree.on_error = self._on_app_command_error
 
         # 3. Sync slash commands so `/` autocomplete stays fresh
         try:
@@ -112,20 +112,24 @@ class MarciaBot(commands.Bot):
                 logger.exception("Channel gate check failed")
         return True
 
-    async def _on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        """Handle app command errors while keeping ignored channels silent."""
-        if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                try:
-                    await interaction.response.send_message(
-                        "🔒 That channel is on radio silence. Try a different room.",
-                        ephemeral=True,
-                    )
-                except Exception:
-                    logger.debug("Could not ack blocked command")
-            return
+    async def _safe_interaction_reply(self, interaction: discord.Interaction, **kwargs):
+        """Reply without raising duplicate-ack errors when already responded."""
 
-        logger.exception("App command error: %s", error)
+        try:
+            if not interaction.response.is_done():
+                return await interaction.response.send_message(**kwargs)
+            return await interaction.followup.send(**kwargs)
+        except HTTPException as exc:
+            if exc.code == 40060:
+                logger.debug(
+                    "Skipped duplicate response for %s",
+                    getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+                )
+                return None
+            logger.exception("Failed to send interaction response")
+        except Exception:
+            logger.exception("Failed to send interaction response")
+        return None
 
     async def on_ready(self):
         """Final system check once online."""
@@ -239,18 +243,29 @@ class MarciaBot(commands.Bot):
         if getattr(error, "handled", False):
             return
 
+        if isinstance(error, app_commands.CheckFailure):
+            await self._safe_interaction_reply(
+                interaction,
+                content="🔒 That channel is on radio silence. Try a different room.",
+                ephemeral=True,
+            )
+            error.handled = True
+            return
+
         if isinstance(error, app_commands.CommandOnCooldown):
             retry = int(error.retry_after)
-            await interaction.response.send_message(
-                f"⌛ Drones cooling down. Try again in {retry}s.",
+            await self._safe_interaction_reply(
+                interaction,
+                content=f"⌛ Drones cooling down. Try again in {retry}s.",
                 ephemeral=True,
             )
             error.handled = True
             return
 
         if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message(
-                "❌ **Access Denied:** Insufficient clearance.",
+            await self._safe_interaction_reply(
+                interaction,
+                content="❌ **Access Denied:** Insufficient clearance.",
                 ephemeral=True,
             )
             error.handled = True
@@ -259,7 +274,17 @@ class MarciaBot(commands.Bot):
         await log_command_exception(
             self, error, interaction=interaction, source="app-command"
         )
-        logger.exception("Uncaught app command error", exc_info=error)
+        await self._safe_interaction_reply(
+            interaction,
+            content="⚠️ Something went wrong on my end. I've logged it for review.",
+            ephemeral=True,
+        )
+
+        logger.exception(
+            "Uncaught app command error (%s)",
+            getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+            exc_info=error,
+        )
 
     async def _load_cogs(self):
         """Load all discovered cogs in a deterministic order."""
