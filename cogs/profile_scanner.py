@@ -198,7 +198,9 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(image_bytes)
+        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+            image_bytes, filename=image.filename
+        )
         payload = self._build_payload(ctx.author, image.url, parsed, raw_text)
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
@@ -363,37 +365,50 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(image_bytes)
+        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+            image_bytes, filename=attachment.filename
+        )
         payload = self._build_payload(message.author, attachment.url, parsed, raw_text)
 
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
         await self._post_confirmation(message, payload, ocr_note, debug_note)
 
-    async def _perform_ocr(self, image_bytes: bytes) -> tuple[dict, str, str | None, str | None]:
+    async def _perform_ocr(
+        self, image_bytes: bytes, *, filename: str | None = None
+    ) -> tuple[dict, str, str | None, str | None]:
         parsed: dict[str, str | int | None] = {}
         raw_text = ""
         ocr_note: str | None = None
         debug_note: str | None = None
 
-        easyocr_results = await self._run_easyocr(image_bytes)
-        if easyocr_results:
-            parsed.update(easyocr_results["parsed"])
-            raw_text = easyocr_results["raw"]
-        elif self._easyocr_ready is False and self._easyocr_failure_reason:
-            ocr_note = self._easyocr_failure_reason
+        temp_path = self._stash_temp_image(image_bytes, filename)
 
-        if not parsed:
-            pytesseract_text = await self._run_pytesseract(image_bytes)
-            raw_text = pytesseract_text or raw_text
-            if pytesseract_text:
-                parsed.update(_parse_profile_text(pytesseract_text))
-            elif ocr_note is None:
-                if self._pytesseract_missing:
-                    ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
-                elif not (pytesseract and Image):
-                    ocr_note = "OCR dependencies are missing; install requirements-ocr.txt."
-                else:
-                    ocr_note = "OCR could not read this image."
+        try:
+            easyocr_results = await self._run_easyocr(image_bytes, temp_path)
+            if easyocr_results:
+                parsed.update(easyocr_results["parsed"])
+                raw_text = easyocr_results["raw"]
+            elif self._easyocr_ready is False and self._easyocr_failure_reason:
+                ocr_note = self._easyocr_failure_reason
+
+            if not parsed:
+                pytesseract_text = await self._run_pytesseract(image_bytes)
+                raw_text = pytesseract_text or raw_text
+                if pytesseract_text:
+                    parsed.update(_parse_profile_text(pytesseract_text))
+                elif ocr_note is None:
+                    if self._pytesseract_missing:
+                        ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
+                    elif not (pytesseract and Image):
+                        ocr_note = "OCR dependencies are missing; install requirements-ocr.txt."
+                    else:
+                        ocr_note = "OCR could not read this image."
+        finally:
+            if temp_path:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except Exception:  # pragma: no cover - best-effort cleanup
+                    self.log.debug("Temp profile image cleanup failed for %s", temp_path)
 
         debug_note = self._compose_debug_note(parsed, raw_text, ocr_note)
         self.log.info(
@@ -427,6 +442,26 @@ class ProfileScanner(commands.Cog):
 
         return await loop.run_in_executor(None, _scan)
 
+    def _stash_temp_image(
+        self, image_bytes: bytes, filename: str | None = None
+    ) -> Path | None:
+        """Persist an uploaded image for OCR routines that prefer file paths."""
+
+        shots_dir = Path(__file__).resolve().parent.parent / "shots" / "temp"
+        shots_dir.mkdir(parents=True, exist_ok=True)
+
+        suffix = Path(filename).suffix if filename else ".png"
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        temp_path = shots_dir / f"profile_{timestamp}{suffix}"
+
+        try:
+            temp_path.write_bytes(image_bytes)
+        except Exception:
+            self.log.exception("Failed to stash profile image to %s", temp_path)
+            return None
+
+        return temp_path
+
     async def _ensure_easyocr(self) -> bool:
         if self._easyocr_ready is not None:
             return self._easyocr_ready
@@ -434,7 +469,7 @@ class ProfileScanner(commands.Cog):
         if not (easyocr and cv2 and np):
             self._easyocr_ready = False
             self._easyocr_failure_reason = (
-                "EasyOCR unavailable: install easyocr, opencv-python-headless, and numpy."
+                "EasyOCR unavailable. Install OCR extras with `pip install -r requirements-ocr.txt`."
             )
             self.log.warning(self._easyocr_failure_reason)
             return False
@@ -467,7 +502,7 @@ class ProfileScanner(commands.Cog):
                 self.log.warning(self._easyocr_failure_reason)
             return self._easyocr_ready
 
-    async def _run_easyocr(self, image_bytes: bytes):
+    async def _run_easyocr(self, image_bytes: bytes, temp_path: Path | None = None):
         ready = await self._ensure_easyocr()
         if not ready or not self._easyocr_reader or not self._easyocr_boxes:
             return None
@@ -475,8 +510,11 @@ class ProfileScanner(commands.Cog):
         loop = asyncio.get_running_loop()
 
         def _scan():
-            arr = np.frombuffer(image_bytes, dtype=np.uint8)
-            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if temp_path and temp_path.exists():
+                img = cv2.imread(str(temp_path))
+            else:
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             if img is None:
                 return None
 
@@ -627,23 +665,27 @@ class ProfileScanner(commands.Cog):
         notes: list[str] = []
 
         if ocr_note:
-            notes.append(ocr_note)
+            self._append_unique(notes, ocr_note)
 
         if raw_text:
             preview = raw_text.replace("\n", " | ")
-            notes.append(f"OCR text seen but no fields matched: {preview}")
+            self._append_unique(notes, f"OCR text seen but no fields matched: {preview}")
         else:
-            notes.append("OCR returned no text for this image.")
+            self._append_unique(notes, "OCR returned no text for this image.")
 
         if self._easyocr_ready is False:
-            notes.append("EasyOCR unavailable or templates missing.")
+            easyocr_hint = (
+                self._easyocr_failure_reason
+                or "EasyOCR unavailable or templates missing."
+            )
+            self._append_unique(notes, easyocr_hint)
         elif self._easyocr_ready and not parsed_fields:
-            notes.append(
+            self._append_unique(
                 "EasyOCR ran but bounding boxes may not match this screenshot style."
             )
 
         if self._pytesseract_missing:
-            notes.append("Install the Tesseract binary so pytesseract can run.")
+            self._append_unique(notes, "Install the Tesseract binary so pytesseract can run.")
 
         combined = " | ".join(notes)
         return self._truncate_debug(combined)
@@ -651,6 +693,11 @@ class ProfileScanner(commands.Cog):
     @staticmethod
     def _truncate_debug(text: str, limit: int = 950) -> str:
         return text if len(text) <= limit else text[: limit - 3] + "..."
+
+    @staticmethod
+    def _append_unique(notes: list[str], text: str) -> None:
+        if text and text not in notes:
+            notes.append(text)
 
     @staticmethod
     def _raw_line_count(raw_text: str) -> int:
