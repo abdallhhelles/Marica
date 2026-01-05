@@ -138,8 +138,11 @@ class ProfileScanner(commands.Cog):
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         interaction = getattr(ctx, "interaction", None)
         if interaction:
+            response = interaction.response
+            responded = response.is_done() if hasattr(response, "is_done") else False
+            deferred = getattr(ctx, "deferred", False) or getattr(response, "deferred", False)
             try:
-                if interaction.response.is_done():
+                if responded or deferred:
                     return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
                 return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
             except HTTPException as exc:
