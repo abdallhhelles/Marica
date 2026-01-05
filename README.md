@@ -6,67 +6,113 @@
 
 > *"Freedom is expensive. Don't waste my time for free."* — **Marcia**
 
-**Marcia** is a custom tactical bot built for the **Helles Hub Alliance**. She is a cunning hacker turned hub guardian who manages survivor ranks, wasteland scavenging, and the "Fish-Link" trade network.
+Marica is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
-Quick start and command reference: see [docs/USAGE.md](docs/USAGE.md).
-
-### Bot Profile Blurb (≤400 chars)
-Dark War Survival liaison. Marcia tracks UTC-2 ops, pings squads with lorey drone chatter, manages Fish-Link trades, endless leveling, mythic scavenging, intel, translations, reminders, and analytics across alliances. Built to keep survivors organized, supplied, and hyped.
-
----
-
-## 🛠️ System Features
-
-### 1. 🎣 Fish-Link Network
-A dynamic, auto-anchored trading interface for the Arctic Ice Pit.
-* **Matchmaking:** Marcia automatically DMs users when a duplicate fish matches their "Wanted" list.
-* **UI Anchoring:** The trade menu automatically stays at the bottom of the channel, even during heavy chat.
-* **Management:** Users can easily add extras, find needs, and clear their listings.
-
-### 2. 🧟 Survivor Progression
-* **Endless XP Tiers:** Survivors earn dynamic XP per message (60s cooldown) and unlock auto-created "Sector Rank" roles every 5 levels.
-* **Prestige Collections:** Hourly scavenging now drops Common → Mythic loot; completing the catalog grants the prestige role **Vaultwalker**.
-* **Loot Economy:** Trade scavenged items with `/trade_item` to help squadmates finish their sets.
-
-### 3. 🚁 Commander Protocols
-* **Event Management:** Set up missions with automated reminders at T-minus 60, 30, 15, 3, and 0 minutes.
-* **Intel Database:** Quick-access information regarding hub rules, roles, and lore.
-* **Translations:** React with a flag emoji to have Marcia decode messages into any language using Google Translate.
-
-### 4. 🛰️ Event Creator (UTC-2)
-* **Guided flow:** `/event` opens a DM interview where Marcia asks for the codename, tag (raid/siege/rally/briefing), instructions, and the exact game-time start (`YYYY-MM-DD HH:MM` in UTC-2). She can also capture a location/voice-channel link and which role to ping.
-* **Broadcast cadence:** Reminders post at 60/30/15/3/0 minutes with lore-flavored drone signatures, keeping every guild on the Dark War Survival clock.
-* **Member visibility:** `/events` lists the next scheduled operations for the current server, including tags, locations, and UTC-2 timestamps so squads can self-check the roster.
-* **Admin cleanup:** `/event_remove <codename>` scrubs an operation instantly. Templates can be archived and reused from the same menu for repeat ops.
+## Table of contents
+1. [System capabilities](#system-capabilities)
+2. [Deployment overview](#deployment-overview)
+3. [Hosting patterns](#hosting-patterns)
+4. [Local configuration](#local-configuration)
+5. [Operations & troubleshooting](#operations--troubleshooting)
+6. [Outreach blurb](#outreach-blurb)
 
 ---
 
-## 🚀 Installation & Setup
+## System capabilities
 
-### 1. Requirements
+### Fish-Link Network (trading)
+* **Auto-matchmaking:** DMs users when a duplicate fish meets another player’s “Wanted” list.
+* **Anchored UI:** Keeps the trade menu at the channel bottom, even under heavy chat.
+* **Inventory tools:** Add extras, discover needs, and clear listings quickly.
+
+### Survivor progression & scavenging
+* **Endless XP tiers:** Message-based XP (60s cooldown) that auto-creates “Sector Rank” roles every 5 levels.
+* **Prestige collections:** Hourly scavenging drops Common → Mythic loot; completing the set grants **Vaultwalker**.
+* **Loot economy:** `/trade_item` lets squadmates exchange scavenged items.
+
+### Commander protocols (events)
+* **Guided creation:** `/event` runs a DM wizard that captures codename, tag, instructions, start time (`YYYY-MM-DD HH:MM` in UTC-2), optional location/voice link, and ping target.
+* **Cadenced reminders:** Posts at T-minus 60/30/15/3/0 minutes with consistent formatting and allowed mentions.
+* **Visibility:** `/events` lists upcoming operations for the current server with UTC-2 timestamps.
+* **Cleanup & reuse:** `/event_remove <codename>` removes an operation; templates can be archived and reused.
+
+### Profile scanning (OCR)
+* **Channel guard:** `/setup_profile_channel` scopes ingestion to a specific channel; other channels are ignored by design.
+* **Metric extraction:** Parses CP, kills, likes, VIP, level, server, and alliance from uploaded screenshots.
+* **Review & ranking:** `/profile_stats` shows the last snapshot; `/profile_leaderboard` surfaces the top CP/kills/likes/VIP/level.
+* **Health checks:** `/ocr_status` and `python ocr/diagnostics.py` verify dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
+
+---
+
+## Deployment overview
+
+### Runtime requirements
 * Python 3.8+
-* `discord.py`
-* `httpx`
-* `python-dotenv`
-* `aiosqlite`
-* Optional OCR stack: Pillow + pytesseract plus `easyocr`, `opencv-python-headless`, and `numpy` (install everything with `pip install -r requirements-ocr.txt`). These are heavy; skip them on low-memory hosts and the bot will fall back to the lighter Tesseract pipeline.
-* Full OCR setup checklist: see [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
+* `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
-### 2. Local Setup
-1. Clone this repository to your private server.
+### OCR add-on (enables `/scan_profile`)
+* Pillow + pytesseract (pulled by `requirements.txt`)
+* `easyocr`, `opencv-python-headless`, `numpy` via `pip install -r requirements-ocr.txt`
+* System `tesseract-ocr` binary
+* Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
+
+### Deployment checklist (all hosts)
+1. Install Python deps:
+   * Base: `pip install -r requirements.txt`
+   * OCR (for profile scanning): `pip install -r requirements-ocr.txt`
+2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
+3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`).
+4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py` or `/ocr_status` in Discord.
+
+---
+
+## Hosting patterns
+
+### Containers / Pterodactyl / read-only consoles
+Panels often install only `requirements.txt` and skip system packages. Bake everything into the start command so every boot is self-contained:
+
+```bash
+apt-get update && apt-get install -y tesseract-ocr \
+  && pip install -r requirements.txt \
+  && pip install -r requirements-ocr.txt \
+  && python main.py
+```
+
+Notes:
+* Keep the command on one line in panel settings; do not rely on interactive consoles.
+* Remove or pin conflicting preinstalls (e.g., `googletrans==4.0.0rc1` forces `httpx==0.13.3` and breaks the bot). Lock `httpx` to the version in `requirements.txt` if your host injects extras.
+
+### Local development
+Clone the repo, create `.env`, install dependencies (include OCR if you need scanning), and run `python main.py` from the repo root. The bot pins its working directory automatically.
+
+---
+
+## Local configuration
+1. Clone the repository.
 2. Create a `.env` file in the root directory:
+
 ```env
 TOKEN=your_discord_bot_token_here
 ```
 
-*Data persistence:* All per-server links (event/chat/welcome/verify/rules/auto-role) and progression data live in `data/marcia_os.db` by default. The bot creates this folder automatically and reuses it across restarts and git pulls. Override with `MARCIA_DB_PATH` if your host prefers a custom data mount.
+**Data persistence**
+* Default database: `data/marcia_os.db` (auto-created). Override with `MARCIA_DB_PATH` if your host mounts storage elsewhere.
 
-*Moderation logging:* For the moderated guild (`1403997721962086480`), transcripts live under `archives/<ServerName>_<ServerID>/`, one `<channel>_<channel_id>.log` file per text channel or thread. A `.history_seeded` marker appears after the first full backfill (includes archived threads), and new channels/threads are automatically added going forward. Logging is silent: the bot does not post in channels when backfilling or writing transcripts.
+**Moderation logging**
+* For the moderated guild (`1403997721962086480`), transcripts live under `archives/<ServerName>_<ServerID>/`, one `<channel>_<channel_id>.log` per text channel or thread.
+* A `.history_seeded` marker appears after the first full backfill (including archived threads). New channels/threads are captured automatically.
+* Logging is silent—no channel posts during backfill or transcript writes.
 
-### 3. Troubleshooting
-* **`ModuleNotFoundError: cogs`** — The bot forces its working directory to this repository root at startup. If you still see this error on hosts like Pterodactyl, double-check that `main.py` and the `cogs/` folder stay together and that your start command runs from this folder.
+---
 
-## Outreach Message (copy/paste)
+## Operations & troubleshooting
+* **`ModuleNotFoundError: cogs`** — The bot forces its working directory to the repo root. If the error appears on panel hosts, ensure `main.py` and `cogs/` are co-located and the start command runs from this folder.
+* **Profile scans are blank** — Confirm `tesseract` is installed, OCR extras are present (`requirements-ocr.txt`), and templates match your screenshot layout (see [docs/OCR_SETUP.md](docs/OCR_SETUP.md)).
+* **HTTP client conflicts** — Third-party images that preinstall `googletrans==4.0.0rc1` downgrade `httpx`. Re-pin to the version in `requirements.txt` and remove conflicting packages.
+
+---
+
+## Outreach blurb
 Use this when someone asks what Marica is or how to try her:
 
 > Hey! I play **Dark War Survival** and built Marica to make life easier for my alliance—translations, ops reminders, trading, and more. She's updated daily with new in-game helpers. Invite her: https://discord.com/oauth2/authorize?client_id=1428179195938476204. Join the beta/test hub: https://discord.gg/ePhRntSzB. Check `/commands`, `/features`, or `/showcase` for a quick tour, and run `/setup` right after inviting. I'm open to ideas and feedback!
