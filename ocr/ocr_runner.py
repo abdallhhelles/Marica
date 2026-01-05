@@ -29,6 +29,11 @@ MIN_CONF = 0.45
 
 
 def list_images(folder: str):
+    if not os.path.isdir(folder):
+        raise SystemExit(
+            f"Input folder '{folder}' is missing. Create it and drop profile screenshots inside."
+        )
+
     exts = (".png", ".jpg", ".jpeg", ".webp")
     files = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
     files.sort()
@@ -93,7 +98,7 @@ def clean_number(s: str):
 
 def main():
     if not os.path.exists(BOXES_FILE):
-        raise SystemExit(f"Missing {BOXES_FILE}. Run box_picker_ratios.py first.")
+        raise SystemExit(f"Missing {BOXES_FILE}. Run box_picker.py first.")
 
     with open(BOXES_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
