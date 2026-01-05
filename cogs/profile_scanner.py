@@ -25,6 +25,7 @@ from database import (
     top_profile_stat,
     upsert_profile_snapshot,
 )
+from ocr.diagnostics import collect_ocr_diagnostics
 
 _PIL_SPEC = importlib.util.find_spec("PIL")
 _PYTESSERACT_SPEC = importlib.util.find_spec("pytesseract")
@@ -286,55 +287,42 @@ class ProfileScanner(commands.Cog):
     async def ocr_status(self, ctx):
         await ctx.defer(ephemeral=True)
 
-        easyocr_imports = bool(_CV2_SPEC and _EASYOCR_SPEC)
         easyocr_ready = await self._ensure_easyocr()
-        box_count = len(self._easyocr_boxes or {})
+        diag = collect_ocr_diagnostics()
+        diag.easyocr_ready = bool(easyocr_ready)
+        diag.easyocr_failure = self._easyocr_failure_reason
+        diag.box_count = len(self._easyocr_boxes or {}) or diag.box_count
+        diag.boxes_present = BOXES_PATH.exists()
+
         box_status = (
-            f"Loaded {box_count} fields from {BOXES_PATH.name}" if box_count else "No templates loaded"
+            f"Loaded {diag.box_count} fields from {BOXES_PATH.name}" if diag.box_count else "No templates loaded"
         )
         box_details = (
-            f"Box file present at {BOXES_PATH}" if BOXES_PATH.exists() else "Missing boxes_ratios.json"
+            f"Box file present at {BOXES_PATH}" if diag.boxes_present else "Missing boxes_ratios.json"
         )
 
-        pytesseract_imports = bool(_PYTESSERACT_SPEC)
-        tesseract_binary = None
-        if pytesseract:
-            try:
-                pytesseract.get_tesseract_version()
-                tesseract_binary = True
-            except Exception:
-                tesseract_binary = False
+        easyocr_label = "Ready" if diag.easyocr_ready else "Not ready" if diag.easyocr else "Not installed"
+        if diag.easyocr_failure:
+            easyocr_label += f" — {diag.easyocr_failure}"
+
+        pytess_label = "Installed" if diag.pytesseract else "Missing"
+        if diag.tesseract_binary is True:
+            pytess_label += " (binary found)"
+        elif diag.tesseract_binary is False:
+            pytess_label += " (install the Tesseract CLI)"
 
         embed = discord.Embed(title="🛰️ OCR Status", color=0x3498db)
-        embed.add_field(
-            name="EasyOCR",
-            value=(
-                "Ready" if easyocr_ready else "Not ready" if easyocr_imports else "Not installed"
-            ),
-            inline=True,
-        )
-        embed.add_field(
-            name="Templates",
-            value=f"{box_status}\n{box_details}",
-            inline=False,
-        )
-        embed.add_field(
-            name="Pillow",
-            value="Installed" if Image else "Missing",
-            inline=True,
-        )
-        embed.add_field(
-            name="pytesseract",
-            value=(
-                "Binary found" if tesseract_binary else "Python package only" if pytesseract_imports else "Missing"
-            ),
-            inline=True,
-        )
-        embed.add_field(
-            name="Setup tip",
-            value="Install OCR extras with `pip install -r requirements-ocr.txt`.",
-            inline=False,
-        )
+        embed.add_field(name="EasyOCR", value=easyocr_label, inline=False)
+        embed.add_field(name="Templates", value=f"{box_status}\n{box_details}", inline=False)
+        embed.add_field(name="Pillow", value="Installed" if diag.pillow else "Missing", inline=True)
+        embed.add_field(name="pytesseract", value=pytess_label, inline=True)
+
+        if diag.install_tips:
+            embed.add_field(
+                name="Setup tips",
+                value="\n".join(f"• {tip}" for tip in diag.install_tips),
+                inline=False,
+            )
 
         await self._safe_send(ctx, embed=embed, ephemeral=True)
 
