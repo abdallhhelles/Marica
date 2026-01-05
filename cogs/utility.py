@@ -214,44 +214,60 @@ class Utility(commands.Cog):
 
     def _build_command_directory(self, guild_name: Optional[str] = None) -> discord.Embed:
         """Return a consistent command directory embed for both text and slash calls."""
-        categories = {
-            "Admin (UTC-2 Clock)": [
-                "`/setup` • wire welcome/verify/rules",
-                "`/event` • plan ops | `/event_remove`",
-                "`/setup_trade` • deploy Fish-Link",
-                "`/status` • quick signal | `/analytics`",
-                "`/refresh_commands` • resync slash",
-                "`/setup audit` • wiring audit",
-            ],
-            "Members": [
-                "`/events` • see ops",
-                "`/profile` | `/inventory` | `/leaderboard`",
-                "`/scavenge` • loot+XP",
-                "`/manual` + `/features` + `/about`",
-                "`/commands` • categorized index",
-            ],
-            "Utility & Safety": [
-                "`/intel <topic>` • lore+game tips",
-                "`/poll` • reaction polls",
-                "`/remindme` • DM timer",
-                "`/remind` • channel scheduler",
-                "`/feedback` + `/support` • ping handler",
-                "`/clear` • purge",
-            ],
-            "Trading": [
-                "Fish-Link buttons: Spares / Find",
-                "`/trade_item` • text fallback",
-                "Per-server inventory; no cross-bleed",
-            ],
-        }
+        categories = [
+            (
+                "Quick start",
+                [
+                    "`/scavenge` • deploy a drone",
+                    "`/inventory` • check your stash",
+                    "`/events` • see what's scheduled",
+                    "`/profile` | `/leaderboard` • progress",
+                ],
+            ),
+            (
+                "Events & ops",
+                [
+                    "`/event` • plan ops | `/event_remove`",
+                    "`/remind` • channel reminder",
+                    "`/remindme` • DM timer",
+                    "`/status` • quick signal | `/analytics`",
+                ],
+            ),
+            (
+                "Trading",
+                [
+                    "`/setup_trade` • deploy Fish-Link",
+                    "Buttons: Spares / Find listings",
+                    "`/trade_item` • text fallback",
+                    "Per-server inventory; no cross-bleed",
+                ],
+            ),
+            (
+                "Utility & safety",
+                [
+                    "`/intel <topic>` • lore + game tips",
+                    "`/manual` + `/features` + `/about`",
+                    "`/feedback` + `/support` • ping handler",
+                    "`/clear` • purge",
+                ],
+            ),
+            (
+                "Admin (UTC-2 clock)",
+                [
+                    "`/setup` • wire welcome/verify/rules",
+                    "`/setup audit` • wiring audit",
+                    "`/refresh_commands` • resync slash",
+                ],
+            ),
+        ]
 
         embed = discord.Embed(
             title="🛠️ Marcia OS | Command Directory",
-            description="I split intel by crew role. All times are UTC-2.",
+            description="Pick a section, tap a command. Everything below is slash-friendly.",
             color=0x3498db,
         )
-        for title, cmd_list in categories.items():
-            embed.add_field(name=f"📦 {title}", value="\n".join(cmd_list), inline=False)
+        for title, cmd_list in categories:
+            embed.add_field(name=f"📌 {title}", value="\n".join(cmd_list), inline=False)
 
         scope = guild_name or "your sector"
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
