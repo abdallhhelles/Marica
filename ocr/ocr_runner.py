@@ -9,7 +9,7 @@ _EASYOCR_SPEC = importlib.util.find_spec("easyocr")
 if not (_CV2_SPEC and _EASYOCR_SPEC):  # pragma: no cover - CLI helper guard
     raise SystemExit(
         "EasyOCR runner requires easyocr and opencv-python-headless. "
-        "Install with `pip install -r requirements-ocr.txt` before running."
+        "Install with `pip install -r requirements.txt` before running."
     )
 
 import cv2

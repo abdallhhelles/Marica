@@ -98,7 +98,7 @@ def collect_ocr_diagnostics() -> OcrDiagnostics:
         tips.append("Install the Tesseract CLI (e.g., `apt-get install tesseract-ocr`)")
     if not easyocr_present:
         tips.append(
-            "Install EasyOCR extras for profile scans (`pip install -r requirements-ocr.txt`)")
+            "Install EasyOCR extras for profile scans (`pip install -r requirements.txt`)")
     if easyocr_present and not box_count:
         tips.append("Regenerate bounding boxes with `python ocr/box_picker.py`")
 
