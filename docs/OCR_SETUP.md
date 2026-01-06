@@ -5,7 +5,7 @@ This guide keeps `/scan_profile` predictable across laptops, dedicated servers, 
 ## Provisioning checklist
 1. Install Python packages:
    ```bash
-   pip install -r requirements.txt       # base bot + OCR extras
+   pip install -r requirements.txt       # base bot + OCR extras (PyTorch CPU wheels)
    ```
    * **Low-memory hosts (≤1 GB RAM):** torch/EasyOCR wheels may be too heavy for tiny panels. Either install only the base bot with `pip install -r requirements-lite.txt` (OCR disabled) or preload wheels on another machine and install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
    * **External fallback:** set `OCR_SPACE_API_KEY` if you prefer to send screenshots to the OCR.space API instead of installing heavy OCR dependencies locally.

@@ -51,7 +51,7 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 * `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
 ### OCR add-on (enables `/scan_profile`)
-* All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt`
+* All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt` (PyTorch entries are pinned to **CPU-only** wheels to keep installs light on GPU-less hosts)
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
 * Optional external fallback: set `OCR_SPACE_API_KEY` to offload scans to OCR.space when local OCR is missing.
