@@ -68,14 +68,9 @@ class Leveling(commands.Cog):
 
         interaction = getattr(ctx, "interaction", None)
         if interaction:
-            try:
-                if interaction.response.is_done():
-                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
-                return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
-            except HTTPException as exc:
-                if exc.code == 40060:  # Interaction has already been acknowledged
-                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
-                raise
+            return await self.bot._safe_interaction_reply(
+                interaction, ephemeral=ephemeral, **kwargs
+            )
 
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
@@ -114,21 +109,6 @@ class Leveling(commands.Cog):
         if mins:
             return f"{mins}m {secs:02d}s"
         return f"{secs}s"
-
-    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        base_error = getattr(error, "original", error)
-        if isinstance(base_error, app_commands.CommandOnCooldown):
-            retry = int(base_error.retry_after)
-            mins, secs = divmod(retry, 60)
-            content = f"⌛ Drones cooling down. Try again in {mins}m {secs}s."
-            base_error.handled = True
-            error.handled = True
-            if interaction.response.is_done():
-                await interaction.followup.send(content, ephemeral=True)
-            else:
-                await interaction.response.send_message(content, ephemeral=True)
-            return
-        raise error
 
     async def apply_role_rewards(self, member, level):
         """Automatically assigns dynamic tier roles based on level reached."""

@@ -116,9 +116,9 @@ class MarciaBot(commands.Bot):
         """Reply without raising duplicate-ack errors when already responded."""
 
         try:
-            if not interaction.response.is_done():
-                return await interaction.response.send_message(**kwargs)
-            return await interaction.followup.send(**kwargs)
+            if interaction.response.is_done() or getattr(interaction, "is_expired", lambda: False)():
+                return await interaction.followup.send(**kwargs)
+            return await interaction.response.send_message(**kwargs)
         except HTTPException as exc:
             if exc.code == 40060:
                 logger.debug(
@@ -176,6 +176,15 @@ class MarciaBot(commands.Bot):
             except (discord.Forbidden, discord.NotFound):
                 pass
 
+    @staticmethod
+    def _format_cooldown(seconds: int) -> str:
+        """Human-friendly cooldown string like `10m 05s` or `45s`."""
+        total = max(0, int(seconds))
+        mins, secs = divmod(total, 60)
+        if mins:
+            return f"{mins}m {secs:02d}s"
+        return f"{secs}s"
+
     async def on_command_error(self, ctx, error):
         """Handles common command errors gracefully."""
         if getattr(error, "handled", False):
@@ -189,8 +198,8 @@ class MarciaBot(commands.Bot):
             await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
             return
         if isinstance(error, commands.CommandOnCooldown):
-            retry = int(error.retry_after)
-            await ctx.send(f"⌛ Drones cooling down. Try again in {retry}s.")
+            retry = self._format_cooldown(error.retry_after)
+            await ctx.send(f"⌛ Drones cooling down. Try again in {retry}.")
             return
 
         await log_command_exception(self, error, ctx=ctx, source="message-command")
@@ -253,10 +262,10 @@ class MarciaBot(commands.Bot):
             return
 
         if isinstance(error, app_commands.CommandOnCooldown):
-            retry = int(error.retry_after)
+            retry = self._format_cooldown(error.retry_after)
             await self._safe_interaction_reply(
                 interaction,
-                content=f"⌛ Drones cooling down. Try again in {retry}s.",
+                content=f"⌛ Drones cooling down. Try again in {retry}.",
                 ephemeral=True,
             )
             error.handled = True

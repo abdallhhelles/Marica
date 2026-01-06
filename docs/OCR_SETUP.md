@@ -5,9 +5,9 @@ This guide keeps `/scan_profile` predictable across laptops, dedicated servers, 
 ## Provisioning checklist
 1. Install Python packages:
    ```bash
-   pip install -r requirements.txt       # base bot + pytesseract/Pillow
-   pip install -r requirements-ocr.txt   # EasyOCR, OpenCV, numpy
+   pip install -r requirements.txt       # base bot + OCR extras
    ```
+   * **Low-memory hosts (≤1 GB RAM):** torch/EasyOCR wheels may be too heavy for tiny panels. Either install only the base bot with `pip install -r requirements-lite.txt` (OCR disabled) or preload wheels on another machine and install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`. See [Low-memory installation](LOW_MEMORY_INSTALL.md) for step-by-step examples and wheel-cache tips.
 2. Install the system Tesseract binary (required by pytesseract):
    * Debian/Ubuntu: `sudo apt-get install -y tesseract-ocr`
    * macOS (Homebrew): `brew install tesseract`
@@ -22,7 +22,7 @@ EasyOCR uses bounding boxes from `ocr/boxes_ratios.json`. If your screenshot lay
 3. Validate: `python ocr/ocr_runner.py` and adjust boxes until every field reads cleanly.
 
 ## Hosting guidance
-* **Containers / game panels:** add both `pip install -r requirements-ocr.txt` and `apt-get install -y tesseract-ocr` (or OS equivalent) directly to your startup command; consoles are often non-interactive.
+* **Containers / game panels:** add both `pip install -r requirements.txt` and `apt-get install -y tesseract-ocr` (or OS equivalent) directly to your startup command; consoles are often non-interactive.
 * **Conflicting packages:** third-party images sometimes bundle `googletrans==4.0.0rc1`, which forces `httpx==0.13.3`. Re-pin `httpx` to the version from `requirements.txt` to avoid breaking the bot’s HTTP client.
 
 ## Diagnostics reference
