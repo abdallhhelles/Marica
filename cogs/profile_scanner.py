@@ -217,6 +217,14 @@ class ProfileScanner(commands.Cog):
         payload = self._build_payload(
             ctx.author, image.url, parsed, raw_text, cached_path
         )
+        if payload.get("ownership_verified") is False:
+            return await self._safe_send(
+                ctx,
+                content=(
+                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
+                ),
+                ephemeral=True,
+            )
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
         embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
