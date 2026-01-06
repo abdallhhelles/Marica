@@ -148,6 +148,10 @@ class MarciaBot(commands.Bot):
         if message.author.bot or not message.guild:
             return
 
+        # Ignore interaction-backed system messages (e.g., slash command notices)
+        if getattr(message, "interaction", None):
+            return
+
         if message.type is not discord.MessageType.default:
             return
 
@@ -250,6 +254,19 @@ class MarciaBot(commands.Bot):
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""
         if getattr(error, "handled", False):
+            return
+
+        already_replied = interaction.response.is_done() or getattr(
+            interaction, "is_expired", lambda: False
+        )()
+        if already_replied:
+            logger.debug(
+                "Skipping duplicate app error reply for %s (already responded)",
+                getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+            )
+            await log_command_exception(
+                self, error, interaction=interaction, source="app-command"
+            )
             return
 
         if isinstance(error, app_commands.CheckFailure):

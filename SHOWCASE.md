@@ -29,7 +29,9 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 - Endless XP ladder with scaling milestones and auto-created rank roles (colors and names adjust per tier).
 - Hourly `/scavenge` for Common → Mythic loot, XP bursts, and ultra-rare catalog items.
 - Inventory tracking per guild; prestige **Vaultwalker** role when a member completes the loot catalog.
+- `/leaderboard` shows XP plus CP/kills from OCR with 10/25/50/100 row controls and a DM export.
 - `/trade_item @user <item> <qty>` lets survivors barter scavenged goods.
+- Profile scanner: `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads to avoid re-downloading screenshots.
 
 ### Welcomes, Departures, & Automation
 - `/setup` (admins/mods) links event/chat/welcome/rules/verify channels and auto-role.
@@ -38,8 +40,9 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 - Status helpers: `/status`, `/setup audit`, `/analytics` for quick health and data snapshots.
 
 ## Command Directory (quick view)
-- **Admin:** `/setup`, `/setup audit`, `/setup_trade`, `/event`, `/event_remove`, `/analytics`, `/status`
-- **Members:** `/events`, `/profile`, `/inventory`, `/scavenge`, `/manual`, `/features`, `/commands`
+- **Admin:** `/setup`, `/setup audit`, `/setup_trade`, `/refresh_commands`, `/event`, `/event_remove`, `/analytics`, `/status`
+- **Members:** `/events`, `/profile`, `/profile_stats`, `/leaderboard`, `/inventory`, `/scavenge`, `/manual`, `/features`, `/commands`
+- **Profiles & OCR:** `/setup_profile_channel`, `/scan_profile`; `/leaderboard` export sends TSV via DM
 - **Utility:** `/intel <topic>`, `/poll`, `/remindme`, `/clear`, translation via flag reactions
 - **Trading:** Fish-Link buttons + `/trade_item`
 
