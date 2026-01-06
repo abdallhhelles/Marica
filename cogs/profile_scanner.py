@@ -10,6 +10,7 @@ import io
 import json
 import logging
 import re
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,7 @@ import discord
 from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
+import httpx
 
 from database import (
     get_profile_channel,
@@ -70,6 +72,8 @@ EASYOCR_FIELDS = {
     "alliance": "alliance",
     "state": "server",
 }
+OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
+OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
 
 
 def _extract_number(chunk: str) -> int | None:
@@ -410,6 +414,14 @@ class ProfileScanner(commands.Cog):
                         )
                     else:
                         ocr_note = "OCR could not read this image."
+
+            if not parsed and OCR_SPACE_API_KEY:
+                api_text, api_note = await self._run_ocr_space(image_bytes, filename)
+                raw_text = raw_text or api_text
+                if api_text:
+                    parsed.update(_parse_profile_text(api_text))
+                if ocr_note is None and api_note:
+                    ocr_note = api_note
         finally:
             if temp_path:
                 try:
@@ -426,6 +438,45 @@ class ProfileScanner(commands.Cog):
         )
 
         return parsed, raw_text, ocr_note, debug_note
+
+    async def _run_ocr_space(
+        self, image_bytes: bytes, filename: str | None = None
+    ) -> tuple[str, str | None]:
+        """Fallback to the OCR.space API when local OCR dependencies are unavailable."""
+
+        headers = {"apikey": OCR_SPACE_API_KEY}
+        data = {"language": "eng", "isOverlayRequired": False}
+        files = {"file": (filename or "profile.png", image_bytes, "application/octet-stream")}
+
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(
+                    OCR_SPACE_ENDPOINT, headers=headers, data=data, files=files
+                )
+            resp.raise_for_status()
+        except Exception as exc:  # pragma: no cover - network edge
+            self.log.warning("OCR.space request failed: %s", exc)
+            return "", "External OCR request failed."
+
+        try:
+            payload = resp.json()
+        except ValueError:
+            self.log.warning("OCR.space returned non-JSON response")
+            return "", "External OCR response was malformed."
+
+        if payload.get("IsErroredOnProcessing"):
+            msg = payload.get("ErrorMessage") or payload.get("ErrorMessageText")
+            note = msg if isinstance(msg, str) else "External OCR service reported an error."
+            return "", note
+
+        results = payload.get("ParsedResults") or []
+        text_blocks = [item.get("ParsedText", "") for item in results if item]
+        combined = "\n".join(filter(None, text_blocks)).strip()
+
+        if not combined:
+            return "", "External OCR did not return any text."
+
+        return combined, None
 
     async def _run_pytesseract(self, image_bytes: bytes) -> str:
         if not (pytesseract and Image):
