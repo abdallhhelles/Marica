@@ -60,6 +60,9 @@ LABEL_HINTS = {
     "kills": ("kills",),
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state"),
+    "likes": ("likes", "like"),
+    "vip_level": ("vip",),
+    "level": ("level", "lvl", "lv"),
 }
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
@@ -233,18 +236,38 @@ class ProfileScanner(commands.Cog):
                 ephemeral=True,
             )
 
+        name = data["player_name"] or target.display_name
         embed = discord.Embed(
-            title=f"📄 Profile: {data['player_name'] or target.display_name}",
+            title=f"📡 Sector dossier: {name}",
+            description=(
+                "Filed under Marica's vault. Update it with `/scan_profile` whenever your stats shift."
+            ),
             color=0x2ecc71,
         )
         embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
-        embed.add_field(name="CP", value=_format_metric(data["cp"]), inline=True)
+        embed.add_field(
+            name="Combat Power",
+            value=_format_metric(data["cp"]),
+            inline=True,
+        )
         embed.add_field(name="Kills", value=_format_metric(data["kills"]), inline=True)
+        embed.add_field(name="Likes", value=_format_metric(data.get("likes")), inline=True)
+        embed.add_field(name="VIP", value=_format_metric(data.get("vip_level")), inline=True)
+        embed.add_field(name="Level", value=_format_metric(data.get("level")), inline=True)
         embed.add_field(name="Alliance", value=data.get("alliance") or "—", inline=True)
         embed.add_field(name="Server", value=data.get("server") or "—", inline=True)
+
+        if data.get("last_image_url"):
+            embed.add_field(
+                name="Source Image",
+                value=f"[Latest scan]({data['last_image_url']})",
+                inline=False,
+            )
+
         if data.get("last_updated"):
             dt = datetime.fromtimestamp(data["last_updated"], tz=timezone.utc)
             embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
+
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
@@ -255,6 +278,9 @@ class ProfileScanner(commands.Cog):
         stat=[
             app_commands.Choice(name="Combat Power", value="cp"),
             app_commands.Choice(name="Kills", value="kills"),
+            app_commands.Choice(name="Likes", value="likes"),
+            app_commands.Choice(name="VIP", value="vip_level"),
+            app_commands.Choice(name="Level", value="level"),
         ]
     )
     async def profile_leaderboard(self, ctx, stat: app_commands.Choice[str]):
@@ -651,6 +677,9 @@ class ProfileScanner(commands.Cog):
             "server": parsed.get("server"),
             "cp": parsed.get("cp"),
             "kills": parsed.get("kills"),
+            "likes": parsed.get("likes"),
+            "vip_level": parsed.get("vip_level"),
+            "level": parsed.get("level"),
             "avatar_url": str(member.display_avatar.url),
             "last_image_url": image_url,
             "raw_ocr": raw_text,
@@ -687,14 +716,17 @@ class ProfileScanner(commands.Cog):
         embed = discord.Embed(
             title="🛰️ Profile logged",
             description=(
-                "Snapshot captured. Use `/profile_stats` to review or `/profile_leaderboard` "
-                "to compare stats."
+                "Signal cached in Marica's vault. `/profile_stats` shows your dossier; "
+                "`/profile_leaderboard` stacks you against the sector."
             ),
             color=0x3498db,
         )
 
         embed.add_field(name="CP", value=_format_metric(payload.get("cp")), inline=True)
         embed.add_field(name="Kills", value=_format_metric(payload.get("kills")), inline=True)
+        embed.add_field(name="Likes", value=_format_metric(payload.get("likes")), inline=True)
+        embed.add_field(name="VIP", value=_format_metric(payload.get("vip_level")), inline=True)
+        embed.add_field(name="Level", value=_format_metric(payload.get("level")), inline=True)
         embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
         embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
 

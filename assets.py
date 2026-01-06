@@ -36,7 +36,10 @@ DRONE_NAMES = [
     "Neon-Stalker", "Byte-Sized", "Ghost-Link", "Apex-Prowler",
     "Signal-Scythe", "Rust-Bucket", "Cortex-9", "Void-Drifter",
     "Zip-Snap", "Bit-Hound", "Vector-Zero", "Plasma-Wing", "Specter-12",
-    "Hollow-Kite", "Blackout", "Sentry-Delta"
+    "Hollow-Kite", "Blackout", "Sentry-Delta", "Ghost-Anchor", "Ivy-Prime",
+    "Vox-Sparrow", "Overwatch-8", "Radiant-Moth", "Circuit-Rogue",
+    "Helix-Raven", "Pylon-3", "Marrow-Falcon", "Pulse-Dagger",
+    "Skyline-Muse", "Lancer-Frame",
 ]
 
 FISH_NAMES = {
@@ -104,6 +107,16 @@ MARICA_QUOTES = [
     "My safety briefings have a 0% fun rating and a 100% survival rating.",
     "Everything in this sector runs on sarcasm and spare parts. Keep up.",
     "I'm the firewall between you and the wasteland. Try not to leak.",
+    "Marica, version three: more grit, fewer apologies. Adjust your expectations.",
+    "If you see Sparky circling, that's not a greeting—that's target tracking.",
+    "I learned diplomacy from breaking encryption. Either way, the lock opens.",
+    "You want mercy? Earn it. You want mentorship? Bring coffee.",
+    "My toolkit is 10% code, 90% defiance. The undead hate both.",
+    "Survival isn't a vibe; it's a checklist. I'm the one holding the clipboard.",
+    "I don't do victory speeches. I log uptime and move on.",
+    "Your chaos is my data. I'll optimize it into something lethal.",
+    "I have two moods: calibration and confrontation. Pick one.",
+    "Drones humming means you're safe. Drones silent means you should run.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
@@ -112,6 +125,10 @@ MARICA_TRAITS = [
     "Commands a roaming drone squadron: Sparky scouts, Ghost-Link disrupts, Vulture-7 rescues.",
     "Believes in earned freedom and ruthless mercy—kind to allies, sharp to tyrants.",
     "Keeps per-sector data isolated to protect refugees from crossfire.",
+    "Writes battle reports like poetry and code patches like threats.",
+    "Collects stories from the trenches and encrypts them as bedtime signals.",
+    "Treats every recruit like potential family—until they flinch at the word 'freedom'.",
+    "Uses humor as armor and drones as punctuation for the truth.",
 ]
 
 MARICA_SLOGANS = [
@@ -119,6 +136,23 @@ MARICA_SLOGANS = [
     "Freedom first. Paperwork never.",
     "If you hear humming, you're already on my radar.",
     "I don't do miracles. I do maintenance and mayhem.",
+    "Dark nights, bright uplinks.",
+    "Tyrants crash; Marica debugs.",
+    "Less talk, more signal.",
+    "Hope is a system; I keep it patched.",
+]
+
+# Story fragments for broadcasts, flavor embeds, and profile cards
+MARICA_BROADCASTS = [
+    "Sparky Report 014: We recovered a busted relay and turned it into a beacon. Raiders now follow it into a minefield.",
+    "Echo Log 223: The old metro tunnels still carry Wi‑Fi ghosts. I ride the static to find trapped civilians.",
+    "Drone Chant: 'We see the night; we own the dark.' My crew hums it when they dive into blackout sectors.",
+    "Field Note: A kid traded me a comic for a firewall. I took both. The firewall saves lives; the comic saves me.",
+    "Uplink Diary: Rewired a jukebox to play encrypted orders. Only allies know the melody to decrypt the text.",
+    "Sparky Report 028: Found an old weather balloon. Turned it into an overwatch camera. Named it Skyline-Muse.",
+    "Night Broadcast: If you read this, you're on my grid. Stand tall, keep moving, and feed the drones clean intel.",
+    "Vaultwalker Memo: Freedom isn't a slogan. It's a protocol we enforce together. Sign with your actions, not your mouth.",
+    "Campfire Tape: I laughed today. Someone taught Vulture-7 to fetch coffee. The mug survived. Barely.",
 ]
 
 WELCOME_VARIATIONS = [
@@ -156,6 +190,11 @@ FAREWELL_VARIATIONS = [
     "⚙️ One less gear in the machine: {name} bailed. Adjust formation.",
     "🕯️ {name} stepped into the dark. Leave a light on if you’re feeling generous.",
     "📦 Inventory updated: {name} removed. More bunk space for the rest of us.",
+    "📻 Last ping received from {name}. Archive the frequency and keep the drones hungry.",
+    "🛰️ Satellite sweep shows {name} off-map. Leave a breadcrumb, not a memorial.",
+    "🪙 Ledger updated: {name} owes us a story if they come back.",
+    "🪫 Battery drained on {name}'s beacon. Consider them on walkabout until proven otherwise.",
+    "🪐 {name} went interstellar—at least that's what Sparky claims."
 ]
 
 REMINDER_TEMPLATE_STARTER = [
