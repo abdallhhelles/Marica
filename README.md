@@ -38,8 +38,8 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 ### Profile scanning (OCR)
 * **Channel guard:** `/setup_profile_channel` scopes ingestion to a specific channel; other channels are ignored by design.
-* **Metric extraction:** Parses CP, kills, likes, VIP, level, server, and alliance from uploaded screenshots.
-* **Review & ranking:** `/profile_stats` shows the last snapshot; `/profile_leaderboard` surfaces the top CP/kills/likes/VIP/level.
+* **Metric extraction:** Parses CP, kills, server, and alliance from uploaded screenshots.
+* **Review & ranking:** `/profile_stats` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check); `/leaderboard` surfaces XP plus CP/kills/likes/VIP (OCR) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
 * **Health checks:** `/ocr_status` and `python ocr/diagnostics.py` verify dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
 
 ---

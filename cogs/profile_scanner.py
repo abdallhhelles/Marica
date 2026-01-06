@@ -60,11 +60,10 @@ NUMBER_RE = re.compile(r"(?P<value>[\d.,]+)\s*(?P<suffix>[kmbKMB]?)")
 LABEL_HINTS = {
     "cp": ("cp", "power"),
     "kills": ("kills",),
+    "likes": ("likes", "like"),
+    "vip_level": ("vip", "vip level", "vip lvl"),
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state"),
-    "likes": ("likes", "like"),
-    "vip_level": ("vip",),
-    "level": ("level", "lvl", "lv"),
 }
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
@@ -72,11 +71,15 @@ EASYOCR_LANGS = ["en"]
 EASYOCR_MIN_CONF = 0.45
 EASYOCR_FIELDS = {
     "name": "player_name",
-    "power_cp": "cp",
+    "cp": "cp",
     "kills": "kills",
     "alliance": "alliance",
-    "state": "server",
+    "server": "server",
+    "likes": "likes",
+    "vip": "vip_level",
 }
+VERIFY_FIELDS = {"account_btn", "settings_btn"}
+VERIFY_MIN_CONF = 0.25
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
 OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
 
@@ -140,6 +143,9 @@ class ProfileScanner(commands.Cog):
         self._easyocr_failure_reason: str | None = None
         self._easyocr_lock = asyncio.Lock()
         self._pytesseract_missing = False
+        self._scan_semaphore = asyncio.Semaphore(
+            int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
+        )
 
     async def cog_unload(self):
         pass
@@ -202,10 +208,15 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
-            image_bytes, filename=image.filename
+        cached_path = self._persist_profile_image(
+            ctx.guild.id, ctx.author.id, image_bytes, image.filename
         )
-        payload = self._build_payload(ctx.author, image.url, parsed, raw_text)
+        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+            image_bytes, filename=image.filename, persisted_path=cached_path
+        )
+        payload = self._build_payload(
+            ctx.author, image.url, parsed, raw_text, cached_path
+        )
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
         embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
@@ -240,35 +251,28 @@ class ProfileScanner(commands.Cog):
 
         name = data["player_name"] or target.display_name
         embed = discord.Embed(
-            title=f"📡 Sector dossier: {name}",
-            description=random.choice(PROFILE_TAGLINES),
+            title=f"📡 Sector dossier | {name}",
+            description=(
+                "Latest OCR stats saved for this survivor. Use `/leaderboard` to compare "
+                "against the rest of the sector."
+            ),
             color=0x2ecc71,
         )
         embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
-        vitals = [
-            f"Combat Power: {_format_metric(data['cp'])}",
-            f"Kills: {_format_metric(data['kills'])}",
-            f"Likes: {_format_metric(data.get('likes'))}",
-            f"VIP: {_format_metric(data.get('vip_level'))}",
-            f"Level: {_format_metric(data.get('level'))}",
+        ingame = [
+            f"🪪 Name: {data.get('player_name') or target.display_name}",
+            f"🏰 Alliance: {data.get('alliance') or '—'}",
+            f"🌐 Server: {data.get('server') or '—'}",
+            f"🎖️ VIP: {_format_metric(data.get('vip_level'))} | 👍 Likes: {_format_metric(data.get('likes'))}",
+            f"⚔️ CP: {_format_metric(data['cp'])} | ☠️ Kills: {_format_metric(data['kills'])}",
         ]
-        embed.add_field(
-            name="Vitals",
-            value="\n".join(f"• {line}" for line in vitals),
-            inline=False,
-        )
-
-        identity = [
-            f"Alliance: {data.get('alliance') or '—'}",
-            f"Server: {data.get('server') or '—'}",
-        ]
+        if data.get("ownership_verified") is not None:
+            status = "✅ Self-view detected" if data["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
+            ingame.append(status)
         if data.get("last_image_url"):
-            identity.append(f"Source: [Latest scan]({data['last_image_url']})")
-        embed.add_field(
-            name="Identity & Links",
-            value="\n".join(f"• {line}" for line in identity),
-            inline=False,
-        )
+            ingame.append(f"🖼️ [Latest scan]({data['last_image_url']})")
+
+        embed.add_field(name="In-game Profile (OCR)", value="\n".join(ingame), inline=False)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if data.get("last_updated"):
@@ -286,8 +290,7 @@ class ProfileScanner(commands.Cog):
             app_commands.Choice(name="Combat Power", value="cp"),
             app_commands.Choice(name="Kills", value="kills"),
             app_commands.Choice(name="Likes", value="likes"),
-            app_commands.Choice(name="VIP", value="vip_level"),
-            app_commands.Choice(name="Level", value="level"),
+            app_commands.Choice(name="VIP Level", value="vip_level"),
         ]
     )
     async def profile_leaderboard(self, ctx, stat: app_commands.Choice[str]):
@@ -407,60 +410,70 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
-            image_bytes, filename=attachment.filename
+        cached_path = self._persist_profile_image(
+            message.guild.id, message.author.id, image_bytes, attachment.filename
         )
-        payload = self._build_payload(message.author, attachment.url, parsed, raw_text)
+        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+            image_bytes, filename=attachment.filename, persisted_path=cached_path
+        )
+        payload = self._build_payload(
+            message.author, attachment.url, parsed, raw_text, cached_path
+        )
 
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
         await self._post_confirmation(message, payload, ocr_note, debug_note)
 
     async def _perform_ocr(
-        self, image_bytes: bytes, *, filename: str | None = None
+        self,
+        image_bytes: bytes,
+        *,
+        filename: str | None = None,
+        persisted_path: Path | None = None,
     ) -> tuple[dict, str, str | None, str | None]:
         parsed: dict[str, str | int | None] = {}
         raw_text = ""
         ocr_note: str | None = None
         debug_note: str | None = None
 
-        temp_path = self._stash_temp_image(image_bytes, filename)
+        async with self._scan_semaphore:
+            temp_path = persisted_path or self._stash_temp_image(image_bytes, filename)
 
-        try:
-            easyocr_results = await self._run_easyocr(image_bytes, temp_path)
-            if easyocr_results:
-                parsed.update(easyocr_results["parsed"])
-                raw_text = easyocr_results["raw"]
-            elif self._easyocr_ready is False and self._easyocr_failure_reason:
-                ocr_note = self._easyocr_failure_reason
+            try:
+                easyocr_results = await self._run_easyocr(image_bytes, temp_path)
+                if easyocr_results:
+                    parsed.update(easyocr_results["parsed"])
+                    raw_text = easyocr_results["raw"]
+                elif self._easyocr_ready is False and self._easyocr_failure_reason:
+                    ocr_note = self._easyocr_failure_reason
 
-            if not parsed:
-                pytesseract_text = await self._run_pytesseract(image_bytes)
-                raw_text = pytesseract_text or raw_text
-                if pytesseract_text:
-                    parsed.update(_parse_profile_text(pytesseract_text))
-                elif ocr_note is None:
-                    if self._pytesseract_missing:
-                        ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
-                    elif not (pytesseract and Image):
-                        ocr_note = (
-                            "OCR dependencies are missing; install them from requirements.txt."
-                        )
-                    else:
-                        ocr_note = "OCR could not read this image."
+                if not parsed:
+                    pytesseract_text = await self._run_pytesseract(image_bytes)
+                    raw_text = pytesseract_text or raw_text
+                    if pytesseract_text:
+                        parsed.update(_parse_profile_text(pytesseract_text))
+                    elif ocr_note is None:
+                        if self._pytesseract_missing:
+                            ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
+                        elif not (pytesseract and Image):
+                            ocr_note = (
+                                "OCR dependencies are missing; install them from requirements.txt."
+                            )
+                        else:
+                            ocr_note = "OCR could not read this image."
 
-            if not parsed and OCR_SPACE_API_KEY:
-                api_text, api_note = await self._run_ocr_space(image_bytes, filename)
-                raw_text = raw_text or api_text
-                if api_text:
-                    parsed.update(_parse_profile_text(api_text))
-                if ocr_note is None and api_note:
-                    ocr_note = api_note
-        finally:
-            if temp_path:
-                try:
-                    temp_path.unlink(missing_ok=True)
-                except Exception:  # pragma: no cover - best-effort cleanup
-                    self.log.debug("Temp profile image cleanup failed for %s", temp_path)
+                if not parsed and OCR_SPACE_API_KEY:
+                    api_text, api_note = await self._run_ocr_space(image_bytes, filename)
+                    raw_text = raw_text or api_text
+                    if api_text:
+                        parsed.update(_parse_profile_text(api_text))
+                    if ocr_note is None and api_note:
+                        ocr_note = api_note
+            finally:
+                if temp_path and temp_path != persisted_path:
+                    try:
+                        temp_path.unlink(missing_ok=True)
+                    except Exception:  # pragma: no cover - best-effort cleanup
+                        self.log.debug("Temp profile image cleanup failed for %s", temp_path)
 
         debug_note = self._compose_debug_note(parsed, raw_text, ocr_note)
         self.log.info(
@@ -553,6 +566,34 @@ class ProfileScanner(commands.Cog):
 
         return temp_path
 
+    def _persist_profile_image(
+        self, guild_id: int, user_id: int, image_bytes: bytes, filename: str | None = None
+    ) -> Path | None:
+        """Save the raw upload so rescans avoid refetching from Discord CDN."""
+
+        base = Path(__file__).resolve().parent.parent / "shots" / "profiles" / str(guild_id)
+        base.mkdir(parents=True, exist_ok=True)
+
+        suffix = Path(filename).suffix if filename else ".png"
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        path = base / f"{user_id}_{timestamp}{suffix}"
+
+        try:
+            path.write_bytes(image_bytes)
+        except Exception:
+            self.log.exception("Failed to persist profile image to %s", path)
+            return None
+
+        # Keep a short history per user to avoid filling disk.
+        user_stash = sorted(base.glob(f"{user_id}_*"))
+        for old in user_stash[:-5]:
+            try:
+                old.unlink(missing_ok=True)
+            except Exception:  # pragma: no cover - best-effort cleanup
+                self.log.debug("Could not trim cached profile image %s", old)
+
+        return path
+
     async def _ensure_easyocr(self) -> bool:
         if self._easyocr_ready is not None:
             return self._easyocr_ready
@@ -612,6 +653,8 @@ class ProfileScanner(commands.Cog):
             results: dict[str, str | int | None] = {}
             raw_lines: list[str] = []
 
+            verification_hits: set[str] = set()
+
             for field, ratios in self._easyocr_boxes.items():
                 crop = self._crop_by_ratio(img, ratios)
                 if crop is None:
@@ -627,6 +670,11 @@ class ProfileScanner(commands.Cog):
                 best_conf = float(detections[0][2])
                 raw_lines.append(f"{field}: {best_text} ({best_conf:.2f})")
 
+                if field in VERIFY_FIELDS:
+                    if best_conf >= VERIFY_MIN_CONF:
+                        verification_hits.add(field)
+                    continue
+
                 if best_conf < EASYOCR_MIN_CONF:
                     continue
 
@@ -634,7 +682,7 @@ class ProfileScanner(commands.Cog):
                 if not mapped:
                     continue
 
-                if mapped in {"cp", "kills"}:
+                if mapped in {"cp", "kills", "likes", "vip_level"}:
                     cleaned = re.sub(r"[^\d]", "", best_text)
                     if cleaned:
                         results[mapped] = int(cleaned)
@@ -642,6 +690,8 @@ class ProfileScanner(commands.Cog):
                     results[mapped] = best_text
                 else:
                     results[mapped] = best_text
+
+            results["ownership_verified"] = len(verification_hits) == len(VERIFY_FIELDS)
 
             raw = "\n".join(raw_lines)
             return {"parsed": results, "raw": raw}
@@ -677,7 +727,10 @@ class ProfileScanner(commands.Cog):
         image_url: str,
         parsed: dict[str, str | int | None],
         raw_text: str,
+        cached_path: Path | None = None,
     ) -> dict:
+        ownership_verified = parsed.get("ownership_verified")
+
         return {
             "player_name": parsed.get("player_name") or member.display_name,
             "alliance": parsed.get("alliance"),
@@ -687,8 +740,10 @@ class ProfileScanner(commands.Cog):
             "likes": parsed.get("likes"),
             "vip_level": parsed.get("vip_level"),
             "level": parsed.get("level"),
+            "ownership_verified": bool(ownership_verified) if ownership_verified is not None else None,
             "avatar_url": str(member.display_avatar.url),
             "last_image_url": image_url,
+            "local_image_path": str(cached_path) if cached_path else None,
             "raw_ocr": raw_text,
         }
 
@@ -724,18 +779,22 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/profile_stats` shows your dossier; `/profile_leaderboard` stacks you against the sector."
+                "`/profile_stats` shows your dossier; `/leaderboard` compares XP and OCR stats side by side."
             ),
             color=0x3498db,
         )
 
-        embed.add_field(name="CP", value=_format_metric(payload.get("cp")), inline=True)
-        embed.add_field(name="Kills", value=_format_metric(payload.get("kills")), inline=True)
-        embed.add_field(name="Likes", value=_format_metric(payload.get("likes")), inline=True)
-        embed.add_field(name="VIP", value=_format_metric(payload.get("vip_level")), inline=True)
-        embed.add_field(name="Level", value=_format_metric(payload.get("level")), inline=True)
-        embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
-        embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
+        ingame = [
+            f"🎖️ VIP: {_format_metric(payload.get('vip_level'))} | 👍 Likes: {_format_metric(payload.get('likes'))}",
+            f"⚔️ CP: {_format_metric(payload.get('cp'))} | ☠️ Kills: {_format_metric(payload.get('kills'))}",
+            f"🏰 Alliance: {payload.get('alliance') or '—'}",
+            f"🌐 Server: {payload.get('server') or '—'}",
+        ]
+        if payload.get("ownership_verified") is not None:
+            status = "✅ Self-view detected" if payload["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
+            ingame.append(status)
+
+        embed.add_field(name="In-game Profile", value="\n".join(ingame), inline=False)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if debug_note:
@@ -754,7 +813,9 @@ class ProfileScanner(commands.Cog):
     ) -> str | None:
         """Return a short debug string to help understand why fields may be blank."""
 
-        parsed_fields = [name for name, value in parsed.items() if value not in (None, "")]
+        parsed_fields = [
+            name for name, value in parsed.items() if value not in (None, "") and value is not False
+        ]
         if parsed_fields:
             field_list = ", ".join(parsed_fields)
             raw_hint = f"raw lines={self._raw_line_count(raw_text)}"

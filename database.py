@@ -215,8 +215,10 @@ async def init_db():
                 likes INTEGER,
                 vip_level INTEGER,
                 level INTEGER,
+                ownership_verified INTEGER,
                 avatar_url TEXT,
                 last_image_url TEXT,
+                local_image_path TEXT,
                 raw_ocr TEXT,
                 last_updated INTEGER,
                 PRIMARY KEY (guild_id, user_id)
@@ -364,6 +366,8 @@ async def init_db():
         await _ensure_column(db, "server_missions", "ping_role_id", "INTEGER")
         await _ensure_column(db, "server_missions", "tag", "TEXT")
         await _ensure_column(db, "server_missions", "notes", "TEXT")
+        await _ensure_column(db, "profile_snapshots", "local_image_path", "TEXT")
+        await _ensure_column(db, "profile_snapshots", "ownership_verified", "INTEGER")
 
     print("📡 MARCIA OS | Database Core Synchronized (Trading, Missions & Config).")
 
@@ -722,8 +726,10 @@ async def upsert_profile_snapshot(
     likes: int | None = None,
     vip_level: int | None = None,
     level: int | None = None,
+    ownership_verified: bool | None = None,
     avatar_url: str | None = None,
     last_image_url: str | None = None,
+    local_image_path: str | None = None,
     raw_ocr: str | None = None,
 ) -> None:
     now_ts = int(time.time())
@@ -732,9 +738,9 @@ async def upsert_profile_snapshot(
             '''
             INSERT INTO profile_snapshots (
                 guild_id, user_id, player_name, alliance, server, cp, kills, likes,
-                vip_level, level, avatar_url, last_image_url, raw_ocr, last_updated
+                vip_level, level, ownership_verified, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(guild_id, user_id) DO UPDATE SET
                 player_name = COALESCE(excluded.player_name, profile_snapshots.player_name),
                 alliance = COALESCE(excluded.alliance, profile_snapshots.alliance),
@@ -744,8 +750,10 @@ async def upsert_profile_snapshot(
                 likes = COALESCE(excluded.likes, profile_snapshots.likes),
                 vip_level = COALESCE(excluded.vip_level, profile_snapshots.vip_level),
                 level = COALESCE(excluded.level, profile_snapshots.level),
+                ownership_verified = COALESCE(excluded.ownership_verified, profile_snapshots.ownership_verified),
                 avatar_url = COALESCE(excluded.avatar_url, profile_snapshots.avatar_url),
                 last_image_url = COALESCE(excluded.last_image_url, profile_snapshots.last_image_url),
+                local_image_path = COALESCE(excluded.local_image_path, profile_snapshots.local_image_path),
                 raw_ocr = COALESCE(excluded.raw_ocr, profile_snapshots.raw_ocr),
                 last_updated = excluded.last_updated
             ''',
@@ -760,8 +768,10 @@ async def upsert_profile_snapshot(
                 likes,
                 vip_level,
                 level,
+                int(ownership_verified) if ownership_verified is not None else None,
                 avatar_url,
                 last_image_url,
+                local_image_path,
                 raw_ocr,
                 now_ts,
             ),
@@ -775,7 +785,7 @@ async def get_profile_snapshot(guild_id: int, user_id: int):
         async with db.execute(
             """
             SELECT guild_id, user_id, player_name, alliance, server, cp, kills, likes,
-                   vip_level, level, avatar_url, last_image_url, raw_ocr, last_updated
+                   vip_level, level, ownership_verified, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
             FROM profile_snapshots
             WHERE guild_id = ? AND user_id = ?
             """,
