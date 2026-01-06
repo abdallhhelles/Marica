@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import os
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from database import (
     top_profile_stat,
     upsert_profile_snapshot,
 )
+from assets import PROFILE_SEALS, PROFILE_TAGLINES
 from ocr.diagnostics import collect_ocr_diagnostics
 
 _PIL_SPEC = importlib.util.find_spec("PIL")
@@ -239,30 +241,35 @@ class ProfileScanner(commands.Cog):
         name = data["player_name"] or target.display_name
         embed = discord.Embed(
             title=f"📡 Sector dossier: {name}",
-            description=(
-                "Filed under Marica's vault. Update it with `/scan_profile` whenever your stats shift."
-            ),
+            description=random.choice(PROFILE_TAGLINES),
             color=0x2ecc71,
         )
         embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
+        vitals = [
+            f"Combat Power: {_format_metric(data['cp'])}",
+            f"Kills: {_format_metric(data['kills'])}",
+            f"Likes: {_format_metric(data.get('likes'))}",
+            f"VIP: {_format_metric(data.get('vip_level'))}",
+            f"Level: {_format_metric(data.get('level'))}",
+        ]
         embed.add_field(
-            name="Combat Power",
-            value=_format_metric(data["cp"]),
-            inline=True,
+            name="Vitals",
+            value="\n".join(f"• {line}" for line in vitals),
+            inline=False,
         )
-        embed.add_field(name="Kills", value=_format_metric(data["kills"]), inline=True)
-        embed.add_field(name="Likes", value=_format_metric(data.get("likes")), inline=True)
-        embed.add_field(name="VIP", value=_format_metric(data.get("vip_level")), inline=True)
-        embed.add_field(name="Level", value=_format_metric(data.get("level")), inline=True)
-        embed.add_field(name="Alliance", value=data.get("alliance") or "—", inline=True)
-        embed.add_field(name="Server", value=data.get("server") or "—", inline=True)
 
+        identity = [
+            f"Alliance: {data.get('alliance') or '—'}",
+            f"Server: {data.get('server') or '—'}",
+        ]
         if data.get("last_image_url"):
-            embed.add_field(
-                name="Source Image",
-                value=f"[Latest scan]({data['last_image_url']})",
-                inline=False,
-            )
+            identity.append(f"Source: [Latest scan]({data['last_image_url']})")
+        embed.add_field(
+            name="Identity & Links",
+            value="\n".join(f"• {line}" for line in identity),
+            inline=False,
+        )
+        embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if data.get("last_updated"):
             dt = datetime.fromtimestamp(data["last_updated"], tz=timezone.utc)
@@ -716,8 +723,8 @@ class ProfileScanner(commands.Cog):
         embed = discord.Embed(
             title="🛰️ Profile logged",
             description=(
-                "Signal cached in Marica's vault. `/profile_stats` shows your dossier; "
-                "`/profile_leaderboard` stacks you against the sector."
+                f"{random.choice(PROFILE_TAGLINES)}\n\n"
+                "`/profile_stats` shows your dossier; `/profile_leaderboard` stacks you against the sector."
             ),
             color=0x3498db,
         )
@@ -729,6 +736,7 @@ class ProfileScanner(commands.Cog):
         embed.add_field(name="Level", value=_format_metric(payload.get("level")), inline=True)
         embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
         embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
+        embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if debug_note:
             embed.add_field(name="Debug", value=debug_note, inline=False)

@@ -142,6 +142,35 @@ MARICA_SLOGANS = [
     "Hope is a system; I keep it patched.",
 ]
 
+# Flavor lines to stamp onto dossier embeds and confirmation cards
+PROFILE_TAGLINES = [
+    "Vaultwatch active. Your stats sit in my encrypted ledger.",
+    "Signal verified. I keep the uplink steady so you can keep fighting.",
+    "Another survivor logged. Try not to make me regret the bandwidth.",
+    "Filed under Marica's vault: sharp, reliable, and worth the ammo.",
+    "Your dossier hums on my screen. Stay lethal, stay free.",
+    "Profile cached. My drones now know your good side and your bad angles.",
+    "Everything you do leaves a signal. I just made yours official.",
+    "Welcome to the ledger. Bring data, not drama.",
+    "Stats secured. The wasteland doesn't get to rewrite your story.",
+    "Uplink confirmed. I tag the people I trust; don't burn that trust.",
+    "Your numbers sing. Make sure they stay louder than the raiders.",
+    "Archived under the Shadow Weaver's eye. Keep those metrics climbing.",
+]
+
+PROFILE_SEALS = [
+    "[VAULT SEAL] Sanctified by the Shadow Weaver.",
+    "[TRACE LOG] Packet integrity verified; ready for deployment.",
+    "[DRONE CHECK] Sparky logged your pulse and your swagger.",
+    "[BUNKER CODE] Clearance granted; bring honor to the grid.",
+    "[FIELD NOTE] Survivors with steady stats get priority airlift.",
+    "[UPLINK MARK] Frequency bound to Marica's watchlist—earn the slot.",
+    "[ARCHIVE ID] Metrics stacked. Next step: make the raiders jealous.",
+    "[RELAY TAG] Numbers stable. Don't let them decay.",
+    "[SIGIL] This profile glows with anti-tyrant energy.",
+    "[VIGIL] Drones dispatched to keep these stats honest.",
+]
+
 # Story fragments for broadcasts, flavor embeds, and profile cards
 MARICA_BROADCASTS = [
     "Sparky Report 014: We recovered a busted relay and turned it into a beacon. Raiders now follow it into a minefield.",
