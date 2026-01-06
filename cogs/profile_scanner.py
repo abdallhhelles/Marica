@@ -215,6 +215,10 @@ class ProfileScanner(commands.Cog):
         description="Show the parsed profile stats for you or another survivor.",
     )
     async def profile_stats(self, ctx, member: discord.Member | None = None):
+        leveling = self.bot.get_cog("Leveling")
+        if leveling and hasattr(leveling, "_send_profile_overview"):
+            return await leveling._send_profile_overview(ctx, member)
+
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
