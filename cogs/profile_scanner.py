@@ -240,33 +240,32 @@ class ProfileScanner(commands.Cog):
 
         name = data["player_name"] or target.display_name
         embed = discord.Embed(
-            title=f"📡 Sector dossier: {name}",
-            description=random.choice(PROFILE_TAGLINES),
+            title=f"📡 Sector dossier | {name}",
+            description=(
+                "Latest OCR stats saved for this survivor. Use `/leaderboard` to compare "
+                "against the rest of the sector."
+            ),
             color=0x2ecc71,
         )
         embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
         vitals = [
-            f"Combat Power: {_format_metric(data['cp'])}",
-            f"Kills: {_format_metric(data['kills'])}",
-            f"Likes: {_format_metric(data.get('likes'))}",
-            f"VIP: {_format_metric(data.get('vip_level'))}",
-            f"Level: {_format_metric(data.get('level'))}",
+            f"⚔️ Combat Power: {_format_metric(data['cp'])}",
+            f"☠️ Kills: {_format_metric(data['kills'])}",
+            f"👍 Likes: {_format_metric(data.get('likes'))}",
+            f"⭐ VIP: {_format_metric(data.get('vip_level'))}",
+            f"⬆️ Level: {_format_metric(data.get('level'))}",
         ]
-        embed.add_field(
-            name="Vitals",
-            value="\n".join(f"• {line}" for line in vitals),
-            inline=False,
-        )
+        embed.add_field(name="Vitals", value="\n".join(vitals), inline=False)
 
         identity = [
-            f"Alliance: {data.get('alliance') or '—'}",
-            f"Server: {data.get('server') or '—'}",
+            f"🪪 Alliance: {data.get('alliance') or '—'}",
+            f"🌐 Server: {data.get('server') or '—'}",
         ]
         if data.get("last_image_url"):
-            identity.append(f"Source: [Latest scan]({data['last_image_url']})")
+            identity.append(f"🖼️ [Latest scan]({data['last_image_url']})")
         embed.add_field(
             name="Identity & Links",
-            value="\n".join(f"• {line}" for line in identity),
+            value="\n".join(identity),
             inline=False,
         )
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
@@ -724,7 +723,7 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/profile_stats` shows your dossier; `/profile_leaderboard` stacks you against the sector."
+                "`/profile_stats` shows your dossier; `/leaderboard` compares XP and OCR stats side by side."
             ),
             color=0x3498db,
         )

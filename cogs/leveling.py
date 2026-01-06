@@ -29,6 +29,7 @@ from database import (
     get_settings,
     get_user_stats,
     is_channel_ignored,
+    top_profile_stat,
     top_global_xp,
     top_xp_leaderboard,
     transfer_inventory,
@@ -54,6 +55,13 @@ RARITY_COLORS = {
 RARITY_ORDER = {"Mythic": 0, "Artifact": 1, "Legendary": 2, "Epic": 3, "Rare": 4, "Uncommon": 5, "Common": 6}
 ALL_SCAVENGE_ITEMS = {entry[2] for entry in SCAVENGE_OUTCOMES}
 TIER_COLORS = [0x3498db, 0x2ecc71, 0x9b59b6, 0xe67e22, 0xf1c40f, 0xe91e63, 0x1abc9c]
+PROFILE_STAT_LABELS = {
+    "cp": ("Combat Power", "⚔️"),
+    "kills": ("Kills", "☠️"),
+    "likes": ("Likes", "👍"),
+    "vip_level": ("VIP", "⭐"),
+    "level": ("Profile Level", "⬆️"),
+}
 
 class Leveling(commands.Cog):
     def __init__(self, bot):
@@ -210,36 +218,63 @@ class Leveling(commands.Cog):
         progress = int((xp / next_xp_req) * 10) if xp > 0 else 0
         progress = min(progress, 10)
         bar = "▰" * progress + "▱" * (10 - progress)
+        pct = min(100, int((xp / next_xp_req) * 100)) if next_xp_req else 0
 
-        embed = discord.Embed(title=f"📡 DISPATCH: {member.display_name}", color=0x3498db)
+        embed = discord.Embed(
+            title=f"📇 Sector dossier | {member.display_name}",
+            description=(
+                "Progression, stash, and OCR vitals in one view. Keep this handy before "
+                "you deploy or trade."
+            ),
+            color=0x3498db,
+        )
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name="Level", value=f"**{lvl}**", inline=True)
-        embed.add_field(name="XP", value=f"{xp} / {next_xp_req}", inline=True)
-        embed.add_field(name="Progress", value=f"`{bar}`", inline=False)
 
-        # Fetch inventory count for profile summary
+        progression = [
+            f"Level **{lvl}**",
+            f"XP: {xp:,} / {next_xp_req:,}",
+            f"`{bar}` ({pct}%)",
+        ]
+        embed.add_field(
+            name="Progress", value="\n".join(progression), inline=False
+        )
+
         inv = await get_inventory(ctx.guild.id, member.id)
         item_count = sum(item['quantity'] for item in inv)
         unique_count = len({item['item_id'] for item in inv})
-        embed.add_field(name="Inventory", value=f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique", inline=True)
+        stash_line = f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique"
+        embed.add_field(name="Stash", value=stash_line, inline=True)
 
         snapshot = await get_profile_snapshot(ctx.guild.id, member.id)
         if snapshot:
-            embed.add_field(name="CP", value=self._format_metric(snapshot.get("cp")), inline=True)
-            embed.add_field(name="Kills", value=self._format_metric(snapshot.get("kills")), inline=True)
+            vitals = [
+                f"⚔️ CP: {self._format_metric(snapshot.get('cp'))}",
+                f"☠️ Kills: {self._format_metric(snapshot.get('kills'))}",
+                f"👍 Likes: {self._format_metric(snapshot.get('likes'))}",
+                f"⭐ VIP: {self._format_metric(snapshot.get('vip_level'))}",
+                f"⬆️ Level: {self._format_metric(snapshot.get('level'))}",
+            ]
             embed.add_field(
-                name="Alliance",
-                value=snapshot.get("alliance") or "—",
-                inline=True,
+                name="Vitals (OCR)", value="\n".join(vitals), inline=True
             )
-            embed.add_field(name="Server", value=snapshot.get("server") or "—", inline=True)
+
+            identity = [
+                f"🪪 Alliance: {snapshot.get('alliance') or '—'}",
+                f"🌐 Server: {snapshot.get('server') or '—'}",
+            ]
+            if snapshot.get("last_image_url"):
+                identity.append(f"🖼️ [Latest scan]({snapshot['last_image_url']})")
+            embed.add_field(
+                name="Identity", value="\n".join(identity), inline=True
+            )
+
             if snapshot.get("last_updated"):
                 dt = datetime.fromtimestamp(snapshot["last_updated"], tz=timezone.utc)
                 embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
         else:
             embed.add_field(
                 name="Profile Scan",
-                value="No scan stored yet. Run `/scan_profile` to add OCR stats.",
+                value="No OCR stats stored yet. Run `/scan_profile` to capture your card.",
                 inline=False,
             )
 
@@ -409,64 +444,115 @@ class Leveling(commands.Cog):
         await self.check_collector_prestige(ctx.author)
         await self.check_collector_prestige(member)
 
-    @commands.hybrid_command(description="See the top survivors in this sector.")
-    async def leaderboard(self, ctx):
-        rows = await top_xp_leaderboard(ctx.guild.id)
+    async def _build_leaderboard_embed(
+        self, guild: discord.Guild | None, selection: str
+    ) -> discord.Embed:
+        """Generate a leaderboard embed for the requested data slice."""
+
+        if not guild:
+            return discord.Embed(
+                title="🏅 Leaderboards",
+                description="Leaderboards are scoped to servers. Run this inside a guild.",
+                color=0xe67e22,
+            )
+
+        if selection == "local_xp":
+            rows = await top_xp_leaderboard(guild.id)
+            if not rows:
+                return discord.Embed(
+                    title="🏆 Sector XP",
+                    description="No data yet. Talk, trade, and scavenge to generate rankings.",
+                    color=0xe67e22,
+                )
+
+            embed = discord.Embed(
+                title="🏆 Sector XP",
+                description="XP rankings are isolated per sector. Bragging rights stay local.",
+                color=0xe67e22,
+            )
+            lines = []
+            for idx, row in enumerate(rows, start=1):
+                member = guild.get_member(row["user_id"])
+                name = member.display_name if member else f"Unknown {row['user_id']}"
+                lines.append(
+                    f"**{idx}. {name}** — Level {row['level']} | {row['xp']:,} XP"
+                )
+            embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+            embed.set_footer(text="Data is saved between restarts. Keep grinding.")
+            return embed
+
+        if selection == "global_xp":
+            rows = await top_global_xp(10)
+            if not rows:
+                return discord.Embed(
+                    title="🌐 Network Leaderboard",
+                    description=(
+                        "No global data yet. Start chatting and running `/scavenge` to claim the top slots."
+                    ),
+                    color=0x3498db,
+                )
+
+            embed = discord.Embed(
+                title="🌐 Network Leaderboard",
+                description=(
+                    "Top performers across Marcia's entire network. Each survivor is tagged with their home sector."
+                ),
+                color=0x3498db,
+            )
+            lines = []
+            for idx, row in enumerate(rows, start=1):
+                source_guild = self.bot.get_guild(row["guild_id"])
+                guild_name = source_guild.name if source_guild else f"Guild {row['guild_id']}"
+                user = self.bot.get_user(row["user_id"])
+                user_display = user.mention if user else f"<@{row['user_id']}>"
+                lines.append(
+                    f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']:,} XP ({guild_name})"
+                )
+            embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+            embed.set_footer(text="Run your alliance like a war machine. /scavenge and climb.")
+            return embed
+
+        stat_label, emoji = PROFILE_STAT_LABELS.get(selection, (selection.title(), "📈"))
+        rows = await top_profile_stat(guild.id, selection)
         if not rows:
-            return await self._safe_send(
-                ctx,
-                content="📡 No data yet. Tell your crew to talk, trade, and scavenge.",
+            return discord.Embed(
+                title=f"{emoji} {stat_label} Leaderboard",
+                description="No scanned profiles yet. Run `/scan_profile` and try again.",
+                color=0xf1c40f,
             )
 
         embed = discord.Embed(
-            title="🏆 Sector Leaderboard",
-            description="XP rankings are isolated per sector. Bragging rights stay local.",
-            color=0xe67e22,
+            title=f"{emoji} {stat_label} Leaderboard",
+            description="OCR-driven stats from the latest profile scans in this sector.",
+            color=0xf1c40f,
         )
-
         lines = []
         for idx, row in enumerate(rows, start=1):
-            member = ctx.guild.get_member(row["user_id"])
-            name = member.display_name if member else f"Unknown {row['user_id']}"
-            lines.append(f"**{idx}. {name}** — Level {row['level']} | {row['xp']} XP")
-
+            user = guild.get_member(row["user_id"])
+            name = row["player_name"] or (user.display_name if user else f"User {row['user_id']}")
+            lines.append(f"**{idx}.** {name} — {self._format_metric(row['value'])}")
         embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
-        embed.set_footer(text="Data is saved between restarts. Keep grinding.")
-        await self._safe_send(ctx, embed=embed)
+        embed.set_footer(text="Use `/scan_profile` then `/leaderboard` to surface fresh scans.")
+        return embed
+
+    @commands.hybrid_command(description="Browse XP and OCR leaderboards from one menu.")
+    async def leaderboard(self, ctx):
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="Leaderboards only work inside servers.",
+                ephemeral=True,
+            )
+
+        view = LeaderboardView(self, ctx.guild, requester_id=ctx.author.id)
+        embed = await self._build_leaderboard_embed(ctx.guild, "local_xp")
+        message = await self._safe_send(ctx, embed=embed, view=view)
+        if isinstance(message, discord.Message):
+            view.bind_message(message)
 
     @commands.hybrid_command(name="global_leaderboard", description="See the top survivors across every linked server.")
     async def global_leaderboard(self, ctx):
-        rows = await top_global_xp(10)
-        if not rows:
-            return await self._safe_send(
-                ctx,
-                content=(
-                    "📡 No global data yet. Start chatting and running `/scavenge` "
-                    "to claim the top slots."
-                ),
-            )
-
-        embed = discord.Embed(
-            title="🌐 Network Leaderboard",
-            description=(
-                "Top performers across Marcia's entire network. Each survivor is tagged with their home sector"
-                " so bragging rights stay clear."
-            ),
-            color=0x3498db,
-        )
-
-        lines = []
-        for idx, row in enumerate(rows, start=1):
-            guild = self.bot.get_guild(row["guild_id"])
-            guild_name = guild.name if guild else f"Guild {row['guild_id']}"
-            user = self.bot.get_user(row["user_id"])
-            user_display = user.mention if user else f"<@{row['user_id']}>"
-            lines.append(
-                f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']} XP ({guild_name})"
-            )
-
-        embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
-        embed.set_footer(text="Run your alliance like a war machine. /scavenge and climb.")
+        embed = await self._build_leaderboard_embed(ctx.guild, "global_xp")
         await self._safe_send(ctx, embed=embed)
 
     @commands.command()
@@ -543,6 +629,69 @@ class Leveling(commands.Cog):
                     f"🏅 You secured every artifact in this sector. Prestige role `{PRESTIGE_ROLE}` granted."
                 )
             except discord.Forbidden:
+                pass
+
+class LeaderboardSelect(discord.ui.Select):
+    def __init__(self, parent_view: "LeaderboardView"):
+        self.parent_view = parent_view
+        options = [
+            discord.SelectOption(
+                label="Sector XP", description="Top survivors in this server", value="local_xp", emoji="🏆"
+            ),
+            discord.SelectOption(
+                label="Network XP", description="Top survivors across linked servers", value="global_xp", emoji="🌐"
+            ),
+        ]
+
+        for stat, (label, emoji) in PROFILE_STAT_LABELS.items():
+            options.append(
+                discord.SelectOption(
+                    label=f"{label} (OCR)",
+                    description=f"Profile scans ranked by {label.lower()}",
+                    value=stat,
+                    emoji=emoji,
+                )
+            )
+
+        options[0].default = True
+        super().__init__(
+            placeholder="Pick a leaderboard to view",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.parent_view.requester_id:
+            return await interaction.response.send_message(
+                "Only the original requester can change this menu.", ephemeral=True
+            )
+
+        embed = await self.parent_view.cog._build_leaderboard_embed(
+            self.parent_view.guild, self.values[0]
+        )
+        await interaction.response.edit_message(embed=embed, view=self.parent_view)
+
+
+class LeaderboardView(discord.ui.View):
+    def __init__(self, cog: Leveling, guild: discord.Guild, requester_id: int):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.guild = guild
+        self.requester_id = requester_id
+        self.message: discord.Message | None = None
+        self.add_item(LeaderboardSelect(self))
+
+    def bind_message(self, message: discord.Message) -> None:
+        self.message = message
+
+    async def on_timeout(self):
+        if self.message:
+            for child in self.children:
+                child.disabled = True
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
                 pass
 
 async def setup(bot):

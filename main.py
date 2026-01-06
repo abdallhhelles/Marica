@@ -252,6 +252,19 @@ class MarciaBot(commands.Bot):
         if getattr(error, "handled", False):
             return
 
+        already_replied = interaction.response.is_done() or getattr(
+            interaction, "is_expired", lambda: False
+        )()
+        if already_replied:
+            logger.debug(
+                "Skipping duplicate app error reply for %s (already responded)",
+                getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+            )
+            await log_command_exception(
+                self, error, interaction=interaction, source="app-command"
+            )
+            return
+
         if isinstance(error, app_commands.CheckFailure):
             await self._safe_interaction_reply(
                 interaction,
