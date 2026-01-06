@@ -115,21 +115,6 @@ class Leveling(commands.Cog):
             return f"{mins}m {secs:02d}s"
         return f"{secs}s"
 
-    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        base_error = getattr(error, "original", error)
-        if isinstance(base_error, app_commands.CommandOnCooldown):
-            retry = int(base_error.retry_after)
-            mins, secs = divmod(retry, 60)
-            content = f"⌛ Drones cooling down. Try again in {mins}m {secs}s."
-            base_error.handled = True
-            error.handled = True
-            if interaction.response.is_done():
-                await interaction.followup.send(content, ephemeral=True)
-            else:
-                await interaction.response.send_message(content, ephemeral=True)
-            return
-        raise error
-
     async def apply_role_rewards(self, member, level):
         """Automatically assigns dynamic tier roles based on level reached."""
         tier_role = await self.ensure_tier_role(member.guild, level)
