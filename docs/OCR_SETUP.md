@@ -7,7 +7,7 @@ This guide keeps `/scan_profile` predictable across laptops, dedicated servers, 
    ```bash
    pip install -r requirements.txt       # base bot + OCR extras
    ```
-   * **Low-memory hosts (≤1 GB RAM):** torch/EasyOCR wheels may be too heavy for tiny panels. Either install only the base bot with `pip install -r requirements-lite.txt` (OCR disabled) or preload wheels on another machine and install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
+   * **Low-memory hosts (≤1 GB RAM):** torch/EasyOCR wheels may be too heavy for tiny panels. Either install only the base bot with `pip install -r requirements-lite.txt` (OCR disabled) or preload wheels on another machine and install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`. See [Low-memory installation](LOW_MEMORY_INSTALL.md) for step-by-step examples and wheel-cache tips.
 2. Install the system Tesseract binary (required by pytesseract):
    * Debian/Ubuntu: `sudo apt-get install -y tesseract-ocr`
    * macOS (Homebrew): `brew install tesseract`

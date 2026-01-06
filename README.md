@@ -59,6 +59,7 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 * Use the lightweight install to skip OCR: `pip install -r requirements-lite.txt` (scanning stays disabled, everything else works).
 * If you need OCR, prebuild wheels on a bigger machine and upload them to the host. Install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
+* 512 MB RAM panels almost always OOM on torch. Preload wheels instead of live installing (see [Low-memory install guide](docs/LOW_MEMORY_INSTALL.md)).
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
