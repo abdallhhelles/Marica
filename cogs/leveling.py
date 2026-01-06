@@ -58,9 +58,6 @@ TIER_COLORS = [0x3498db, 0x2ecc71, 0x9b59b6, 0xe67e22, 0xf1c40f, 0xe91e63, 0x1ab
 PROFILE_STAT_LABELS = {
     "cp": ("Combat Power", "⚔️"),
     "kills": ("Kills", "☠️"),
-    "likes": ("Likes", "👍"),
-    "vip_level": ("VIP", "⭐"),
-    "level": ("Profile Level", "⬆️"),
 }
 
 class Leveling(commands.Cog):
@@ -250,9 +247,6 @@ class Leveling(commands.Cog):
             vitals = [
                 f"⚔️ CP: {self._format_metric(snapshot.get('cp'))}",
                 f"☠️ Kills: {self._format_metric(snapshot.get('kills'))}",
-                f"👍 Likes: {self._format_metric(snapshot.get('likes'))}",
-                f"⭐ VIP: {self._format_metric(snapshot.get('vip_level'))}",
-                f"⬆️ Level: {self._format_metric(snapshot.get('level'))}",
             ]
             embed.add_field(
                 name="Vitals (OCR)", value="\n".join(vitals), inline=True
