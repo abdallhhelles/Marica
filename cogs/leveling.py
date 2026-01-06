@@ -12,7 +12,7 @@ import os
 import random
 import time
 import aiosqlite
-from datetime import datetime
+from datetime import datetime, timezone
 from bug_logging import log_command_exception
 from assets import (
     SCAVENGE_FIELD_REPORTS,
@@ -24,16 +24,17 @@ from assets import (
 )
 from database import (
     DB_PATH,
+    get_inventory,
+    get_profile_snapshot,
     get_settings,
     get_user_stats,
+    is_channel_ignored,
+    top_global_xp,
+    top_xp_leaderboard,
+    transfer_inventory,
+    update_scavenge_time,
     update_user_xp,
     add_to_inventory,
-    get_inventory,
-    update_scavenge_time,
-    transfer_inventory,
-    top_xp_leaderboard,
-    top_global_xp,
-    is_channel_ignored,
 )
 
 XP_PER_MESSAGE = 12
@@ -79,6 +80,10 @@ class Leveling(commands.Cog):
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
 
+    @staticmethod
+    def _format_metric(value: int | None) -> str:
+        return f"{value:,}" if isinstance(value, int) else "—"
+
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
             retry = int(error.retry_after)
@@ -116,6 +121,8 @@ class Leveling(commands.Cog):
             retry = int(base_error.retry_after)
             mins, secs = divmod(retry, 60)
             content = f"⌛ Drones cooling down. Try again in {mins}m {secs}s."
+            base_error.handled = True
+            error.handled = True
             if interaction.response.is_done():
                 await interaction.followup.send(content, ephemeral=True)
             else:
@@ -197,9 +204,8 @@ class Leveling(commands.Cog):
                             pass
                 await self.apply_role_rewards(message.author, new_lvl)
 
-    @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
-    async def profile(self, ctx, member: discord.Member = None):
-        """Displays user level, XP, and inventory stats."""
+    async def _send_profile_overview(self, ctx, member: discord.Member | None = None):
+        """Send the combined profile view with XP and scanned stats."""
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
@@ -230,14 +236,39 @@ class Leveling(commands.Cog):
         embed.add_field(name="Level", value=f"**{lvl}**", inline=True)
         embed.add_field(name="XP", value=f"{xp} / {next_xp_req}", inline=True)
         embed.add_field(name="Progress", value=f"`{bar}`", inline=False)
-        
+
         # Fetch inventory count for profile summary
         inv = await get_inventory(ctx.guild.id, member.id)
         item_count = sum(item['quantity'] for item in inv)
         unique_count = len({item['item_id'] for item in inv})
         embed.add_field(name="Inventory", value=f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique", inline=True)
-        
+
+        snapshot = await get_profile_snapshot(ctx.guild.id, member.id)
+        if snapshot:
+            embed.add_field(name="CP", value=self._format_metric(snapshot.get("cp")), inline=True)
+            embed.add_field(name="Kills", value=self._format_metric(snapshot.get("kills")), inline=True)
+            embed.add_field(
+                name="Alliance",
+                value=snapshot.get("alliance") or "—",
+                inline=True,
+            )
+            embed.add_field(name="Server", value=snapshot.get("server") or "—", inline=True)
+            if snapshot.get("last_updated"):
+                dt = datetime.fromtimestamp(snapshot["last_updated"], tz=timezone.utc)
+                embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
+        else:
+            embed.add_field(
+                name="Profile Scan",
+                value="No scan stored yet. Run `/scan_profile` to add OCR stats.",
+                inline=False,
+            )
+
         await self._safe_send(ctx, embed=embed)
+
+    @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
+    async def profile(self, ctx, member: discord.Member = None):
+        """Displays user level, XP, inventory, and scanned stats."""
+        await self._send_profile_overview(ctx, member)
 
     @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
     async def scavenge(self, ctx):
