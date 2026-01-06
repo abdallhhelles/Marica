@@ -43,14 +43,15 @@ SHOWCASE_SECTIONS = [
             "Keeps all survivor data isolated per server for security—no cross-pollination.",
         ],
     },
-    {
-        "name": "Core Systems",
-        "lines": [
-            "📡 Operations (UTC-2 clock): `/event`, `/events`, `/event_remove`, `/setup`, `/audit`, `/status`, `/analytics`.",
-            "🎣 Trading | Fish-Link: `/setup_trade`, `/trade_item`, `/trade`, `/find`, `/my listings`, `/who has my wanted`.",
-            "🛰️ Progression & Scavenging: hourly `/scavenge`, `/leaderboard`, `/profile`, and `/inventory` with set bonuses.",
-        ],
-    },
+        {
+            "name": "Core Systems",
+            "lines": [
+                "📡 Operations (UTC-2 clock): `/event`, `/events`, `/event_remove`, `/setup`, `/audit`, `/status`, `/analytics`.",
+                "🎣 Trading | Fish-Link: `/setup_trade`, `/trade_item`, `/trade`, `/find`, `/my listings`, `/who has my wanted`.",
+                "🛰️ Progression & Scavenging: hourly `/scavenge`, `/leaderboard` (10/25/50/100 rows + export), `/profile`, and `/inventory` with set bonuses.",
+                "🛰️ Profile Scanner (OCR): `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads to disk and feeds `/leaderboard`.",
+            ],
+        },
     {
         "name": "Welcomes, Departures, & Automation",
         "lines": [
@@ -60,13 +61,14 @@ SHOWCASE_SECTIONS = [
         ],
     },
     {
-        "name": "Command Directory (quick view)",
-        "lines": [
-            "Admin: `/setup`, `/audit`, `/setup_trade`, `/refresh_commands`, `/event`, `/events`, `/analytics`, `/status`.",
-            "Members: `/events`, `/scavenge`, `/profile`, `/inventory`, flag-reaction translation, `/trade_item`, `/features`, `/commands`.",
-            "Trading: Fish-Link buttons + `/trade_item`.",
-        ],
-    },
+            "name": "Command Directory (quick view)",
+            "lines": [
+                "Admin: `/setup`, `/audit`, `/setup_trade`, `/refresh_commands`, `/event`, `/events`, `/analytics`, `/status`.",
+                "Members: `/events`, `/scavenge`, `/profile`, `/profile_stats`, `/leaderboard`, `/inventory`, `/manual`, `/features`, `/commands`.",
+                "Profiles (OCR): `/setup_profile_channel`, `/scan_profile`; `/leaderboard` export sends TSV to DM.",
+                "Trading: Fish-Link buttons + `/trade_item`.",
+            ],
+        },
     {
         "name": "How to Deploy",
         "lines": [
@@ -204,7 +206,8 @@ class Utility(commands.Cog):
             name="Economy & Progression",
             value="\n".join([
                 "• Trading terminal with persistent Fish-Link inventory",
-                "• `/scavenge`, `/inventory`, `/leaderboard` for grind cycles",
+                "• `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
+                "• OCR: `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads",
                 "• Analytics per guild; nothing crosses sectors",
             ]),
             inline=False,
@@ -221,7 +224,7 @@ class Utility(commands.Cog):
                     "`/scavenge` • deploy a drone",
                     "`/inventory` • check your stash",
                     "`/events` • see what's scheduled",
-                    "`/profile` | `/leaderboard` • progress",
+                    "`/profile` | `/profile_stats` | `/leaderboard`",
                 ],
             ),
             (
@@ -240,6 +243,15 @@ class Utility(commands.Cog):
                     "Buttons: Spares / Find listings",
                     "`/trade_item` • text fallback",
                     "Per-server inventory; no cross-bleed",
+                ],
+            ),
+            (
+                "Profiles & OCR",
+                [
+                    "`/setup_profile_channel` • pick intake",
+                    "`/scan_profile` • OCR a screenshot",
+                    "`/profile_stats` • last parsed snapshot",
+                    "`/leaderboard` • XP + CP/Kills with export",
                 ],
             ),
             (

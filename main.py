@@ -148,6 +148,10 @@ class MarciaBot(commands.Bot):
         if message.author.bot or not message.guild:
             return
 
+        # Ignore interaction-backed system messages (e.g., slash command notices)
+        if getattr(message, "interaction", None):
+            return
+
         if message.type is not discord.MessageType.default:
             return
 

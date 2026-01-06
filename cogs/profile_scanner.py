@@ -202,10 +202,15 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
-            image_bytes, filename=image.filename
+        cached_path = self._persist_profile_image(
+            ctx.guild.id, ctx.author.id, image_bytes, image.filename
         )
-        payload = self._build_payload(ctx.author, image.url, parsed, raw_text)
+        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+            image_bytes, filename=image.filename, persisted_path=cached_path
+        )
+        payload = self._build_payload(
+            ctx.author, image.url, parsed, raw_text, cached_path
+        )
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
         embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
@@ -400,16 +405,25 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
-            image_bytes, filename=attachment.filename
+        cached_path = self._persist_profile_image(
+            message.guild.id, message.author.id, image_bytes, attachment.filename
         )
-        payload = self._build_payload(message.author, attachment.url, parsed, raw_text)
+        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+            image_bytes, filename=attachment.filename, persisted_path=cached_path
+        )
+        payload = self._build_payload(
+            message.author, attachment.url, parsed, raw_text, cached_path
+        )
 
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
         await self._post_confirmation(message, payload, ocr_note, debug_note)
 
     async def _perform_ocr(
-        self, image_bytes: bytes, *, filename: str | None = None
+        self,
+        image_bytes: bytes,
+        *,
+        filename: str | None = None,
+        persisted_path: Path | None = None,
     ) -> tuple[dict, str, str | None, str | None]:
         parsed: dict[str, str | int | None] = {}
         raw_text = ""
@@ -417,7 +431,7 @@ class ProfileScanner(commands.Cog):
         debug_note: str | None = None
 
         async with self._scan_semaphore:
-            temp_path = self._stash_temp_image(image_bytes, filename)
+            temp_path = persisted_path or self._stash_temp_image(image_bytes, filename)
 
             try:
                 easyocr_results = await self._run_easyocr(image_bytes, temp_path)
@@ -450,7 +464,7 @@ class ProfileScanner(commands.Cog):
                     if ocr_note is None and api_note:
                         ocr_note = api_note
             finally:
-                if temp_path:
+                if temp_path and temp_path != persisted_path:
                     try:
                         temp_path.unlink(missing_ok=True)
                     except Exception:  # pragma: no cover - best-effort cleanup
@@ -546,6 +560,34 @@ class ProfileScanner(commands.Cog):
             return None
 
         return temp_path
+
+    def _persist_profile_image(
+        self, guild_id: int, user_id: int, image_bytes: bytes, filename: str | None = None
+    ) -> Path | None:
+        """Save the raw upload so rescans avoid refetching from Discord CDN."""
+
+        base = Path(__file__).resolve().parent.parent / "shots" / "profiles" / str(guild_id)
+        base.mkdir(parents=True, exist_ok=True)
+
+        suffix = Path(filename).suffix if filename else ".png"
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        path = base / f"{user_id}_{timestamp}{suffix}"
+
+        try:
+            path.write_bytes(image_bytes)
+        except Exception:
+            self.log.exception("Failed to persist profile image to %s", path)
+            return None
+
+        # Keep a short history per user to avoid filling disk.
+        user_stash = sorted(base.glob(f"{user_id}_*"))
+        for old in user_stash[:-5]:
+            try:
+                old.unlink(missing_ok=True)
+            except Exception:  # pragma: no cover - best-effort cleanup
+                self.log.debug("Could not trim cached profile image %s", old)
+
+        return path
 
     async def _ensure_easyocr(self) -> bool:
         if self._easyocr_ready is not None:
@@ -671,6 +713,7 @@ class ProfileScanner(commands.Cog):
         image_url: str,
         parsed: dict[str, str | int | None],
         raw_text: str,
+        cached_path: Path | None = None,
     ) -> dict:
         return {
             "player_name": parsed.get("player_name") or member.display_name,
@@ -683,6 +726,7 @@ class ProfileScanner(commands.Cog):
             "level": parsed.get("level"),
             "avatar_url": str(member.display_avatar.url),
             "last_image_url": image_url,
+            "local_image_path": str(cached_path) if cached_path else None,
             "raw_ocr": raw_text,
         }
 
