@@ -25,24 +25,23 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 
 ## Profile screenshot scanner
 - **Set the intake channel:** `/setup_profile_channel #channel` scopes where Marica watches for profile screenshots.
-- **Auto-capture stats:** screenshots in that channel log CP, kills, likes, VIP, level, server, and alliance to the uploader.
+- **Auto-capture stats:** screenshots in that channel log CP, kills, server, and alliance to the uploader.
 - **Review scans:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor.
-- **Compare stats:** `/profile_leaderboard <stat>` lists the top CP/kills/likes/VIP/level from scanned profiles.
+- **Compare stats:** `/leaderboard` opens a menu for XP plus CP/kills from scanned profiles.
 - **OCR dependencies:** Tesseract+pytesseract cover basic scans. For higher accuracy, install the OCR extras bundled in `requirements.txt` (easyocr, opencv, numpy) unless memory is constrained; on tiny hosts you can skip them with `requirements-lite.txt` (scanning stays disabled).
 
 ### Quick testing routine (profile scanning)
 1. **Dependencies:** Ensure `tesseract` is installed and Python deps are synced (`pip install -r requirements.txt`).
 2. **Configure channel:** Run `/setup_profile_channel #channel` in a test server and confirm the setup embed.
-3. **Happy path:** Post a known-good profile screenshot there. Expect a reply embed summarizing CP/kills/likes/VIP/level/alliance/server.
+3. **Happy path:** Post a known-good profile screenshot there. Expect a reply embed summarizing CP/kills/alliance/server.
 4. **Profile view:** Run `/profile_stats` and confirm it matches the prior reply, including the `Last scanned` timestamp.
-5. **Leaderboard:** Run `/profile_leaderboard cp` (and other stats if populated). Verify ordering matches expectations and users without values are skipped.
+5. **Leaderboard:** Run `/leaderboard` and pick **Combat Power** (or **Kills** if populated). Verify ordering matches expectations and users without values are skipped.
 6. **OCR-off fallback:** Temporarily uninstall or disable `tesseract` and post another screenshot. The bot should reply with `OCR unavailable` in the footer and still record the upload with your display name.
 7. **Channel guard:** Post a screenshot in a different channel and confirm the bot ignores it (no DB write/response).
 8. **Audit storage:** Inspect the SQLite DB (`data/marcia_os.db`, `profile_snapshots` table) to confirm `player_name`, metrics, `last_image_url`, and `raw_ocr` are populated for the test guild/user.
 
 ## Leaderboard & roles
-- **Local leaderboard:** `/leaderboard` shows the top survivors in your server.
-- **Global leaderboard:** `/global_leaderboard` compares across servers.
+- **Leaderboards:** `/leaderboard` opens a selector for local XP, global XP, and scanned profile stats. `/global_leaderboard` is kept for quick access to network XP.
 - Level-based tier roles are applied automatically when `Sector Rank` roles exist and permissions allow role edits.
 
 ## Channels & automation

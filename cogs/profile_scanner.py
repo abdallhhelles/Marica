@@ -62,9 +62,6 @@ LABEL_HINTS = {
     "kills": ("kills",),
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state"),
-    "likes": ("likes", "like"),
-    "vip_level": ("vip",),
-    "level": ("level", "lvl", "lv"),
 }
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
@@ -140,6 +137,9 @@ class ProfileScanner(commands.Cog):
         self._easyocr_failure_reason: str | None = None
         self._easyocr_lock = asyncio.Lock()
         self._pytesseract_missing = False
+        self._scan_semaphore = asyncio.Semaphore(
+            int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
+        )
 
     async def cog_unload(self):
         pass
@@ -240,33 +240,29 @@ class ProfileScanner(commands.Cog):
 
         name = data["player_name"] or target.display_name
         embed = discord.Embed(
-            title=f"📡 Sector dossier: {name}",
-            description=random.choice(PROFILE_TAGLINES),
+            title=f"📡 Sector dossier | {name}",
+            description=(
+                "Latest OCR stats saved for this survivor. Use `/leaderboard` to compare "
+                "against the rest of the sector."
+            ),
             color=0x2ecc71,
         )
         embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
         vitals = [
-            f"Combat Power: {_format_metric(data['cp'])}",
-            f"Kills: {_format_metric(data['kills'])}",
-            f"Likes: {_format_metric(data.get('likes'))}",
-            f"VIP: {_format_metric(data.get('vip_level'))}",
-            f"Level: {_format_metric(data.get('level'))}",
+            f"⚔️ Combat Power: {_format_metric(data['cp'])}",
+            f"☠️ Kills: {_format_metric(data['kills'])}",
         ]
-        embed.add_field(
-            name="Vitals",
-            value="\n".join(f"• {line}" for line in vitals),
-            inline=False,
-        )
+        embed.add_field(name="Vitals", value="\n".join(vitals), inline=False)
 
         identity = [
-            f"Alliance: {data.get('alliance') or '—'}",
-            f"Server: {data.get('server') or '—'}",
+            f"🪪 Alliance: {data.get('alliance') or '—'}",
+            f"🌐 Server: {data.get('server') or '—'}",
         ]
         if data.get("last_image_url"):
-            identity.append(f"Source: [Latest scan]({data['last_image_url']})")
+            identity.append(f"🖼️ [Latest scan]({data['last_image_url']})")
         embed.add_field(
             name="Identity & Links",
-            value="\n".join(f"• {line}" for line in identity),
+            value="\n".join(identity),
             inline=False,
         )
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
@@ -285,9 +281,6 @@ class ProfileScanner(commands.Cog):
         stat=[
             app_commands.Choice(name="Combat Power", value="cp"),
             app_commands.Choice(name="Kills", value="kills"),
-            app_commands.Choice(name="Likes", value="likes"),
-            app_commands.Choice(name="VIP", value="vip_level"),
-            app_commands.Choice(name="Level", value="level"),
         ]
     )
     async def profile_leaderboard(self, ctx, stat: app_commands.Choice[str]):
@@ -423,44 +416,45 @@ class ProfileScanner(commands.Cog):
         ocr_note: str | None = None
         debug_note: str | None = None
 
-        temp_path = self._stash_temp_image(image_bytes, filename)
+        async with self._scan_semaphore:
+            temp_path = self._stash_temp_image(image_bytes, filename)
 
-        try:
-            easyocr_results = await self._run_easyocr(image_bytes, temp_path)
-            if easyocr_results:
-                parsed.update(easyocr_results["parsed"])
-                raw_text = easyocr_results["raw"]
-            elif self._easyocr_ready is False and self._easyocr_failure_reason:
-                ocr_note = self._easyocr_failure_reason
+            try:
+                easyocr_results = await self._run_easyocr(image_bytes, temp_path)
+                if easyocr_results:
+                    parsed.update(easyocr_results["parsed"])
+                    raw_text = easyocr_results["raw"]
+                elif self._easyocr_ready is False and self._easyocr_failure_reason:
+                    ocr_note = self._easyocr_failure_reason
 
-            if not parsed:
-                pytesseract_text = await self._run_pytesseract(image_bytes)
-                raw_text = pytesseract_text or raw_text
-                if pytesseract_text:
-                    parsed.update(_parse_profile_text(pytesseract_text))
-                elif ocr_note is None:
-                    if self._pytesseract_missing:
-                        ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
-                    elif not (pytesseract and Image):
-                        ocr_note = (
-                            "OCR dependencies are missing; install them from requirements.txt."
-                        )
-                    else:
-                        ocr_note = "OCR could not read this image."
+                if not parsed:
+                    pytesseract_text = await self._run_pytesseract(image_bytes)
+                    raw_text = pytesseract_text or raw_text
+                    if pytesseract_text:
+                        parsed.update(_parse_profile_text(pytesseract_text))
+                    elif ocr_note is None:
+                        if self._pytesseract_missing:
+                            ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
+                        elif not (pytesseract and Image):
+                            ocr_note = (
+                                "OCR dependencies are missing; install them from requirements.txt."
+                            )
+                        else:
+                            ocr_note = "OCR could not read this image."
 
-            if not parsed and OCR_SPACE_API_KEY:
-                api_text, api_note = await self._run_ocr_space(image_bytes, filename)
-                raw_text = raw_text or api_text
-                if api_text:
-                    parsed.update(_parse_profile_text(api_text))
-                if ocr_note is None and api_note:
-                    ocr_note = api_note
-        finally:
-            if temp_path:
-                try:
-                    temp_path.unlink(missing_ok=True)
-                except Exception:  # pragma: no cover - best-effort cleanup
-                    self.log.debug("Temp profile image cleanup failed for %s", temp_path)
+                if not parsed and OCR_SPACE_API_KEY:
+                    api_text, api_note = await self._run_ocr_space(image_bytes, filename)
+                    raw_text = raw_text or api_text
+                    if api_text:
+                        parsed.update(_parse_profile_text(api_text))
+                    if ocr_note is None and api_note:
+                        ocr_note = api_note
+            finally:
+                if temp_path:
+                    try:
+                        temp_path.unlink(missing_ok=True)
+                    except Exception:  # pragma: no cover - best-effort cleanup
+                        self.log.debug("Temp profile image cleanup failed for %s", temp_path)
 
         debug_note = self._compose_debug_note(parsed, raw_text, ocr_note)
         self.log.info(
@@ -724,16 +718,13 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/profile_stats` shows your dossier; `/profile_leaderboard` stacks you against the sector."
+                "`/profile_stats` shows your dossier; `/leaderboard` compares XP and OCR stats side by side."
             ),
             color=0x3498db,
         )
 
         embed.add_field(name="CP", value=_format_metric(payload.get("cp")), inline=True)
         embed.add_field(name="Kills", value=_format_metric(payload.get("kills")), inline=True)
-        embed.add_field(name="Likes", value=_format_metric(payload.get("likes")), inline=True)
-        embed.add_field(name="VIP", value=_format_metric(payload.get("vip_level")), inline=True)
-        embed.add_field(name="Level", value=_format_metric(payload.get("level")), inline=True)
         embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
         embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
