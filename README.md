@@ -51,15 +51,13 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 * `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
 ### OCR add-on (enables `/scan_profile`)
-* Pillow + pytesseract (pulled by `requirements.txt`)
-* `easyocr`, `opencv-python-headless`, `numpy` via `pip install -r requirements-ocr.txt`
+* All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt`
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
-   * Base: `pip install -r requirements.txt`
-   * OCR (for profile scanning): `pip install -r requirements-ocr.txt`
+   * `pip install -r requirements.txt` (includes OCR extras)
 2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
 3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`).
 4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py` or `/ocr_status` in Discord.
@@ -74,7 +72,6 @@ Panels often install only `requirements.txt` and skip system packages. Bake ever
 ```bash
 apt-get update && apt-get install -y tesseract-ocr \
   && pip install -r requirements.txt \
-  && pip install -r requirements-ocr.txt \
   && python main.py
 ```
 
@@ -107,7 +104,7 @@ TOKEN=your_discord_bot_token_here
 
 ## Operations & troubleshooting
 * **`ModuleNotFoundError: cogs`** — The bot forces its working directory to the repo root. If the error appears on panel hosts, ensure `main.py` and `cogs/` are co-located and the start command runs from this folder.
-* **Profile scans are blank** — Confirm `tesseract` is installed, OCR extras are present (`requirements-ocr.txt`), and templates match your screenshot layout (see [docs/OCR_SETUP.md](docs/OCR_SETUP.md)).
+* **Profile scans are blank** — Confirm `tesseract` is installed, OCR extras are present (from `requirements.txt`), and templates match your screenshot layout (see [docs/OCR_SETUP.md](docs/OCR_SETUP.md)).
 * **HTTP client conflicts** — Third-party images that preinstall `googletrans==4.0.0rc1` downgrade `httpx`. Re-pin to the version in `requirements.txt` and remove conflicting packages.
 
 ---

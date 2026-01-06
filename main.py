@@ -116,9 +116,9 @@ class MarciaBot(commands.Bot):
         """Reply without raising duplicate-ack errors when already responded."""
 
         try:
-            if not interaction.response.is_done():
-                return await interaction.response.send_message(**kwargs)
-            return await interaction.followup.send(**kwargs)
+            if interaction.response.is_done() or getattr(interaction, "is_expired", lambda: False)():
+                return await interaction.followup.send(**kwargs)
+            return await interaction.response.send_message(**kwargs)
         except HTTPException as exc:
             if exc.code == 40060:
                 logger.debug(

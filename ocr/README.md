@@ -3,7 +3,7 @@
 These scripts let you crop game profile screenshots and extract key stats with EasyOCR.
 
 ## Prerequisites
-- Install the OCR extras: `pip install -r requirements-ocr.txt` (includes Pillow + pytesseract)
+- Install the OCR extras bundled in `requirements.txt` (includes Pillow + pytesseract)
 - Make sure the system Tesseract binary is installed so pytesseract can run
 - Place your profile screenshots in the top-level `shots/` folder (create it if it doesn't exist).
 

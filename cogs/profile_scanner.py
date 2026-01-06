@@ -138,17 +138,9 @@ class ProfileScanner(commands.Cog):
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         interaction = getattr(ctx, "interaction", None)
         if interaction:
-            response = interaction.response
-            responded = response.is_done() if hasattr(response, "is_done") else False
-            deferred = getattr(ctx, "deferred", False) or getattr(response, "deferred", False)
-            try:
-                if responded or deferred:
-                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
-                return await interaction.response.send_message(**kwargs, ephemeral=ephemeral)
-            except HTTPException as exc:
-                if exc.code == 40060:
-                    return await interaction.followup.send(**kwargs, ephemeral=ephemeral)
-                raise
+            return await self.bot._safe_interaction_reply(
+                interaction, ephemeral=ephemeral, **kwargs
+            )
 
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
@@ -413,7 +405,9 @@ class ProfileScanner(commands.Cog):
                     if self._pytesseract_missing:
                         ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
                     elif not (pytesseract and Image):
-                        ocr_note = "OCR dependencies are missing; install requirements-ocr.txt."
+                        ocr_note = (
+                            "OCR dependencies are missing; install them from requirements.txt."
+                        )
                     else:
                         ocr_note = "OCR could not read this image."
         finally:
@@ -482,7 +476,7 @@ class ProfileScanner(commands.Cog):
         if not (easyocr and cv2 and np):
             self._easyocr_ready = False
             self._easyocr_failure_reason = (
-                "EasyOCR unavailable. Install OCR extras with `pip install -r requirements-ocr.txt`."
+                "EasyOCR unavailable. Install OCR extras with `pip install -r requirements.txt`."
             )
             self.log.warning(self._easyocr_failure_reason)
             return False
