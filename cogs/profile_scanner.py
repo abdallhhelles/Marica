@@ -428,6 +428,15 @@ class ProfileScanner(commands.Cog):
             message.author, attachment.url, parsed, raw_text, cached_path
         )
 
+        if payload.get("ownership_verified") is False:
+            await message.reply(
+                content=(
+                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
+                ),
+                mention_author=False,
+            )
+            return
+
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
         await self._post_confirmation(message, payload, ocr_note, debug_note)
 
