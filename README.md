@@ -48,25 +48,28 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 ### Runtime requirements
 * Python 3.8+
-* `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
+* Base deps: `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
 ### OCR add-on (enables `/scan_profile`)
-* All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt`
+* Python OCR deps live in `requirements-ocr.txt` (Pillow, pytesseract, opencv-python-headless, numpy, EasyOCR, torch/torchvision pinned to the PyTorch **CPU** wheels, no NVIDIA downloads)
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
 * Optional external fallback: set `OCR_SPACE_API_KEY` to offload scans to OCR.space when local OCR is missing.
+* CPU mode is the default; if you later add a CUDA GPU and install matching torch/torchvision wheels, set `GPU = True` in `ocr/ocr_runner.py` for faster local scans.
 
-**Low-memory hosts (≤1 GB RAM):** installing torch/EasyOCR can OOM on tiny game panels. You can:
+**Low-memory hosts (≤1–3 GB RAM):** keep the base install tiny and opt into OCR only when resources allow. The OCR file pulls +cpu wheels and skips CUDA extras; add `--no-cache-dir` on tight disks.
 
-* Use the lightweight install to skip OCR: `pip install -r requirements-lite.txt` (scanning stays disabled, everything else works).
-* If you need OCR, prebuild wheels on a bigger machine and upload them to the host. Install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
+* Base bot only (no OCR): `pip install -r requirements.txt` (fits on small game panels).
+* Add local OCR later: `pip install --no-cache-dir -r requirements-ocr.txt` (CPU-only wheels, no CUDA downloads).
+* If you need OCR on an especially tiny panel, prebuild the `requirements-ocr.txt` wheels elsewhere and install with `pip install --no-index --find-links /path/to/wheels -r requirements-ocr.txt`.
 * Or set `OCR_SPACE_API_KEY` to let `/scan_profile` call the OCR.space API instead of loading torch/EasyOCR locally.
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
-   * `pip install -r requirements.txt` (includes OCR extras)
+   * Base bot: `pip install -r requirements.txt`
+   * Enable OCR locally: `pip install --no-cache-dir -r requirements-ocr.txt`
 2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
-3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`).
+3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`). If OCR is enabled, also check `python -m pip show torch torchvision easyocr`.
 4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py` or `/ocr_status` in Discord.
 
 ---
@@ -79,6 +82,7 @@ Panels often install only `requirements.txt` and skip system packages. Bake ever
 ```bash
 apt-get update && apt-get install -y tesseract-ocr \
   && pip install -r requirements.txt \
+  && pip install --no-cache-dir -r requirements-ocr.txt \
   && python main.py
 ```
 

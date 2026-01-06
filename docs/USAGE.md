@@ -28,7 +28,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Auto-capture stats:** screenshots in that channel log CP, kills, likes, VIP, level, server, and alliance to the uploader.
 - **Review scans:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor.
 - **Compare stats:** `/profile_leaderboard <stat>` lists the top CP/kills/likes/VIP/level from scanned profiles.
-- **OCR dependencies:** Tesseract+pytesseract cover basic scans. For higher accuracy, install the OCR extras bundled in `requirements.txt` (easyocr, opencv, numpy) unless memory is constrained; on tiny hosts you can skip them with `requirements-lite.txt` (scanning stays disabled).
+- **OCR dependencies:** Keep the base install lean with `requirements.txt`. Add local scanning when resources allow via `requirements-ocr.txt` (CPU-only EasyOCR/torch/opencv via the PyTorch CPU index, no NVIDIA downloads). On tiny panels, skip the OCR file and optionally set `OCR_SPACE_API_KEY` to offload scans to OCR.space.
 
 ### Quick testing routine (profile scanning)
 1. **Dependencies:** Ensure `tesseract` is installed and Python deps are synced (`pip install -r requirements.txt`).
