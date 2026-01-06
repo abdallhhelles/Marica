@@ -55,6 +55,11 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
 
+**Low-memory hosts (≤1 GB RAM):** installing torch/EasyOCR can OOM on tiny game panels. You can:
+
+* Use the lightweight install to skip OCR: `pip install -r requirements-lite.txt` (scanning stays disabled, everything else works).
+* If you need OCR, prebuild wheels on a bigger machine and upload them to the host. Install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
+
 ### Deployment checklist (all hosts)
 1. Install Python deps:
    * `pip install -r requirements.txt` (includes OCR extras)
