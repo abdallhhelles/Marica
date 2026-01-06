@@ -789,6 +789,9 @@ async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
     allowed = {
         "cp": "cp",
         "kills": "kills",
+        "likes": "likes",
+        "vip_level": "vip_level",
+        "level": "level",
     }
     target = allowed.get(column)
     if not target:
