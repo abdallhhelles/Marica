@@ -60,6 +60,8 @@ NUMBER_RE = re.compile(r"(?P<value>[\d.,]+)\s*(?P<suffix>[kmbKMB]?)")
 LABEL_HINTS = {
     "cp": ("cp", "power"),
     "kills": ("kills",),
+    "likes": ("likes", "like"),
+    "vip_level": ("vip", "vip level", "vip lvl"),
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state"),
 }
@@ -69,11 +71,15 @@ EASYOCR_LANGS = ["en"]
 EASYOCR_MIN_CONF = 0.45
 EASYOCR_FIELDS = {
     "name": "player_name",
-    "power_cp": "cp",
+    "cp": "cp",
     "kills": "kills",
     "alliance": "alliance",
-    "state": "server",
+    "server": "server",
+    "likes": "likes",
+    "vip": "vip_level",
 }
+VERIFY_FIELDS = {"account_btn", "settings_btn"}
+VERIFY_MIN_CONF = 0.25
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
 OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
 
@@ -253,23 +259,20 @@ class ProfileScanner(commands.Cog):
             color=0x2ecc71,
         )
         embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
-        vitals = [
-            f"⚔️ Combat Power: {_format_metric(data['cp'])}",
-            f"☠️ Kills: {_format_metric(data['kills'])}",
-        ]
-        embed.add_field(name="Vitals", value="\n".join(vitals), inline=False)
-
-        identity = [
-            f"🪪 Alliance: {data.get('alliance') or '—'}",
+        ingame = [
+            f"🪪 Name: {data.get('player_name') or target.display_name}",
+            f"🏰 Alliance: {data.get('alliance') or '—'}",
             f"🌐 Server: {data.get('server') or '—'}",
+            f"🎖️ VIP: {_format_metric(data.get('vip_level'))} | 👍 Likes: {_format_metric(data.get('likes'))}",
+            f"⚔️ CP: {_format_metric(data['cp'])} | ☠️ Kills: {_format_metric(data['kills'])}",
         ]
+        if data.get("ownership_verified") is not None:
+            status = "✅ Self-view detected" if data["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
+            ingame.append(status)
         if data.get("last_image_url"):
-            identity.append(f"🖼️ [Latest scan]({data['last_image_url']})")
-        embed.add_field(
-            name="Identity & Links",
-            value="\n".join(identity),
-            inline=False,
-        )
+            ingame.append(f"🖼️ [Latest scan]({data['last_image_url']})")
+
+        embed.add_field(name="In-game Profile (OCR)", value="\n".join(ingame), inline=False)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if data.get("last_updated"):
@@ -286,6 +289,8 @@ class ProfileScanner(commands.Cog):
         stat=[
             app_commands.Choice(name="Combat Power", value="cp"),
             app_commands.Choice(name="Kills", value="kills"),
+            app_commands.Choice(name="Likes", value="likes"),
+            app_commands.Choice(name="VIP Level", value="vip_level"),
         ]
     )
     async def profile_leaderboard(self, ctx, stat: app_commands.Choice[str]):
@@ -648,6 +653,8 @@ class ProfileScanner(commands.Cog):
             results: dict[str, str | int | None] = {}
             raw_lines: list[str] = []
 
+            verification_hits: set[str] = set()
+
             for field, ratios in self._easyocr_boxes.items():
                 crop = self._crop_by_ratio(img, ratios)
                 if crop is None:
@@ -663,6 +670,11 @@ class ProfileScanner(commands.Cog):
                 best_conf = float(detections[0][2])
                 raw_lines.append(f"{field}: {best_text} ({best_conf:.2f})")
 
+                if field in VERIFY_FIELDS:
+                    if best_conf >= VERIFY_MIN_CONF:
+                        verification_hits.add(field)
+                    continue
+
                 if best_conf < EASYOCR_MIN_CONF:
                     continue
 
@@ -670,7 +682,7 @@ class ProfileScanner(commands.Cog):
                 if not mapped:
                     continue
 
-                if mapped in {"cp", "kills"}:
+                if mapped in {"cp", "kills", "likes", "vip_level"}:
                     cleaned = re.sub(r"[^\d]", "", best_text)
                     if cleaned:
                         results[mapped] = int(cleaned)
@@ -678,6 +690,8 @@ class ProfileScanner(commands.Cog):
                     results[mapped] = best_text
                 else:
                     results[mapped] = best_text
+
+            results["ownership_verified"] = len(verification_hits) == len(VERIFY_FIELDS)
 
             raw = "\n".join(raw_lines)
             return {"parsed": results, "raw": raw}
@@ -715,6 +729,8 @@ class ProfileScanner(commands.Cog):
         raw_text: str,
         cached_path: Path | None = None,
     ) -> dict:
+        ownership_verified = parsed.get("ownership_verified")
+
         return {
             "player_name": parsed.get("player_name") or member.display_name,
             "alliance": parsed.get("alliance"),
@@ -724,6 +740,7 @@ class ProfileScanner(commands.Cog):
             "likes": parsed.get("likes"),
             "vip_level": parsed.get("vip_level"),
             "level": parsed.get("level"),
+            "ownership_verified": bool(ownership_verified) if ownership_verified is not None else None,
             "avatar_url": str(member.display_avatar.url),
             "last_image_url": image_url,
             "local_image_path": str(cached_path) if cached_path else None,
@@ -767,10 +784,17 @@ class ProfileScanner(commands.Cog):
             color=0x3498db,
         )
 
-        embed.add_field(name="CP", value=_format_metric(payload.get("cp")), inline=True)
-        embed.add_field(name="Kills", value=_format_metric(payload.get("kills")), inline=True)
-        embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
-        embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
+        ingame = [
+            f"🎖️ VIP: {_format_metric(payload.get('vip_level'))} | 👍 Likes: {_format_metric(payload.get('likes'))}",
+            f"⚔️ CP: {_format_metric(payload.get('cp'))} | ☠️ Kills: {_format_metric(payload.get('kills'))}",
+            f"🏰 Alliance: {payload.get('alliance') or '—'}",
+            f"🌐 Server: {payload.get('server') or '—'}",
+        ]
+        if payload.get("ownership_verified") is not None:
+            status = "✅ Self-view detected" if payload["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
+            ingame.append(status)
+
+        embed.add_field(name="In-game Profile", value="\n".join(ingame), inline=False)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if debug_note:
@@ -789,7 +813,9 @@ class ProfileScanner(commands.Cog):
     ) -> str | None:
         """Return a short debug string to help understand why fields may be blank."""
 
-        parsed_fields = [name for name, value in parsed.items() if value not in (None, "")]
+        parsed_fields = [
+            name for name, value in parsed.items() if value not in (None, "") and value is not False
+        ]
         if parsed_fields:
             field_list = ", ".join(parsed_fields)
             raw_hint = f"raw lines={self._raw_line_count(raw_text)}"

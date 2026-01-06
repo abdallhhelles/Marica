@@ -60,6 +60,8 @@ LEADERBOARD_LIMITS = (10, 25, 50, 100)
 PROFILE_STAT_LABELS = {
     "cp": ("Combat Power", "⚔️"),
     "kills": ("Kills", "☠️"),
+    "likes": ("Likes", "👍"),
+    "vip_level": ("VIP Level", "🎖️"),
 }
 
 class Leveling(commands.Cog):
@@ -246,22 +248,20 @@ class Leveling(commands.Cog):
 
         snapshot = await get_profile_snapshot(ctx.guild.id, member.id)
         if snapshot:
-            vitals = [
-                f"⚔️ CP: {self._format_metric(snapshot.get('cp'))}",
-                f"☠️ Kills: {self._format_metric(snapshot.get('kills'))}",
-            ]
-            embed.add_field(
-                name="Vitals (OCR)", value="\n".join(vitals), inline=True
-            )
-
-            identity = [
-                f"🪪 Alliance: {snapshot.get('alliance') or '—'}",
+            ingame = [
+                f"🪪 Name: {snapshot.get('player_name') or member.display_name}",
+                f"🏰 Alliance: {snapshot.get('alliance') or '—'}",
                 f"🌐 Server: {snapshot.get('server') or '—'}",
+                f"🎖️ VIP: {self._format_metric(snapshot.get('vip_level'))} | 👍 Likes: {self._format_metric(snapshot.get('likes'))}",
+                f"⚔️ CP: {self._format_metric(snapshot.get('cp'))} | ☠️ Kills: {self._format_metric(snapshot.get('kills'))}",
             ]
+            if snapshot.get("ownership_verified") is not None:
+                status = "✅ Self-view detected" if snapshot["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
+                ingame.append(status)
             if snapshot.get("last_image_url"):
-                identity.append(f"🖼️ [Latest scan]({snapshot['last_image_url']})")
+                ingame.append(f"🖼️ [Latest scan]({snapshot['last_image_url']})")
             embed.add_field(
-                name="Identity", value="\n".join(identity), inline=True
+                name="In-game Profile (OCR)", value="\n".join(ingame), inline=False
             )
 
             if snapshot.get("last_updated"):
