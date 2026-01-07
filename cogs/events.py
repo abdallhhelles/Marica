@@ -72,13 +72,33 @@ class EventMenuView(discord.ui.View):
         super().__init__(timeout=60)
         self.cog, self.ctx = cog, ctx
 
+    def _can_manage_events(self, interaction: discord.Interaction) -> bool:
+        return bool(
+            interaction.guild
+            and interaction.user
+            and interaction.user.guild_permissions.manage_guild
+        )
+
+    async def _require_manage_events(self, interaction: discord.Interaction) -> bool:
+        if self._can_manage_events(interaction):
+            return True
+        await interaction.response.send_message(
+            "🔒 You need Manage Server permissions to schedule or archive events.",
+            ephemeral=True,
+        )
+        return False
+
     @discord.ui.button(label="Custom Event", style=discord.ButtonStyle.primary, emoji="✍️")
     async def custom_event(self, it, btn):
+        if not await self._require_manage_events(it):
+            return
         await it.response.send_message("📡 Setup signal sent to DMs.", ephemeral=True)
         await self.cog.create_mission_flow(self.ctx)
 
     @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="📋")
     async def template_event(self, it, btn):
+        if not await self._require_manage_events(it):
+            return
         tps = await get_templates(it.guild.id)
         if not tps: return await it.response.send_message("❌ Archive is empty.", ephemeral=True)
         view = discord.ui.View()
@@ -87,6 +107,8 @@ class EventMenuView(discord.ui.View):
 
     @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾")
     async def create_template_btn(self, it, btn):
+        if not await self._require_manage_events(it):
+            return
         await it.response.send_message("💾 Archiving Module Active. Check DMs.", ephemeral=True)
         await self.cog.create_template_flow(self.ctx)
 
@@ -115,6 +137,15 @@ class Events(commands.Cog):
         self.cycle_status.cancel()
         self.check_duel_reset.cancel()
         for task in self.running_tasks.values(): task.cancel()
+
+    async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
+        interaction = getattr(ctx, "interaction", None)
+        if interaction:
+            return await self.bot._safe_interaction_reply(
+                interaction, ephemeral=ephemeral, **kwargs
+            )
+        kwargs.pop("ephemeral", None)
+        return await ctx.send(**kwargs)
 
     async def recover_missions(self):
         """Reloads active missions from SQL on startup."""
@@ -169,9 +200,14 @@ class Events(commands.Cog):
         except: pass
 
     @commands.hybrid_command(name="event", description="Open Marcia's mission control console.")
-    @commands.has_permissions(manage_guild=True)
     async def event_cmd(self, ctx):
         """Opens the Mission Control menu."""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="Events can only be managed inside servers.",
+                ephemeral=True,
+            )
         embed = discord.Embed(
             title="📡 Mission Control // Marcia",
             description=(
@@ -183,23 +219,20 @@ class Events(commands.Cog):
             color=0x2b2d31
         )
         embed.set_footer(text="Marcia drones on standby. Keep it sharp.")
-        await ctx.send(embed=embed, view=EventMenuView(self, ctx))
-
-    @commands.hybrid_command(name="events", description="See upcoming operations for this sector.")
-    async def list_events(self, ctx):
-        """Members can view upcoming events in UTC-2."""
-        missions = await get_upcoming_missions(ctx.guild.id, limit=10)
-        if not missions:
-            return await ctx.send("📡 *No upcoming events logged for this sector.*")
-        embed = self._build_upcoming_events_embed(ctx.guild, missions)
-        await ctx.send(embed=embed)
+        await self._safe_send(ctx, embed=embed, view=EventMenuView(self, ctx))
 
     @commands.hybrid_command(name="event_remove", description="Delete a scheduled operation.")
     @commands.has_permissions(manage_guild=True)
     async def event_remove(self, ctx, *, codename: str):
         """Remove a scheduled event."""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="Events can only be removed inside servers.",
+                ephemeral=True,
+            )
         await delete_mission(ctx.guild.id, codename)
-        await ctx.send(f"🗑️ Event **{codename}** scrubbed from the docket.")
+        await self._safe_send(ctx, content=f"🗑️ Event **{codename}** scrubbed from the docket.")
 
     async def create_template_flow(self, ctx):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)

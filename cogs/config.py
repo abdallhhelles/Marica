@@ -19,7 +19,7 @@ class Configuration(commands.Cog):
         embed = discord.Embed(
             title="⚙️ Marcia OS: Setup Pointer",
             description=(
-                "I recommend `/setup` for the full DM-guided wizard. If you just need the legacy shortcuts, use:\n\n"
+                "I recommend `/setup` for the full guided setup in-server. If you just need the legacy shortcuts, use:\n\n"
                 "`/set_chat #channel` - Where level-up alerts go.\n"
                 "`/set_welcome #channel` - Where new member logs go.\n"
                 "`/set_verify #channel` - Where the verification system lives.\n"

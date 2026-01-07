@@ -45,7 +45,7 @@ SHOWCASE_SECTIONS = [
         {
             "name": "Core Systems",
             "lines": [
-                "📡 Operations (UTC-2 clock): `/event`, `/events`, `/event_remove`, `/setup`, `/audit`, `/status`, `/analytics`.",
+                "📡 Operations (UTC-2 clock): `/event`, `/event_remove`, `/setup`, `/status`, `/analytics`.",
                 "🎣 Trading | Fish-Link: `/setup_trade`, `/trade_item`, `/trade`, `/find`, `/my listings`, `/who has my wanted`.",
                 "🛰️ Progression & Scavenging: hourly `/scavenge`, `/leaderboard` (10/25/50/100 rows + export), `/profile`, and `/inventory` with set bonuses.",
                 "🛰️ Profile Scan: `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads to disk and feeds `/leaderboard`.",
@@ -54,7 +54,7 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Welcomes, Departures, & Automation",
         "lines": [
-            "`/setup` auto-wires welcome/verify/rules and reminder channels; `/setup audit` reviews links in-line.",
+            "`/setup` auto-wires welcome/verify/rules and reminder channels; use **Sector Audit** in `/setup` for a link check.",
             "Auto role: optional helper to assign a base role on join for visibility.",
             "Analytics dashboards summarize command usage so admins know what crews lean on most.",
         ],
@@ -62,8 +62,8 @@ SHOWCASE_SECTIONS = [
     {
             "name": "Command Directory (quick view)",
             "lines": [
-                "Admin: `/setup`, `/audit`, `/setup_trade`, `/refresh_commands`, `/event`, `/events`, `/analytics`, `/status`.",
-                "Members: `/events`, `/scavenge`, `/profile`, `/profile_stats`, `/leaderboard`, `/inventory`, `/manual`, `/features`, `/commands`.",
+                "Admin: `/setup`, `/setup_trade`, `/refresh_commands`, `/event`, `/analytics`, `/status`.",
+                "Members: `/event` (upcoming ops), `/scavenge`, `/profile`, `/profile_stats`, `/leaderboard`, `/inventory`, `/manual`, `/features`, `/commands`.",
                 "Profile scans: `/setup_profile_channel`, `/scan_profile`; `/leaderboard` export sends TSV to DM.",
                 "Trading: Fish-Link buttons + `/trade_item`.",
             ],
@@ -71,7 +71,7 @@ SHOWCASE_SECTIONS = [
     {
         "name": "How to Deploy",
         "lines": [
-            "1) With Mod permissions, run `/setup` to link channels and optional auto-role. Add `/setup audit` to verify wiring.",
+            "1) With Mod permissions, run `/setup` to link channels and optional auto-role. Use **Sector Audit** to verify wiring.",
             "2) Launch `/setup_trade` in a trade channel to pin the Fish-Link terminal (seeded in SQLite for persistence).",
             "3) Run `/event` for mission planning; auto reminders are stored in SQLite with crash-safe WAL mode.",
             "4) Add event timers to `/scavenge`, `/trade`, and `/trade_item` to keep grind and trades moving.",
@@ -87,7 +87,7 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Tips for Server Admins",
         "lines": [
-            "Use `/setup audit` before events to highlight missing channel links or permissions.",
+            "Use the `/setup` **Sector Audit** before events to highlight missing channel links or permissions.",
             "Use `/status` for a fast signal check; `/analytics` shows per-server command usage and trading depth.",
             "Welcome, rules, and event channels can be kept minimal—Marcia formats reminders and intel automatically.",
         ],
@@ -197,7 +197,7 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Operations",
             value="\n".join([
-                "• `/event`, `/events`, `/event_remove` for UTC-2 planning",
+                "• `/event` (with upcoming ops) + `/event_remove` for UTC-2 planning",
                 "• `/remind` with templates, schedule, and immediate blasts",
                 "• `/status` & `/analytics` for uptime, wiring, and usage",
             ]),
@@ -233,14 +233,14 @@ class Utility(commands.Cog):
                 [
                     "`/scavenge` • deploy a drone",
                     "`/inventory` • check your stash",
-                    "`/events` • see what's scheduled",
+                    "`/event` • see what's scheduled",
                     "`/profile` | `/profile_stats` | `/leaderboard`",
                 ],
             ),
             (
                 "Events & ops",
                 [
-                    "`/event` • plan ops | `/event_remove`",
+                    "`/event` • plan ops + upcoming list | `/event_remove`",
                     "`/remind` • channel reminder",
                     "`/remindme` • DM timer",
                     "`/status` • quick signal | `/analytics`",
@@ -276,8 +276,7 @@ class Utility(commands.Cog):
             (
                 "Admin (UTC-2 clock)",
                 [
-                    "`/setup` • wire welcome/verify/rules",
-                    "`/setup audit` • wiring audit",
+                    "`/setup` • guided setup + audit buttons",
                     "`/refresh_commands` • resync slash",
                 ],
             ),
@@ -495,7 +494,7 @@ class Utility(commands.Cog):
             value="UTC-2 (Dark War Survival global time)",
             inline=False,
         )
-        embed.set_footer(text="Need a deeper check? Use /setup audit for a full report.")
+        embed.set_footer(text="Need a deeper check? Open /setup and tap Sector Audit.")
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Per-server analytics (admins).")

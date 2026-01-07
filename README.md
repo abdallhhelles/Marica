@@ -11,8 +11,8 @@
 Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
 **Quick feature overview (automated + commands):**
-* **Automated:** XP leveling on message activity, scheduled event reminders, scavenging drops, auto-matching trade requests, and OCR snapshot caching for profile scans.
-* **Command-driven:** `/event` scheduling, `/events` listings, `/trade_item` exchanges, `/leaderboard` views and exports, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
+* **Automated:** XP leveling on message activity, scheduled event reminders, scavenging drops, auto-matching trade requests, and profile scan snapshot caching.
+* **Command-driven:** `/event` scheduling + upcoming ops, `/trade_item` exchanges, `/leaderboard` views and exports, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
@@ -38,13 +38,13 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 ### Commander protocols (events)
 * **Guided creation:** `/event` runs a DM wizard that captures codename, tag, instructions, start time (`YYYY-MM-DD HH:MM` in UTC-2), optional location/voice link, and ping target.
 * **Cadenced reminders:** Posts at T-minus 60/30/15/3/0 minutes with consistent formatting and allowed mentions.
-* **Visibility:** `/events` lists upcoming operations for the current server with UTC-2 timestamps.
+* **Visibility:** `/event` includes an upcoming ops view for the current server with UTC-2 timestamps.
 * **Cleanup & reuse:** `/event_remove <codename>` removes an operation; templates can be archived and reused.
 
-### Profile scanning (OCR)
+### Profile scanning (Profile Scan)
 * **Channel guard:** `/setup_profile_channel` scopes ingestion to a specific channel; other channels are ignored by design.
 * **Metric extraction:** Parses CP, kills, server, and alliance from uploaded screenshots.
-* **Review & ranking:** `/profile_stats` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/leaderboard` surfaces XP plus CP/kills/likes/VIP (OCR) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
+* **Review & ranking:** `/profile_stats` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/leaderboard` surfaces XP plus CP/kills/likes/VIP (profile scan) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
 * **Health checks:** `/ocr_status` and `python ocr/diagnostics.py` verify dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
 
 ---
@@ -56,7 +56,7 @@ These steps are for the owner’s private deployment only.
 * Python 3.8+
 * `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
-### OCR add-on (enables `/scan_profile`)
+### Profile scan add-on (OCR, enables `/scan_profile`)
 * All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt` (PyTorch entries are pinned to **CPU-only** wheels to keep installs light on GPU-less hosts)
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)

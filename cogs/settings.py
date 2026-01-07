@@ -48,9 +48,10 @@ def _role_from_message(msg: discord.Message, guild: discord.Guild) -> discord.Ro
 
 
 class SetupWizardView(discord.ui.View):
-    def __init__(self, cog):
+    def __init__(self, cog, setup_channel: discord.abc.Messageable | None):
         super().__init__(timeout=90)
         self.cog = cog
+        self.setup_channel = setup_channel
 
     @discord.ui.button(label="Start Guided Setup", style=discord.ButtonStyle.primary, emoji="🛰️")
     async def start(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -58,11 +59,39 @@ class SetupWizardView(discord.ui.View):
             "📡 Spinning up Marcia's console here. Answer the prompts in this channel.",
             ephemeral=True,
         )
-        await self.cog.run_setup_wizard(interaction.user, interaction.guild, interaction.channel)
+        await self.cog.run_setup_wizard(
+            interaction.user,
+            interaction.guild,
+            self.setup_channel or interaction.channel,
+        )
+
+    @discord.ui.button(label="Sector Audit", style=discord.ButtonStyle.secondary, emoji="🛰️")
+    async def audit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = await self.cog._build_audit_embed(interaction.guild)
+        await self.cog._safe_interaction_reply(interaction, embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Setup Help", style=discord.ButtonStyle.secondary, emoji="📘")
+    async def help(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = self.cog._build_help_embed()
+        await self.cog._safe_interaction_reply(interaction, embed=embed, ephemeral=True)
 
 class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
+        interaction = getattr(ctx, "interaction", None)
+        if interaction:
+            return await self.bot._safe_interaction_reply(
+                interaction, ephemeral=ephemeral, **kwargs
+            )
+        kwargs.pop("ephemeral", None)
+        return await ctx.send(**kwargs)
+
+    async def _safe_interaction_reply(
+        self, interaction: discord.Interaction, **kwargs
+    ):
+        return await self.bot._safe_interaction_reply(interaction, **kwargs)
 
     # --- Internal helpers ---
 
@@ -91,7 +120,7 @@ class Settings(commands.Cog):
             return f"{role.mention} (🚫 **MOVE ME ABOVE**)", "perms"
         return f"{role.mention} (✅ **ACTIVE**)", "ok"
 
-    @commands.hybrid_group(name="setup", invoke_without_command=True, description="Configure Marcia's channels, roles, and offset.")
+    @commands.hybrid_command(name="setup", description="Configure Marcia's channels, roles, and offset.")
     @commands.has_permissions(manage_guild=True)
     async def setup(self, ctx):
         """Displays the current server configuration and setup status."""
@@ -122,13 +151,9 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🛠️ Maintenance Commands",
             value=(
-                "`/setup events #channel` - Mission/Event broadcasts\n"
-                "`/setup chat #channel` - Main interaction zone\n"
-                "`/setup role @role` - Auto-role for arrivals\n"
-                "`/setup ignore_add #channel` - Block Marcia in a channel\n"
-                "`/setup ignore_remove #channel` - Remove a blocked channel\n"
-                "`/setup help` - View detailed setup guide\n"
-                "Tap the button below for a guided setup in this channel."
+                "Use **Start Guided Setup** to configure channels and auto-role in this channel.\n"
+                "Run **Sector Audit** to review links and permissions.\n"
+                "Ignore/unignore channels during the guided setup."
             ),
             inline=False
         )
@@ -144,125 +169,7 @@ class Settings(commands.Cog):
                 inline=False,
             )
 
-        await ctx.send(embed=embed, view=SetupWizardView(self))
-
-    @setup.command(name="audit")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_audit(self, ctx):
-        """Runs a quick health check of channels, permissions, and the server clock."""
-        data = await get_settings(ctx.guild.id) or {}
-
-        embed = discord.Embed(
-            title="🛰️ Marcia OS | Sector Audit",
-            description="Reviewing comms, roles, and timers for Dark War Survival ops.",
-            color=0x5865F2,
-        )
-
-        # Channel/role validations
-        checks = {
-            "Event": self._channel_status(ctx.guild, data.get("event_channel_id")),
-            "Chat": self._channel_status(ctx.guild, data.get("chat_channel_id")),
-            "Welcome": self._channel_status(ctx.guild, data.get("welcome_channel_id")),
-            "Rules": self._channel_status(ctx.guild, data.get("rules_channel_id")),
-            "Verify": self._channel_status(ctx.guild, data.get("verify_channel_id")),
-            "Auto-Role": self._role_status(ctx.guild, data.get("auto_role_id")),
-        }
-
-        warnings = [name for name, (_, flag) in checks.items() if flag != "ok"]
-        status_lines = [f"**{name}:** {value}" for name, (value, _) in checks.items()]
-        embed.add_field(name="Links", value="\n".join(status_lines), inline=False)
-
-        embed.add_field(
-            name="⏱️ Server Clock",
-            value="UTC-2 (Dark War Survival global clock)",
-            inline=False,
-        )
-
-        suggestion = "✅ All green. Drones are mission-ready." if not warnings else (
-            "⚠️ Fix these before battle: " + ", ".join(warnings)
-        )
-        embed.set_footer(text=suggestion)
-
-        await ctx.send(embed=embed)
-
-    @setup.command(name="help")
-    async def setup_help(self, ctx):
-        """Tips and Information for Server Setup."""
-        embed = discord.Embed(
-            title="🛠️ Marcia OS | Setup Intelligence",
-            description="Follow these steps to ensure Marcia is fully operational in your server.",
-            color=0x3498db
-        )
-        embed.add_field(
-            name="1️⃣ The Event Sector",
-            value="Linking the **Events** channel is vital. This is where Marcia will announce new Missions and Trading updates.",
-            inline=False
-        )
-        embed.add_field(
-            name="2️⃣ Auto-Role Logic",
-            value="Make sure Marcia's role is **higher** than the role you are trying to assign in the Discord Role Hierarchy, or she won't be able to give it to members.",
-            inline=False
-        )
-        embed.add_field(
-            name="3️⃣ Time Sync",
-            value="All missions and reminders run on the game's **UTC-2** clock. No local offset needed.",
-            inline=False
-        )
-        await ctx.send(embed=embed)
-
-    @setup.command(name="events")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_events(self, ctx, channel: discord.TextChannel):
-        await update_setting(ctx.guild.id, "event_channel_id", channel.id, ctx.guild.name)
-        await ctx.send(f"✅ **Event Sector** linked to {channel.mention}.")
-
-    @setup.command(name="chat")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_chat(self, ctx, channel: discord.TextChannel):
-        await update_setting(ctx.guild.id, "chat_channel_id", channel.id, ctx.guild.name)
-        await ctx.send(f"✅ **Chat Sector** linked to {channel.mention}.")
-
-    @setup.command(name="welcome")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_welcome(self, ctx, channel: discord.TextChannel):
-        await update_setting(ctx.guild.id, "welcome_channel_id", channel.id, ctx.guild.name)
-        await ctx.send(f"✅ **Welcome Sector** linked to {channel.mention}.")
-
-    @setup.command(name="rules")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_rules(self, ctx, channel: discord.TextChannel):
-        await update_setting(ctx.guild.id, "rules_channel_id", channel.id, ctx.guild.name)
-        await ctx.send(f"✅ **Rules Sector** linked to {channel.mention}.")
-
-    @setup.command(name="verify")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_verify(self, ctx, channel: discord.TextChannel):
-        await update_setting(ctx.guild.id, "verify_channel_id", channel.id, ctx.guild.name)
-        await ctx.send(f"✅ **Verification Sector** linked to {channel.mention}.")
-
-    @setup.command(name="ignore_add")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_ignore_add(self, ctx, channel: discord.TextChannel):
-        await add_ignored_channel(ctx.guild.id, channel.id)
-        await ctx.send(f"🚫 Marcia will stay silent in {channel.mention}.")
-
-    @setup.command(name="ignore_remove")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_ignore_remove(self, ctx, channel: discord.TextChannel):
-        await remove_ignored_channel(ctx.guild.id, channel.id)
-        await ctx.send(f"✅ Channel removed from the ignore list: {channel.mention}.")
-
-    @setup.command(name="role")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_role(self, ctx, role: discord.Role):
-        await update_setting(ctx.guild.id, "auto_role_id", role.id, ctx.guild.name)
-        await ctx.send(f"✅ **Auto-Role** synchronized to **{role.name}**.")
-
-    @setup.command(name="offset")
-    @commands.has_permissions(manage_guild=True)
-    async def setup_offset(self, ctx, hours: int = -2):
-        await update_setting(ctx.guild.id, "server_offset_hours", -2, ctx.guild.name)
-        await ctx.send("🕒 Clock is locked to **UTC-2** for Dark War Survival. Local time is ignored.")
+        await self._safe_send(ctx, embed=embed, view=SetupWizardView(self, ctx.channel))
 
     async def run_setup_wizard(
         self,
@@ -275,8 +182,6 @@ class Settings(commands.Cog):
 
         def check(msg: discord.Message):
             return msg.author.id == user.id and msg.channel == setup_channel
-
-        current = await get_settings(guild.id) or {}
 
         try:
             intro = (
@@ -306,7 +211,7 @@ class Settings(commands.Cog):
                     await update_setting(guild.id, setting_key, found_channel.id, guild.name)
                     await msg.reply(f"✅ Linked **{found_channel.mention}**.")
                 else:
-                    await setup_channel.send("❌ Couldn't read that channel. Try `/setup events #channel` later.")
+                    await setup_channel.send("❌ Couldn't read that channel. Run `/setup` again when you're ready.")
 
             await setup_channel.send("🎚️ Mention the auto-role for new arrivals (or say `skip`).")
             role_msg = await self.bot.wait_for("message", check=check, timeout=120)
@@ -316,9 +221,37 @@ class Settings(commands.Cog):
                     await update_setting(guild.id, "auto_role_id", role.id, guild.name)
                     await role_msg.reply(f"✅ I'll tag newcomers with **{role.name}**.")
                 else:
-                    await setup_channel.send("❌ Couldn't find that role. Use `/setup role @role` later.")
+                    await setup_channel.send("❌ Couldn't find that role. Run `/setup` again when ready.")
             else:
                 await setup_channel.send(_marcia_line("Leaving auto-role untouched."))
+
+            await setup_channel.send(
+                "🚫 Mention any channels Marcia should ignore (or type `skip`)."
+            )
+            ignore_msg = await self.bot.wait_for("message", check=check, timeout=120)
+            if ignore_msg.content.lower().strip() != "skip":
+                if ignore_msg.channel_mentions:
+                    for mentioned in ignore_msg.channel_mentions:
+                        await add_ignored_channel(guild.id, mentioned.id)
+                    await ignore_msg.reply("✅ Ignoring those channels.")
+                else:
+                    await setup_channel.send(
+                        "❌ Couldn't read those channels. Use `/setup` again if needed."
+                    )
+
+            await setup_channel.send(
+                "🔊 Mention channels to unmute (or type `skip`)."
+            )
+            unignore_msg = await self.bot.wait_for("message", check=check, timeout=120)
+            if unignore_msg.content.lower().strip() != "skip":
+                if unignore_msg.channel_mentions:
+                    for mentioned in unignore_msg.channel_mentions:
+                        await remove_ignored_channel(guild.id, mentioned.id)
+                    await unignore_msg.reply("✅ Channels removed from the ignore list.")
+                else:
+                    await setup_channel.send(
+                        "❌ Couldn't read those channels. Use `/setup` again if needed."
+                    )
 
             await update_setting(guild.id, "server_offset_hours", -2, guild.name)
             await setup_channel.send("🕒 Clock set to **UTC-2** (game time). I'll ignore local clocks.")
@@ -328,6 +261,62 @@ class Settings(commands.Cog):
             )
         except asyncio.TimeoutError:
             await setup_channel.send("⌛ Timeout. Ping me again with `/setup` when you're ready.")
+
+    async def _build_audit_embed(self, guild: discord.Guild | None) -> discord.Embed:
+        data = await get_settings(guild.id) if guild else {}
+
+        embed = discord.Embed(
+            title="🛰️ Marcia OS | Sector Audit",
+            description="Reviewing comms, roles, and timers for Dark War Survival ops.",
+            color=0x5865F2,
+        )
+
+        checks = {
+            "Event": self._channel_status(guild, data.get("event_channel_id")),
+            "Chat": self._channel_status(guild, data.get("chat_channel_id")),
+            "Welcome": self._channel_status(guild, data.get("welcome_channel_id")),
+            "Rules": self._channel_status(guild, data.get("rules_channel_id")),
+            "Verify": self._channel_status(guild, data.get("verify_channel_id")),
+            "Auto-Role": self._role_status(guild, data.get("auto_role_id")),
+        }
+
+        warnings = [name for name, (_, flag) in checks.items() if flag != "ok"]
+        status_lines = [f"**{name}:** {value}" for name, (value, _) in checks.items()]
+        embed.add_field(name="Links", value="\n".join(status_lines), inline=False)
+        embed.add_field(
+            name="⏱️ Server Clock",
+            value="UTC-2 (Dark War Survival global clock)",
+            inline=False,
+        )
+
+        suggestion = "✅ All green. Drones are mission-ready." if not warnings else (
+            "⚠️ Fix these before battle: " + ", ".join(warnings)
+        )
+        embed.set_footer(text=suggestion)
+        return embed
+
+    def _build_help_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🛠️ Marcia OS | Setup Intelligence",
+            description="Follow these steps to ensure Marcia is fully operational in your server.",
+            color=0x3498db,
+        )
+        embed.add_field(
+            name="1️⃣ The Event Sector",
+            value="Linking the **Events** channel is vital. This is where Marcia will announce new Missions and Trading updates.",
+            inline=False,
+        )
+        embed.add_field(
+            name="2️⃣ Auto-Role Logic",
+            value="Make sure Marcia's role is **higher** than the role you are trying to assign in the Discord Role Hierarchy, or she won't be able to give it to members.",
+            inline=False,
+        )
+        embed.add_field(
+            name="3️⃣ Time Sync",
+            value="All missions and reminders run on the game's **UTC-2** clock. No local offset needed.",
+            inline=False,
+        )
+        return embed
 
 async def setup(bot):
     bot.remove_command("setup")
