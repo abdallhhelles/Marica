@@ -3,6 +3,7 @@ FILE: cogs/automation.py
 USE: Automated member management.
 FEATURES: Auto-role assignment and Marcia-voiced welcome/exit chatter.
 """
+import logging
 import random
 
 import discord
@@ -15,6 +16,7 @@ from database import get_settings, is_channel_ignored
 class Automation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.log = logging.getLogger("MarciaOS.Automation")
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -32,7 +34,7 @@ class Automation(commands.Cog):
                 try:
                     await member.add_roles(role)
                 except discord.Forbidden:
-                    print(f"DEBUG: Missing permissions to add role in {guild.name}")
+                    self.log.warning("Missing permissions to add role in %s", guild.name)
 
         # 2. Handle Welcome Message (in-character, text-first)
         target_channel = None

@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 import random
+import time
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -68,6 +69,19 @@ class MarciaBot(commands.Bot):
             case_insensitive=True,
             allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True),
         )
+        self._recent_interactions: dict[int, float] = {}
+        self._interaction_dedupe_window = 120.0
+
+    def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
+        now = time.monotonic()
+        cutoff = now - self._interaction_dedupe_window
+        stale = [key for key, ts in self._recent_interactions.items() if ts < cutoff]
+        for key in stale:
+            self._recent_interactions.pop(key, None)
+        if interaction.id in self._recent_interactions:
+            return False
+        self._recent_interactions[interaction.id] = now
+        return True
 
     async def setup_hook(self):
         """Pre-connection setup: Initializing DB, Loading Cogs, and Persistence."""
@@ -236,6 +250,8 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.autocomplete,
             discord.InteractionType.modal_submit,
         ):
+            if not self._should_process_interaction(interaction):
+                return
             try:
                 await self.process_application_commands(interaction)
             except Exception:
