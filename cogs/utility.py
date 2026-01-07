@@ -17,6 +17,7 @@ from assets import INTEL_DATABASE, MARCIA_LORE, MARCIA_SLOGANS, MARCIA_TRAITS
 from database import (
     get_settings,
     guild_analytics_snapshot,
+    increment_activity_metric,
     log_feedback_entry,
     top_commands,
     top_global_xp,
@@ -388,6 +389,7 @@ class Utility(commands.Cog):
         try:
             translated = await self._translate_text(msg.content, dest)
             await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{translated}", mention_author=False)
+            await increment_activity_metric(msg.guild.id if msg.guild else None, "translations")
         except Exception as e:
             self.log.warning("Translation Error: %s", e)
             await msg.reply(

@@ -29,6 +29,7 @@ from database import (
     get_profile_snapshot,
     get_settings,
     get_user_stats,
+    increment_activity_metric,
     is_channel_ignored,
     top_profile_stat,
     top_global_xp,
@@ -283,6 +284,7 @@ class Leveling(commands.Cog):
                 inline=False,
             )
 
+        await increment_activity_metric(ctx.guild.id, "profile_views")
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
@@ -309,6 +311,8 @@ class Leveling(commands.Cog):
                     mention_author=False,
                 )
                 return
+
+        await increment_activity_metric(ctx.guild.id, "scavenge_runs")
         recent_run = last_scavenge_ts and (now_ts - last_scavenge_ts) <= 5400
         momentum_xp = random.randint(15, 35) if recent_run else 0
         field_report = random.choice(SCAVENGE_FIELD_REPORTS)

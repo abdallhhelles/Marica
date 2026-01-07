@@ -307,6 +307,15 @@ async def init_db():
         ''')
 
         await db.execute('''
+            CREATE TABLE IF NOT EXISTS activity_metrics (
+                guild_id INTEGER,
+                metric_name TEXT,
+                count INTEGER DEFAULT 0,
+                PRIMARY KEY (guild_id, metric_name)
+            )
+        ''')
+
+        await db.execute('''
             CREATE TABLE IF NOT EXISTS feedback_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER,
@@ -349,6 +358,7 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_metrics_guild ON activity_metrics(guild_id)")
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mission_prompt_guild ON mission_dm_prompts(guild_id)"
         )
@@ -561,6 +571,53 @@ async def top_guild_usage(limit: int = 10) -> list[aiosqlite.Row]:
             (limit,),
         ) as cursor:
             return await cursor.fetchall()
+
+
+async def increment_activity_metric(guild_id: int | None, metric_name: str, amount: int = 1) -> None:
+    """Track custom activity counters per guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO activity_metrics (guild_id, metric_name, count)
+            VALUES (?, ?, ?)
+            ON CONFLICT(guild_id, metric_name) DO UPDATE SET count = count + excluded.count
+            ''',
+            (guild_id or 0, metric_name, amount),
+        )
+        await db.commit()
+
+
+async def activity_metric_totals(metric_names: list[str]) -> dict[str, int]:
+    """Return summed totals for requested metrics across all guilds."""
+    if not metric_names:
+        return {}
+
+    placeholders = ", ".join("?" for _ in metric_names)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f"""
+            SELECT metric_name, COALESCE(SUM(count), 0) AS total
+            FROM activity_metrics
+            WHERE metric_name IN ({placeholders})
+            GROUP BY metric_name
+            """,
+            tuple(metric_names),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+    totals = {name: 0 for name in metric_names}
+    for row in rows:
+        totals[row["metric_name"]] = row["total"]
+    return totals
+
+
+async def total_active_missions() -> int:
+    """Return the total number of active missions across all guilds."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM server_missions") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
 
 
 async def top_global_xp(limit: int = 10) -> list[aiosqlite.Row]:
