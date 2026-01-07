@@ -11,7 +11,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
   - **Time format:** `YYYY-MM-DD HH:MM` in game time (UTC-2). Marcia converts to UTC for scheduling.
 - **Use a saved template:** choose **Use Template** when running `/event`.
 - **Remove an event:** `/event_remove <codename>`
-- **List upcoming events:** `/events`
+- **List upcoming events:** open `/event` and tap **Upcoming Events**
 - **DM opt-ins:** at the 60-minute alert, members can react with 📬 to receive later reminders by DM.
 
 ### Event safeguards

@@ -35,7 +35,7 @@ This playbook organizes the Marcia testing hub and supplies in-character copy yo
 - `Control` — Admins; ensure Marcia sits above this for permission checks.
 - `Ops Crew` — Pings for live operations; use in `/event` role prompt.
 - `Traders` — Opt-in for Fish-Link updates.
-- `QA` — Testers allowed to run `/setup audit` and report findings.
+- `QA` — Testers allowed to run `/setup` and use **Sector Audit** to report findings.
 - `Vaultwalkers` — Awarded manually when someone finishes the scavenging catalog.
 
 ## Starter Channel Copy (Marcia’s Voice)
@@ -43,7 +43,7 @@ This playbook organizes the Marcia testing hub and supplies in-character copy yo
 ### #readme (pin this)
 > **Marcia:** "Welcome to the test grid. I don’t babysit — I calibrate."
 >
-> **Setup:** Run `/setup` to link `events`, `welcome`, `verify`, `rules`, and auto-role. Data is siloed per guild in `data/marcia_os.db`. Use `/setup audit` after perms change.
+> **Setup:** Run `/setup` to link `events`, `welcome`, `verify`, `rules`, and auto-role. Data is siloed per guild in `data/marcia_os.db`. Use **Sector Audit** after perms change.
 > 
 > **Clock:** Ops run on UTC-2. Use `/event` to schedule raids/sieges/briefings. Reminders fire at 60/30/15/3/0 with drone tags.
 > 
@@ -65,7 +65,7 @@ This playbook organizes the Marcia testing hub and supplies in-character copy yo
 > - Answer intel quickly: `/intel <topic>`, `/manual`, `/features`.
 >
 > **How to help:**
-> - Keep channel links current (`/setup audit`).
+> - Keep channel links current (use **Sector Audit** in `/setup`).
 > - Report broken flows in `#bug-reports` with repro steps.
 > - Stress the buttons in `#load-tests` before major pushes.
 
@@ -74,7 +74,7 @@ This playbook organizes the Marcia testing hub and supplies in-character copy yo
 >
 > **1) Permissions:** Invite with message content + Manage Roles. Place Marcia’s role above auto-roles.
 >
-> **2) Core setup:** Run `/setup` and map: `events`, `welcome`, `verify`, `rules`, auto-role. Confirm in `/setup audit`.
+> **2) Core setup:** Run `/setup` and map: `events`, `welcome`, `verify`, `rules`, auto-role. Confirm in **Sector Audit**.
 >
 > **3) Trading:** In `#fish-link`, run `/setup_trade`. Pin the terminal. Use **Add Spare**, **Find Fish**, **My Listings**, **Who Has My Wanted?**
 >

@@ -1,7 +1,7 @@
 """
 FILE: cogs/profile_scanner.py
-USE: Capture profile screenshots, OCR key stats, and surface stat leaderboards.
-FEATURES: Channel-scoped intake, OCR parsing, profile views, and leaderboard queries.
+USE: Capture profile screenshots, scan key stats, and surface stat leaderboards.
+FEATURES: Channel-scoped intake, scan parsing, profile views, and leaderboard queries.
 """
 
 import asyncio
@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import discord
-from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
 import httpx
@@ -25,7 +24,6 @@ from database import (
     get_profile_channel,
     get_profile_snapshot,
     set_profile_channel,
-    top_profile_stat,
     upsert_profile_snapshot,
 )
 from assets import PROFILE_SEALS, PROFILE_TAGLINES
@@ -261,7 +259,7 @@ class ProfileScanner(commands.Cog):
         embed = discord.Embed(
             title=f"📡 Sector dossier | {name}",
             description=(
-                "Latest OCR stats saved for this survivor. Use `/leaderboard` to compare "
+                "Latest profile scan stats saved for this survivor. Use `/leaderboard` to compare "
                 "against the rest of the sector."
             ),
             color=0x2ecc71,
@@ -280,7 +278,7 @@ class ProfileScanner(commands.Cog):
         if data.get("last_image_url"):
             ingame.append(f"🖼️ [Latest scan]({data['last_image_url']})")
 
-        embed.add_field(name="In-game Profile (OCR)", value="\n".join(ingame), inline=False)
+        embed.add_field(name="In-game Profile Scan", value="\n".join(ingame), inline=False)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if data.get("last_updated"):
@@ -290,47 +288,8 @@ class ProfileScanner(commands.Cog):
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
-        name="profile_leaderboard",
-        description="Show the top survivors for a scanned profile stat.",
-    )
-    @app_commands.choices(
-        stat=[
-            app_commands.Choice(name="Combat Power", value="cp"),
-            app_commands.Choice(name="Kills", value="kills"),
-            app_commands.Choice(name="Likes", value="likes"),
-            app_commands.Choice(name="VIP Level", value="vip_level"),
-        ]
-    )
-    async def profile_leaderboard(self, ctx, stat: app_commands.Choice[str]):
-        if not ctx.guild:
-            return await self._safe_send(
-                ctx,
-                content="Leaderboards only work inside servers.",
-                ephemeral=True,
-            )
-
-        rows = await top_profile_stat(ctx.guild.id, stat.value)
-        if not rows:
-            return await self._safe_send(
-                ctx, content="No scanned profiles yet.", ephemeral=True
-            )
-
-        lines = []
-        for idx, row in enumerate(rows, start=1):
-            user = ctx.guild.get_member(row["user_id"])
-            name = row["player_name"] or (user.display_name if user else f"User {row['user_id']}")
-            lines.append(f"**{idx}.** {name} — {_format_metric(row['value'])}")
-
-        embed = discord.Embed(
-            title=f"🏅 {stat.name} Leaderboard",
-            description="\n".join(lines),
-            color=0xf1c40f,
-        )
-        await self._safe_send(ctx, embed=embed)
-
-    @commands.hybrid_command(
         name="ocr_status",
-        description="Check whether OCR dependencies and templates are ready.",
+        description="Check whether profile scan dependencies and templates are ready.",
     )
     @commands.has_permissions(manage_guild=True)
     async def ocr_status(self, ctx):
@@ -360,13 +319,13 @@ class ProfileScanner(commands.Cog):
         elif diag.tesseract_binary is False:
             pytess_label += " (install the Tesseract CLI)"
 
-        embed = discord.Embed(title="🛰️ OCR Status", color=0x3498db)
+        embed = discord.Embed(title="🛰️ Profile Scan Status", color=0x3498db)
         if diag.install_tips:
             embed.description = (
                 "⚠️ Profile scans will stay blank until you finish the fixes below."
             )
         elif diag.easyocr_ready:
-            embed.description = "✅ OCR dependencies and templates look ready for scans."
+            embed.description = "✅ Profile scan dependencies and templates look ready."
         embed.add_field(name="EasyOCR", value=easyocr_label, inline=False)
         embed.add_field(name="Templates", value=f"{box_status}\n{box_details}", inline=False)
         embed.add_field(name="Pillow", value="Installed" if diag.pillow else "Missing", inline=True)
@@ -478,10 +437,10 @@ class ProfileScanner(commands.Cog):
                             ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
                         elif not (pytesseract and Image):
                             ocr_note = (
-                                "OCR dependencies are missing; install them from requirements.txt."
+                                "Profile scan dependencies are missing; install them from requirements.txt."
                             )
                         else:
-                            ocr_note = "OCR could not read this image."
+                            ocr_note = "Profile scan could not read this image."
 
                 if not parsed and OCR_SPACE_API_KEY:
                     api_text, api_note = await self._run_ocr_space(image_bytes, filename)
@@ -799,7 +758,7 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/profile_stats` shows your dossier; `/leaderboard` compares XP and OCR stats side by side."
+                "`/profile_stats` shows your dossier; `/leaderboard` compares XP and scan stats side by side."
             ),
             color=0x3498db,
         )
@@ -819,7 +778,7 @@ class ProfileScanner(commands.Cog):
 
         if not payload.get("raw_ocr"):
             footer = ocr_note or (
-                "OCR unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
+                "Profile scan unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
                 " auto-parsing."
             )
             embed.set_footer(text=footer)

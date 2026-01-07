@@ -35,7 +35,7 @@ TEST_LAYOUT = [
                     "marker": "seed:readme:v2-min",
                     "content": textwrap.dedent(
                         """
-                        **Welcome:** Keep it concise. `/setup` to map events/welcome/verify/rules + auto-role. Re-run `/setup audit` after permission tweaks.
+                        **Welcome:** Keep it concise. `/setup` to map events/welcome/verify/rules + auto-role. Re-run the **Sector Audit** in `/setup` after permission tweaks.
 
                         **Core Flows:**
                         - `/event` for ops (UTC-2). Reminders at 60/30/15/3/0.
