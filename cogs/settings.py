@@ -54,8 +54,11 @@ class SetupWizardView(discord.ui.View):
 
     @discord.ui.button(label="Start Guided Setup", style=discord.ButtonStyle.primary, emoji="🛰️")
     async def start(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("📡 Spinning up Marcia's console. Check your DMs!", ephemeral=True)
-        await self.cog.run_setup_wizard(interaction.user, interaction.guild)
+        await interaction.response.send_message(
+            "📡 Spinning up Marcia's console here. Answer the prompts in this channel.",
+            ephemeral=True,
+        )
+        await self.cog.run_setup_wizard(interaction.user, interaction.guild, interaction.channel)
 
 class Settings(commands.Cog):
     def __init__(self, bot):
@@ -125,7 +128,7 @@ class Settings(commands.Cog):
                 "`/setup ignore_add #channel` - Block Marcia in a channel\n"
                 "`/setup ignore_remove #channel` - Remove a blocked channel\n"
                 "`/setup help` - View detailed setup guide\n"
-                "Tap the button below for a guided DM setup with Marcia."
+                "Tap the button below for a guided setup in this channel."
             ),
             inline=False
         )
@@ -261,12 +264,17 @@ class Settings(commands.Cog):
         await update_setting(ctx.guild.id, "server_offset_hours", -2, ctx.guild.name)
         await ctx.send("🕒 Clock is locked to **UTC-2** for Dark War Survival. Local time is ignored.")
 
-    async def run_setup_wizard(self, user: discord.User, guild: discord.Guild | None):
-        if not guild:
+    async def run_setup_wizard(
+        self,
+        user: discord.User,
+        guild: discord.Guild | None,
+        setup_channel: discord.abc.Messageable | None,
+    ):
+        if not guild or not setup_channel:
             return
 
         def check(msg: discord.Message):
-            return msg.author.id == user.id and isinstance(msg.channel, discord.DMChannel)
+            return msg.author.id == user.id and msg.channel == setup_channel
 
         current = await get_settings(guild.id) or {}
 
@@ -274,10 +282,10 @@ class Settings(commands.Cog):
             intro = (
                 "🛰️ **Marcia OS // Guided Setup**\n"
                 f"Sector: **{guild.name}**\n"
-                "I'll tune your channels and auto-role. Answer quickly or I'll time out."
+                "I'll tune your channels and auto-role. Answer in this channel or I'll time out."
             )
-            await user.send(intro)
-            await user.send(_marcia_line("While you think, remember:"))
+            await setup_channel.send(intro)
+            await setup_channel.send(_marcia_line("While you think, remember:"))
 
             questions = [
                 ("event_channel_id", "Which channel receives mission pings? Mention it or paste an ID."),
@@ -288,38 +296,38 @@ class Settings(commands.Cog):
             ]
 
             for setting_key, prompt in questions:
-                await user.send(f"💬 {prompt} (type `skip` to leave unchanged)")
+                await setup_channel.send(f"💬 {prompt} (type `skip` to leave unchanged)")
                 msg = await self.bot.wait_for("message", check=check, timeout=180)
                 if msg.content.lower().strip() == "skip":
-                    await user.send(_marcia_line("Skipping. Your call."))
+                    await setup_channel.send(_marcia_line("Skipping. Your call."))
                     continue
-                channel = _channel_from_message(msg, guild)
-                if channel:
-                    await update_setting(guild.id, setting_key, channel.id, guild.name)
-                    await user.send(f"✅ Linked **{channel.mention}**.")
+                found_channel = _channel_from_message(msg, guild)
+                if found_channel:
+                    await update_setting(guild.id, setting_key, found_channel.id, guild.name)
+                    await msg.reply(f"✅ Linked **{found_channel.mention}**.")
                 else:
-                    await user.send("❌ Couldn't read that channel. Try `/setup events #channel` later.")
+                    await setup_channel.send("❌ Couldn't read that channel. Try `/setup events #channel` later.")
 
-            await user.send("🎚️ Mention the auto-role for new arrivals (or say `skip`).")
+            await setup_channel.send("🎚️ Mention the auto-role for new arrivals (or say `skip`).")
             role_msg = await self.bot.wait_for("message", check=check, timeout=120)
             if role_msg.content.lower().strip() != "skip":
                 role = _role_from_message(role_msg, guild)
                 if role:
                     await update_setting(guild.id, "auto_role_id", role.id, guild.name)
-                    await user.send(f"✅ I'll tag newcomers with **{role.name}**.")
+                    await role_msg.reply(f"✅ I'll tag newcomers with **{role.name}**.")
                 else:
-                    await user.send("❌ Couldn't find that role. Use `/setup role @role` later.")
+                    await setup_channel.send("❌ Couldn't find that role. Use `/setup role @role` later.")
             else:
-                await user.send(_marcia_line("Leaving auto-role untouched."))
+                await setup_channel.send(_marcia_line("Leaving auto-role untouched."))
 
             await update_setting(guild.id, "server_offset_hours", -2, guild.name)
-            await user.send("🕒 Clock set to **UTC-2** (game time). I'll ignore local clocks.")
+            await setup_channel.send("🕒 Clock set to **UTC-2** (game time). I'll ignore local clocks.")
 
-            await user.send(
+            await setup_channel.send(
                 "🎉 Setup pass complete. Run `/setup` in the server to verify links."
             )
         except asyncio.TimeoutError:
-            await user.send("⌛ Timeout. Ping me again with `/setup` when you're ready.")
+            await setup_channel.send("⌛ Timeout. Ping me again with `/setup` when you're ready.")
 
 async def setup(bot):
     bot.remove_command("setup")
