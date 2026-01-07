@@ -1,5 +1,7 @@
 # Marcia command primer
 
+**Private-use notice:** This guide documents the owner-operated instance and is not intended for public distribution or third-party hosting.
+
 Concise guidance for the commands operators use most. Times use the in-game clock (UTC-2) unless noted.
 
 ## Event & mission control
