@@ -4,6 +4,32 @@
 
 Concise guidance for the commands operators use most. Times use the in-game clock (UTC-2) unless noted.
 
+## Server owner quick guide
+### 1) Core setup (admins/mods)
+- **Run setup:** `/setup` and follow the in-channel wizard to link event, chat, welcome, rules, verify, and auto-role channels.
+- **Audit links:** In `/setup`, tap **Sector Audit** to confirm permissions and channel links are green.
+- **Profile scan intake:** `/setup_profile_channel #channel` to pick where profile screenshots are ingested.
+- **Trading terminal:** `/setup_trade` in the trade channel to anchor the Fish-Link UI.
+
+### 2) Essential commands (owners + admins)
+- **Mission control:** `/event` opens the mission console, **Custom Event** schedules ops, **Use Template** reuses presets, and **Upcoming Events** lists the schedule.
+- **Remove events:** `/event_remove <codename>` deletes an operation.
+- **Health checks:** `/status` for latency and wiring; `/analytics` for per-server usage and inventory stats.
+- **Command refresh:** `/refresh_commands` if slash commands go out of sync.
+
+### 3) Member-facing commands (share with your crew)
+- **Scavenge loop:** `/scavenge` for hourly loot/XP.
+- **Profiles:** `/profile` for XP + stash + scan summary; `/profile_stats` for scan details.
+- **Leaderboards:** `/leaderboard` for XP + scan stats, with export.
+- **Inventory:** `/inventory` to review collected items and set bonuses.
+- **Manual:** `/manual` and `/features` for onboarding.
+
+### 4) Automation & passive features
+- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes, with opt-in DM pings via 📬 at the 60-minute alert.
+- **XP leveling:** Message-based XP with cooldowns, auto-created rank roles every 5 levels, and prestige unlocks when collections are complete.
+- **Trading intelligence:** Fish-Link matches spares to wants and DMs players when matches appear.
+- **Safety guardrails:** Channel ignore rules prevent reminders and automation from posting in muted rooms.
+
 ## Event & mission control
 - **Launch the wizard:** `/event`
 - **Create a new event:** select **Custom Event** and answer the DM prompts.
