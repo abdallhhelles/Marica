@@ -132,6 +132,22 @@ class Leveling(commands.Cog):
             except discord.Forbidden:
                 pass
 
+    async def _award_xp(self, guild_id: int, user_id: int, xp_gain: int) -> tuple[int, int, int]:
+        """Apply XP gain and handle multi-level progression."""
+        data = await get_user_stats(guild_id, user_id)
+        current_level = data["level"] if data else 1
+        current_xp = data["xp"] if data else 0
+
+        total_xp = current_xp + xp_gain
+        level = current_level
+
+        while total_xp >= self.get_next_xp(level):
+            total_xp -= self.get_next_xp(level)
+            level += 1
+
+        await update_user_xp(guild_id, user_id, total_xp, new_level=level)
+        return level, total_xp, level - current_level
+
     @commands.Cog.listener()
     async def on_message(self, message):
         """Passive XP gain with a 60-second anti-spam cooldown."""
@@ -155,23 +171,16 @@ class Leveling(commands.Cog):
                                  (current_ts, gid, uid))
                 await db.commit()
 
-            await update_user_xp(gid, uid, XP_PER_MESSAGE + random.randint(0, 6))
-            
-            # Re-fetch to check for level up
-            updated = await get_user_stats(gid, uid)
-            next_xp_req = self.get_next_xp(updated['level'])
-            
-            if updated['xp'] >= next_xp_req:
-                new_lvl = updated['level'] + 1
-                # Level up logic: Reset XP to carry over remainder
-                remaining_xp = updated['xp'] - next_xp_req
-                await update_user_xp(gid, uid, remaining_xp, new_level=new_lvl)
-                
+            new_level, _, levels_gained = await self._award_xp(
+                gid, uid, XP_PER_MESSAGE + random.randint(0, 6)
+            )
+
+            if levels_gained:
                 # Level up Announcement
                 embed = discord.Embed(
                     title="🎊 LEVEL SYNCHRONIZED",
                     description=(
-                        f"{message.author.mention}, your bio-signature has evolved to **Level {new_lvl}**.\n"
+                        f"{message.author.mention}, your bio-signature has evolved to **Level {new_level}**.\n"
                         f"{random.choice(MARCIA_QUOTES)}"
                     ),
                     color=0x2ecc71
@@ -191,7 +200,7 @@ class Leveling(commands.Cog):
                             await message.channel.send(embed=embed)
                         except discord.Forbidden:
                             pass
-                await self.apply_role_rewards(message.author, new_lvl)
+                await self.apply_role_rewards(message.author, new_level)
 
     async def _send_profile_overview(self, ctx, member: discord.Member | None = None):
         """Send the combined profile view with XP and scanned stats."""
@@ -317,7 +326,7 @@ class Leveling(commands.Cog):
             mishap_reason = mishap_reason.format(drone=drone_name)
             total_xp = mishap_xp + momentum_xp
 
-            await update_user_xp(ctx.guild.id, ctx.author.id, total_xp)
+            new_level, _, levels_gained = await self._award_xp(ctx.guild.id, ctx.author.id, total_xp)
             await update_scavenge_time(ctx.guild.id, ctx.author.id)
 
             description_lines = [f"_{mishap_reason}_", "", field_report, "", random.choice(MARCIA_QUOTES)]
@@ -332,9 +341,17 @@ class Leveling(commands.Cog):
                 xp_lines.append(f"Momentum chain: +{momentum_xp} XP")
             xp_lines.append(f"Total: **+{total_xp} XP**")
             embed.add_field(name="Experience", value="\n".join(xp_lines), inline=False)
+            if levels_gained:
+                embed.add_field(
+                    name="Level Up",
+                    value=f"Sector rank elevated to **Level {new_level}**.",
+                    inline=False,
+                )
             embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
 
             await self._safe_send(ctx, embed=embed)
+            if levels_gained:
+                await self.apply_role_rewards(ctx.author, new_level)
             return
 
         outcome = random.choice(SCAVENGE_OUTCOMES)
@@ -351,7 +368,7 @@ class Leveling(commands.Cog):
         total_xp = xp_gain + momentum_xp + bonus_cache_xp
 
         # Update database
-        await update_user_xp(ctx.guild.id, ctx.author.id, total_xp)
+        new_level, _, levels_gained = await self._award_xp(ctx.guild.id, ctx.author.id, total_xp)
         await add_to_inventory(ctx.guild.id, ctx.author.id, item_name, 1, rarity)
         if bonus_outcome:
             await add_to_inventory(ctx.guild.id, ctx.author.id, bonus_item, 1, bonus_rarity)
@@ -380,6 +397,12 @@ class Leveling(commands.Cog):
             xp_lines.append(f"Salvage cache: +{bonus_cache_xp} XP")
         xp_lines.append(f"Total: **+{total_xp} XP**")
         embed.add_field(name="Experience", value="\n".join(xp_lines), inline=True)
+        if levels_gained:
+            embed.add_field(
+                name="Level Up",
+                value=f"Sector rank elevated to **Level {new_level}**.",
+                inline=True,
+            )
 
         if bonus_outcome:
             embed.add_field(
@@ -391,6 +414,8 @@ class Leveling(commands.Cog):
         embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
 
         await self._safe_send(ctx, embed=embed)
+        if levels_gained:
+            await self.apply_role_rewards(ctx.author, new_level)
         await self.check_collector_prestige(ctx.author)
 
     @commands.hybrid_command(aliases=["inv", "stash"], description="Show your current sector stash.")
