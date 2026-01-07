@@ -1,7 +1,7 @@
 # Privacy Policy for Marcia OS
 **Last Updated: February 2026**
 
-Marcia OS ("the bot") is operated for the Helles Hub Alliance and public servers. This policy explains what data we collect and how it is used.
+Marcia OS ("the bot") is operated privately for the Helles Hub Alliance by its owner. It is not offered for public installation or third-party hosting. This policy explains what data is collected and how it is used.
 
 ### 1. Data We Collect
 * **Discord identifiers:** User IDs, guild IDs, and role IDs to deliver leveling, inventories, reminders, and Fish-Link matches.
@@ -19,7 +19,7 @@ Marcia OS ("the bot") is operated for the Helles Hub Alliance and public servers
 * Data is stored in the SQLite database `data/marcia_os.db` and server-specific archive files on the host.
 * WAL mode is enabled for durability; migrations may run on startup to preserve older data formats.
 * Trading, leveling, event, and template records are scoped to each guild and are not shared between servers.
-* Data persists while the bot is installed. Removing the bot or requesting deletion from a server admin will purge that server’s records where feasible.
+* Data persists while the bot is running on owner-managed servers. Removing the bot from those servers will purge records where feasible.
 
 ### 4. Third-Party Sharing
 * We do **not** sell data.
@@ -28,4 +28,4 @@ Marcia OS ("the bot") is operated for the Helles Hub Alliance and public servers
 ### 5. Your Controls
 * Remove your trade listings via the Fish-Link UI or ask an admin to clear your data.
 * Server admins can delete templates or missions and may request a guild data wipe.
-* For questions or deletion requests, contact the server’s alliance leadership or the bot maintainers.
+* For questions or deletion requests, contact the bot owner.

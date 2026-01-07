@@ -6,7 +6,13 @@
 
 > *"Freedom is expensive. Don't waste my time for free."* — **Marcia**
 
+**Private-use notice:** Marcia is a personal, owner-operated bot. It is **not** intended for public installation, third-party hosting, or redistribution.
+
 Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
+
+**Quick feature overview (automated + commands):**
+* **Automated:** XP leveling on message activity, scheduled event reminders, scavenging drops, auto-matching trade requests, and OCR snapshot caching for profile scans.
+* **Command-driven:** `/event` scheduling, `/events` listings, `/trade_item` exchanges, `/leaderboard` views and exports, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
@@ -14,7 +20,6 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 3. [Hosting patterns](#hosting-patterns)
 4. [Local configuration](#local-configuration)
 5. [Operations & troubleshooting](#operations--troubleshooting)
-6. [Outreach blurb](#outreach-blurb)
 
 ---
 
@@ -45,6 +50,7 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 ---
 
 ## Deployment overview
+These steps are for the owner’s private deployment only.
 
 ### Runtime requirements
 * Python 3.8+
@@ -72,6 +78,7 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 ---
 
 ## Hosting patterns
+Owner-only hosting notes, included for internal reference.
 
 ### Containers / Pterodactyl / read-only consoles
 Panels often install only `requirements.txt` and skip system packages. Bake everything into the start command so every boot is self-contained:
@@ -115,8 +122,3 @@ TOKEN=your_discord_bot_token_here
 * **HTTP client conflicts** — Third-party images that preinstall `googletrans==4.0.0rc1` downgrade `httpx`. Re-pin to the version in `requirements.txt` and remove conflicting packages.
 
 ---
-
-## Outreach blurb
-Use this when someone asks what Marcia is or how to try her:
-
-> Hey! I play **Dark War Survival** and built Marcia to make life easier for my alliance—translations, ops reminders, trading, and more. She's updated daily with new in-game helpers. Invite her: https://discord.com/oauth2/authorize?client_id=1428179195938476204. Join the beta/test hub: https://discord.gg/ePhRntSzB. Check `/commands`, `/features`, or `/showcase` for a quick tour, and run `/setup` right after inviting. I'm open to ideas and feedback!
