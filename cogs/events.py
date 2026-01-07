@@ -23,6 +23,7 @@ from database import (
     get_settings,
     get_templates,
     get_upcoming_missions,
+    increment_activity_metric,
     is_channel_ignored,
     lookup_dm_prompt,
     mark_task_complete,
@@ -366,6 +367,7 @@ class Events(commands.Cog):
                 tag=None,
                 notes=None,
             )
+            await increment_activity_metric(ctx.guild.id, "events_scheduled")
             self.running_tasks[f"{ctx.guild.id}_{name}"] = self.bot.loop.create_task(
                 self.manage_reminders(name, desc, utc_dt, ctx.guild.id, location, ping_role_id)
             )

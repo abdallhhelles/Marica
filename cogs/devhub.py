@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
 
-from database import command_usage_totals
+from database import activity_metric_totals, command_usage_totals, top_commands, total_active_missions
 from patch_notes import PatchNotesStore
 
 DEV_GUILD_ID = 1455313963507257486
@@ -318,6 +318,16 @@ class DevServerManager(commands.Cog):
         total_members = sum(g.member_count or 0 for g in self.bot.guilds)
         visible_channels = sum(len(g.text_channels) + len(g.voice_channels) for g in self.bot.guilds)
         command_total, top_command, top_uses = await command_usage_totals()
+        metric_totals = await activity_metric_totals(
+            [
+                "events_scheduled",
+                "profile_views",
+                "scavenge_runs",
+                "translations",
+            ]
+        )
+        active_missions = await total_active_missions()
+        top_command_rows = await top_commands(5)
 
         embed = discord.Embed(
             title="📊 Marcia Ops Board",
@@ -330,6 +340,7 @@ class DevServerManager(commands.Cog):
         embed.add_field(name="Servers", value=str(servers))
         embed.add_field(name="Total Members", value=str(total_members))
         embed.add_field(name="Active Channels", value=str(visible_channels))
+        embed.add_field(name="Active Missions", value=str(active_missions))
 
         if top_command:
             embed.add_field(
@@ -338,6 +349,29 @@ class DevServerManager(commands.Cog):
                 inline=False,
             )
         embed.add_field(name="Commands Logged", value=str(command_total), inline=False)
+        if top_command_rows:
+            cmd_lines = [f"`{row['command_name']}` — {row['total']} runs" for row in top_command_rows]
+            embed.add_field(name="Top 5 Commands", value="\n".join(cmd_lines), inline=False)
+        embed.add_field(
+            name="Events Scheduled",
+            value=str(metric_totals.get("events_scheduled", 0)),
+            inline=True,
+        )
+        embed.add_field(
+            name="Profile Views",
+            value=str(metric_totals.get("profile_views", 0)),
+            inline=True,
+        )
+        embed.add_field(
+            name="Scavenges Run",
+            value=str(metric_totals.get("scavenge_runs", 0)),
+            inline=True,
+        )
+        embed.add_field(
+            name="Translations",
+            value=str(metric_totals.get("translations", 0)),
+            inline=True,
+        )
         embed.set_footer(text="Marcia Devs | Auto-maintained")
         return embed
 

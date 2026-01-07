@@ -163,7 +163,7 @@ class MarciaBot(commands.Bot):
             return
 
         # Ignore interaction-backed system messages (e.g., slash command notices)
-        if getattr(message, "interaction", None):
+        if getattr(message, "interaction_metadata", None):
             return
 
         if message.type is not discord.MessageType.default:
@@ -217,14 +217,35 @@ class MarciaBot(commands.Bot):
         if isinstance(error, commands.CommandNotFound):
             return
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
+            if ctx.interaction:
+                await self._safe_interaction_reply(
+                    ctx.interaction,
+                    content="❌ **Access Denied:** Insufficient clearance.",
+                    ephemeral=True,
+                )
+            else:
+                await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
             return
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
+            if ctx.interaction:
+                await self._safe_interaction_reply(
+                    ctx.interaction,
+                    content=f"❌ Missing argument: `{error.param.name}`.",
+                    ephemeral=True,
+                )
+            else:
+                await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
             return
         if isinstance(error, commands.CommandOnCooldown):
             retry = self._format_cooldown(error.retry_after)
-            await ctx.send(f"⌛ Drones cooling down. Try again in {retry}.")
+            if ctx.interaction:
+                await self._safe_interaction_reply(
+                    ctx.interaction,
+                    content=f"⌛ Drones cooling down. Try again in {retry}.",
+                    ephemeral=True,
+                )
+            else:
+                await ctx.send(f"⌛ Drones cooling down. Try again in {retry}.")
             return
 
         await log_command_exception(self, error, ctx=ctx, source="message-command")
@@ -265,7 +286,7 @@ class MarciaBot(commands.Bot):
                 logger.exception("Failed to process application interaction")
             return
 
-        await super().on_interaction(interaction)
+        return
 
     async def process_application_commands(self, interaction: discord.Interaction):
         """Compatibility shim so app commands route even on discord.py builds without it."""

@@ -23,6 +23,7 @@ import httpx
 from database import (
     get_profile_channel,
     get_profile_snapshot,
+    increment_activity_metric,
     set_profile_channel,
     upsert_profile_snapshot,
 )
@@ -285,6 +286,7 @@ class ProfileScanner(commands.Cog):
             dt = datetime.fromtimestamp(data["last_updated"], tz=timezone.utc)
             embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
 
+        await increment_activity_metric(ctx.guild.id, "profile_views")
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
@@ -348,7 +350,7 @@ class ProfileScanner(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        if getattr(message, "interaction", None):
+        if getattr(message, "interaction_metadata", None):
             return
 
         if message.type is not discord.MessageType.default:

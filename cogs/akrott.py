@@ -523,12 +523,16 @@ class AkrottControl(commands.Cog):
     @akrott_panel.error
     async def akrott_panel_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CheckFailure):
-            await interaction.response.send_message(
-                "❌ Access denied. This console is reserved for akrott.", ephemeral=True
+            await self.bot._safe_interaction_reply(
+                interaction,
+                content="❌ Access denied. This console is reserved for akrott.",
+                ephemeral=True,
             )
         else:
-            await interaction.response.send_message(
-                "⚠️ An unexpected error occurred while opening the console.", ephemeral=True
+            await self.bot._safe_interaction_reply(
+                interaction,
+                content="⚠️ An unexpected error occurred while opening the console.",
+                ephemeral=True,
             )
 
     @akrott.command(name="overview", description="Administrator-only network server overview.")
@@ -573,13 +577,15 @@ class AkrottControl(commands.Cog):
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
         if isinstance(error, app_commands.CheckFailure):
-            await interaction.response.send_message(
-                "❌ Access denied. This overview is reserved for akrott.",
+            await self.bot._safe_interaction_reply(
+                interaction,
+                content="❌ Access denied. This overview is reserved for akrott.",
                 ephemeral=True,
             )
         else:
-            await interaction.response.send_message(
-                "⚠️ An unexpected error occurred while preparing the overview.",
+            await self.bot._safe_interaction_reply(
+                interaction,
+                content="⚠️ An unexpected error occurred while preparing the overview.",
                 ephemeral=True,
             )
 
