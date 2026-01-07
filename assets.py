@@ -24,6 +24,10 @@ the signal goes dark, she will risk her life to keep the uplink alive. Her drone
 symbols in the night sky—a warning to raiders and a promise to the faithful that the hub is
 still guarded by a hacker who refuses to kneel.
 
+When she speaks, it's a mix of battlefield math and street poetry. She logs every scavenger run,
+tracks every level spike, and quietly rewrites the rules so her people keep getting stronger.
+The drones call it "Protocol: Keep Them Alive." Marcia calls it loyalty.
+
 Lately, she has started dropping coded broadcasts called "Sparky Reports"—short stories about
 survivors who fought back, about drones that went missing and returned with better armor, about
 the old hacker rings that once sheltered her. Each story is half confessional, half warning: stay
@@ -117,6 +121,15 @@ MARCIA_QUOTES = [
     "Your chaos is my data. I'll optimize it into something lethal.",
     "I have two moods: calibration and confrontation. Pick one.",
     "Drones humming means you're safe. Drones silent means you should run.",
+    "I keep the grind honest. You keep the boots moving.",
+    "If you want a shortcut, ask the raiders. They always end up dead.",
+    "I don't hand out victories. I hand out coordinates.",
+    "We don't farm XP here. We earn it, one run at a time.",
+    "Your streak is just proof you can keep showing up. Do it again.",
+    "If you break the drones, I'll break your rhythm.",
+    "No hero speeches. Just results and a full inventory.",
+    "The uplink doesn't care about excuses. It cares about consistency.",
+    "You're not chasing luck. You're building a record.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
@@ -129,6 +142,8 @@ MARCIA_TRAITS = [
     "Collects stories from the trenches and encrypts them as bedtime signals.",
     "Treats every recruit like potential family—until they flinch at the word 'freedom'.",
     "Uses humor as armor and drones as punctuation for the truth.",
+    "Records scavenging streaks like war diaries and leaves no grind uncounted.",
+    "Laces mission briefings with sarcasm so the fear doesn't win.",
 ]
 
 MARCIA_SLOGANS = [
@@ -140,6 +155,8 @@ MARCIA_SLOGANS = [
     "Tyrants crash; Marcia debugs.",
     "Less talk, more signal.",
     "Hope is a system; I keep it patched.",
+    "Grind honest. Grind loud.",
+    "Your streak is a contract. Fulfill it.",
 ]
 
 # Flavor lines to stamp onto dossier embeds and confirmation cards
@@ -182,6 +199,10 @@ MARCIA_BROADCASTS = [
     "Night Broadcast: If you read this, you're on my grid. Stand tall, keep moving, and feed the drones clean intel.",
     "Vaultwalker Memo: Freedom isn't a slogan. It's a protocol we enforce together. Sign with your actions, not your mouth.",
     "Campfire Tape: I laughed today. Someone taught Vulture-7 to fetch coffee. The mug survived. Barely.",
+    "Scavenge Memo: Streaks don't build themselves. Show up, pull metal, repeat.",
+    "Grid Whisper: If the drones circle twice, it means you're marked for extra salvage. Earn it.",
+    "Ops Fragment: We kept the lights on another night. That's not luck, that's discipline.",
+    "Vault Signal: Keep your streak alive and I'll keep the airwaves clean.",
 ]
 
 WELCOME_VARIATIONS = [
@@ -395,6 +416,24 @@ SCAVENGE_FIELD_REPORTS = [
     "Logged a supply cache rumor from local chatter. Might be real.",
     "Drones sniffed a faint power signature; I'll triangulate it for next time.",
     "Marked hostile patrol routes so you don't walk into a crossfire.",
+]
+
+SCAVENGE_ZONES = [
+    {"name": "Dustway Fringe", "tagline": "low heat, scattered scrap", "xp_bonus": 0, "rarity_bonus": 0.0, "mishap_bonus": 0.0},
+    {"name": "Redline Blocks", "tagline": "raider traffic rising", "xp_bonus": 10, "rarity_bonus": 0.05, "mishap_bonus": 0.02},
+    {"name": "Blackout Wards", "tagline": "signal dead zones", "xp_bonus": 20, "rarity_bonus": 0.08, "mishap_bonus": 0.04},
+    {"name": "Dead Sector", "tagline": "biohazard grid, high-value scrap", "xp_bonus": 35, "rarity_bonus": 0.12, "mishap_bonus": 0.06},
+    {"name": "Null Zone", "tagline": "no-return gravity well", "xp_bonus": 50, "rarity_bonus": 0.16, "mishap_bonus": 0.08},
+]
+
+SCAVENGE_CONTRACTS = [
+    "Retrieve signal cores and tag any live relays.",
+    "Sweep for med lockers; evac if raider chatter spikes.",
+    "Trace battery heat signatures and pull them before sundown.",
+    "Mark safe corridors for the next convoy wave.",
+    "Locate the power relay with Sparky and lock its coordinates.",
+    "Scout for drone parts and leave a ping beacon on the haul.",
+    "Map a clean exit route in case the sky turns green.",
 ]
 
 # Prestige title for collectors who secure every scavenged item once per sector

@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from bug_logging import log_command_exception
 from assets import (
     SCAVENGE_FIELD_REPORTS,
+    SCAVENGE_ZONES,
+    SCAVENGE_CONTRACTS,
     SCAVENGE_MISHAPS,
     SCAVENGE_OUTCOMES,
     DRONE_NAMES,
@@ -43,6 +45,7 @@ from database import (
 XP_PER_MESSAGE = 12
 BASE_XP = 120
 ROLE_STEP = 5
+ROLE_PREFIX = "Uplink Tier"
 
 RARITY_COLORS = {
     "Common": 0x95a5a6,
@@ -120,13 +123,46 @@ class Leveling(commands.Cog):
             return f"{mins}m {secs:02d}s"
         return f"{secs}s"
 
+    def _get_scavenge_zone(self, level: int) -> dict:
+        zone_index = min(len(SCAVENGE_ZONES) - 1, max(0, (level - 1) // 10))
+        return SCAVENGE_ZONES[zone_index]
+
+    def _roll_scavenge_outcome(self, rarity_boost: float) -> tuple[str, int, str, str]:
+        rarity_weights = {
+            "Common": 50,
+            "Uncommon": 25,
+            "Rare": 12,
+            "Epic": 6,
+            "Legendary": 3,
+            "Artifact": 2,
+            "Mythic": 1,
+        }
+        rarity_ranks = {
+            "Common": 0,
+            "Uncommon": 1,
+            "Rare": 2,
+            "Epic": 3,
+            "Legendary": 4,
+            "Artifact": 5,
+            "Mythic": 6,
+        }
+        adjusted = {
+            rarity: weight * (1 + rarity_boost * rarity_ranks[rarity])
+            for rarity, weight in rarity_weights.items()
+        }
+        rarities = list(adjusted.keys())
+        weights = list(adjusted.values())
+        chosen_rarity = random.choices(rarities, weights=weights, k=1)[0]
+        rarity_outcomes = [o for o in SCAVENGE_OUTCOMES if o[3] == chosen_rarity]
+        return random.choice(rarity_outcomes)
+
     async def apply_role_rewards(self, member, level):
         """Automatically assigns dynamic tier roles based on level reached."""
         tier_role = await self.ensure_tier_role(member.guild, level)
         if tier_role and tier_role not in member.roles:
             try:
                 # Remove older tier roles to keep things tidy
-                old_tiers = [r for r in member.roles if r.name.startswith("Sector Rank ")]
+                old_tiers = [r for r in member.roles if r.name.startswith(f"{ROLE_PREFIX} ")]
                 if old_tiers:
                     await member.remove_roles(*old_tiers, reason="Upgrading tier role")
                 await member.add_roles(tier_role, reason="Level up reward")
@@ -250,6 +286,21 @@ class Leveling(commands.Cog):
         stash_line = f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique"
         embed.add_field(name="Stash", value=stash_line, inline=True)
 
+        last_scavenge_ts = data["last_scavenge_ts"] if data else 0
+        scavenge_streak = data["scavenge_streak"] if data else 0
+        zone = self._get_scavenge_zone(lvl)
+        if last_scavenge_ts:
+            cooldown_remaining = int(3600 - (time.time() - last_scavenge_ts))
+            cooldown_label = self._format_cooldown(cooldown_remaining) if cooldown_remaining > 0 else "Ready"
+        else:
+            cooldown_label = "Ready"
+        scavenge_status = [
+            f"Zone: **{zone['name']}**",
+            f"Cooldown: {cooldown_label}",
+            f"Streak: {scavenge_streak} run(s)",
+        ]
+        embed.add_field(name="Scavenge Status", value="\n".join(scavenge_status), inline=True)
+
         snapshot = await get_profile_snapshot(ctx.guild.id, member.id)
         if snapshot:
             ingame = [
@@ -294,6 +345,8 @@ class Leveling(commands.Cog):
         # Momentum bonus if the survivor keeps scavenging within 90 minutes of the last run
         user_data = await get_user_stats(ctx.guild.id, ctx.author.id)
         last_scavenge_ts = user_data["last_scavenge_ts"] if user_data else 0
+        current_level = user_data["level"] if user_data else 1
+        current_streak = user_data["scavenge_streak"] if user_data else 0
         now_ts = time.time()
         if last_scavenge_ts:
             cooldown_remaining = int(3600 - (now_ts - last_scavenge_ts))
@@ -308,19 +361,39 @@ class Leveling(commands.Cog):
 
         await increment_activity_metric(ctx.guild.id, "scavenge_runs")
         recent_run = last_scavenge_ts and (now_ts - last_scavenge_ts) <= 5400
+        streak_window = 10800
+        streak = current_streak + 1 if last_scavenge_ts and (now_ts - last_scavenge_ts) <= streak_window else 1
+        streak = min(streak, 10)
         momentum_xp = random.randint(15, 35) if recent_run else 0
         field_report = random.choice(SCAVENGE_FIELD_REPORTS)
+        contract = random.choice(SCAVENGE_CONTRACTS)
+        zone = self._get_scavenge_zone(current_level)
+        rarity_boost = zone["rarity_bonus"] + min(0.12, streak * 0.02) + min(0.08, current_level / 250)
+        mishap_chance = 0.14 + zone["mishap_bonus"] - min(0.03, streak * 0.01)
+        overclock = streak // 3
 
         # Failure factor: sometimes the drones return empty-handed but with intel
-        if random.random() < 0.16:
+        if random.random() < mishap_chance:
             mishap_reason, mishap_xp = random.choice(SCAVENGE_MISHAPS)
             mishap_reason = mishap_reason.format(drone=drone_name)
-            total_xp = mishap_xp + momentum_xp
+            streak_xp = max(0, (streak - 1) * 4)
+            milestone_xp = 25 if streak in (5, 10) else 0
+            zone_xp = zone["xp_bonus"] // 2
+            total_xp = mishap_xp + momentum_xp + streak_xp + milestone_xp + zone_xp
 
             new_level, _, levels_gained = await self._award_xp(ctx.guild.id, ctx.author.id, total_xp)
-            await update_scavenge_time(ctx.guild.id, ctx.author.id)
+            await update_scavenge_time(ctx.guild.id, ctx.author.id, streak=streak)
 
-            description_lines = [f"_{mishap_reason}_", "", field_report, "", random.choice(MARCIA_QUOTES)]
+            description_lines = [
+                f"_{mishap_reason}_",
+                "",
+                f"📍 Zone: **{zone['name']}** — {zone['tagline']}",
+                f"🗂️ Contract: {contract}",
+                "",
+                field_report,
+                "",
+                random.choice(MARCIA_QUOTES),
+            ]
             embed = discord.Embed(
                 title=f"🚫 {drone_name.upper()} RETURNED EMPTY",
                 description="\n".join(description_lines),
@@ -330,12 +403,19 @@ class Leveling(commands.Cog):
             xp_lines = [f"Recon data: +{mishap_xp} XP"]
             if momentum_xp:
                 xp_lines.append(f"Momentum chain: +{momentum_xp} XP")
+            if zone_xp:
+                xp_lines.append(f"Zone hazard pay: +{zone_xp} XP")
+            if streak_xp:
+                xp_lines.append(f"Streak discipline: +{streak_xp} XP")
+            if milestone_xp:
+                xp_lines.append(f"Streak milestone: +{milestone_xp} XP")
             xp_lines.append(f"Total: **+{total_xp} XP**")
             embed.add_field(name="Experience", value="\n".join(xp_lines), inline=False)
+            embed.add_field(name="Streak", value=f"{streak} run(s) logged", inline=True)
             if levels_gained:
                 embed.add_field(
                     name="Level Up",
-                    value=f"Sector rank elevated to **Level {new_level}**.",
+                    value=f"{ROLE_PREFIX} elevated to **Level {new_level}**.",
                     inline=False,
                 )
             embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
@@ -345,29 +425,41 @@ class Leveling(commands.Cog):
                 await self.apply_role_rewards(ctx.author, new_level)
             return
 
-        outcome = random.choice(SCAVENGE_OUTCOMES)
+        outcome = self._roll_scavenge_outcome(rarity_boost)
         flavor, xp_gain, item_name, rarity = outcome
 
         # Surprise bonus cache with reduced XP but extra loot
         bonus_outcome = None
         bonus_cache_xp = 0
-        if random.random() < 0.18:
-            bonus_outcome = random.choice(SCAVENGE_OUTCOMES)
+        bonus_cache_chance = 0.12 + (overclock * 0.04) + zone["rarity_bonus"]
+        if random.random() < bonus_cache_chance:
+            bonus_outcome = self._roll_scavenge_outcome(rarity_boost * 0.75)
             _, bonus_xp, bonus_item, bonus_rarity = bonus_outcome
             bonus_cache_xp = max(10, bonus_xp // 2)
 
-        total_xp = xp_gain + momentum_xp + bonus_cache_xp
+        streak_xp = max(0, (streak - 1) * 6)
+        overclock_xp = overclock * 12
+        milestone_xp = 25 if streak in (5, 10) else 0
+        zone_xp = zone["xp_bonus"]
+        total_xp = xp_gain + momentum_xp + bonus_cache_xp + streak_xp + overclock_xp + milestone_xp + zone_xp
 
         # Update database
         new_level, _, levels_gained = await self._award_xp(ctx.guild.id, ctx.author.id, total_xp)
         await add_to_inventory(ctx.guild.id, ctx.author.id, item_name, 1, rarity)
         if bonus_outcome:
             await add_to_inventory(ctx.guild.id, ctx.author.id, bonus_item, 1, bonus_rarity)
-        await update_scavenge_time(ctx.guild.id, ctx.author.id)
+        await update_scavenge_time(ctx.guild.id, ctx.author.id, streak=streak)
 
         # Build richer scavenge report
         color_choices = [RARITY_COLORS.get(rarity, 0x2b2d31)]
-        description_lines = [f"_{flavor}_", "", field_report, random.choice(MARCIA_QUOTES)]
+        description_lines = [
+            f"_{flavor}_",
+            "",
+            f"📍 Zone: **{zone['name']}** — {zone['tagline']}",
+            f"🗂️ Contract: {contract}",
+            field_report,
+            random.choice(MARCIA_QUOTES),
+        ]
         if recent_run:
             description_lines.insert(1, "⚡ Momentum maintained — drones pushed harder on this route.")
         if bonus_outcome:
@@ -384,14 +476,23 @@ class Leveling(commands.Cog):
         xp_lines = [f"Base haul: +{xp_gain} XP"]
         if momentum_xp:
             xp_lines.append(f"Momentum chain: +{momentum_xp} XP")
+        if zone_xp:
+            xp_lines.append(f"Zone hazard pay: +{zone_xp} XP")
+        if streak_xp:
+            xp_lines.append(f"Streak discipline: +{streak_xp} XP")
+        if overclock_xp:
+            xp_lines.append(f"Overclock bonus: +{overclock_xp} XP")
+        if milestone_xp:
+            xp_lines.append(f"Streak milestone: +{milestone_xp} XP")
         if bonus_cache_xp:
             xp_lines.append(f"Salvage cache: +{bonus_cache_xp} XP")
         xp_lines.append(f"Total: **+{total_xp} XP**")
         embed.add_field(name="Experience", value="\n".join(xp_lines), inline=True)
+        embed.add_field(name="Streak", value=f"{streak} run(s) logged", inline=True)
         if levels_gained:
             embed.add_field(
                 name="Level Up",
-                value=f"Sector rank elevated to **Level {new_level}**.",
+                value=f"{ROLE_PREFIX} elevated to **Level {new_level}**.",
                 inline=True,
             )
 
@@ -690,7 +791,7 @@ class Leveling(commands.Cog):
     async def ensure_tier_role(self, guild: discord.Guild, level: int) -> discord.Role | None:
         tier = max(ROLE_STEP, (level // ROLE_STEP) * ROLE_STEP)
         color = discord.Color(TIER_COLORS[tier % len(TIER_COLORS)])
-        role_name = f"Sector Rank {tier:03d}"
+        role_name = f"{ROLE_PREFIX} {tier:03d}"
         role = discord.utils.get(guild.roles, name=role_name)
         if role:
             return role

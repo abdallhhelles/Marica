@@ -41,6 +41,7 @@ SHOWCASE_SECTIONS = [
             "Former underground hacker who now guards ops and data with her drone fleet (Sparky, Vulture-7, Ghost-Link).",
             "Protects refugees while keeping morale high with banter; rewards banshees with barbs if they break server safety.",
             "Keeps all survivor data isolated per server for security—no cross-pollination.",
+            "Tracks scavenging streaks like war diaries; discipline earns the big hauls.",
         ],
     },
         {
@@ -48,7 +49,7 @@ SHOWCASE_SECTIONS = [
             "lines": [
                 "📡 Operations (UTC-2 clock): `/event`, `/event_remove`, `/setup`, `/status`, `/analytics`.",
                 "🎣 Trading | Fish-Link: `/setup_trade`, `/trade_item`, `/trade`, `/find`, `/my listings`, `/who has my wanted`.",
-                "🛰️ Progression & Scavenging: hourly `/scavenge`, `/leaderboard` (10/25/50/100 rows + export), `/profile`, and `/inventory` with set bonuses.",
+                "🛰️ Progression & Scavenging: hourly `/scavenge` with zones, streak + overclock + milestone XP, `/leaderboard` exports, `/profile`, `/inventory`.",
                 "🛰️ Profile Scan: `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads to disk and feeds `/leaderboard`.",
             ],
         },
@@ -295,6 +296,85 @@ class Utility(commands.Cog):
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
         return embed
 
+    def _build_command_center_embed(self, section: str, guild_name: Optional[str] = None) -> discord.Embed:
+        scope = guild_name or "your sector"
+        section_key = section.lower()
+        sections = {
+            "home": {
+                "title": "🧭 Marcia Command Center",
+                "description": "Short list, clear routes. Tap a menu button to navigate.",
+                "fields": [
+                    ("Start here", "Use **Quick Start** for daily ops or pick a module button."),
+                    ("Core idea", "One menu, fewer commands to remember."),
+                ],
+            },
+            "quick start": {
+                "title": "⚡ Quick Start",
+                "description": "The essentials most crews run daily.",
+                "fields": [
+                    ("Daily loop", "`/scavenge` • loot + XP"),
+                    ("Ops queue", "`/event` • schedule + upcoming"),
+                    ("Progress", "`/profile` • XP + stash"),
+                ],
+            },
+            "events": {
+                "title": "🛰️ Events & Reminders",
+                "description": "Plan ops and push alerts without clutter.",
+                "fields": [
+                    ("Schedule", "`/event` • wizard + upcoming list"),
+                    ("Remove", "`/event_remove <codename>`"),
+                    ("Reminders", "`/remind` • channel alerts"),
+                ],
+            },
+            "trading": {
+                "title": "🎣 Trading",
+                "description": "Fish-Link runs from one anchor, not a dozen commands.",
+                "fields": [
+                    ("Deploy terminal", "`/setup_trade` • pin the menu"),
+                    ("Buttons", "Spares • Find • Who Has My Wanted"),
+                    ("Fallback", "`/trade_item` • manual swap"),
+                ],
+            },
+            "profiles": {
+                "title": "🛰️ Profiles & Progression",
+                "description": "Track growth, scans, and inventory in one lane.",
+                "fields": [
+                    ("Progress", "`/profile` • XP + stash"),
+                    ("Scan", "`/scan_profile` • profile screenshot"),
+                    ("Rankings", "`/leaderboard` • XP + scan stats"),
+                ],
+            },
+            "admin": {
+                "title": "🛡️ Admin Core",
+                "description": "Keep setup and diagnostics centralized.",
+                "fields": [
+                    ("Setup", "`/setup` • channel links + audit"),
+                    ("Profile intake", "`/setup_profile_channel`"),
+                    ("Signal", "`/status` • health check"),
+                ],
+            },
+            "support": {
+                "title": "📚 Support & Onboarding",
+                "description": "Onboard fast, ask questions once.",
+                "fields": [
+                    ("Manual", "`/manual` • quick primer"),
+                    ("Feedback", "`/feedback` • report issues"),
+                ],
+            },
+        }
+
+        selected = sections.get(section_key, sections["home"])
+        embed = discord.Embed(
+            title=selected["title"],
+            description=selected["description"],
+            color=0x3498db,
+        )
+        for name, value in selected["fields"]:
+            embed.add_field(name=name, value=value, inline=False)
+
+        embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope} | Menu: {selected['title']}")
+        return embed
+
     async def _submit_feedback(self, ctx, feedback_text: str, category: Optional[str]):
         """Persist feedback, notify the owner, and acknowledge the user."""
         category_label = (category or "general").strip() or "general"
@@ -400,8 +480,15 @@ class Utility(commands.Cog):
     @commands.hybrid_command(name="commands", aliases=["help"], description="Show Marcia's command directory.")
     async def list_commands(self, ctx):
         """Displays all available commands categorized by module."""
-        embed = self._build_command_directory(ctx.guild.name if ctx.guild else None)
-        await self._safe_send(ctx, embed=embed)
+        embed = self._build_command_center_embed("home", ctx.guild.name if ctx.guild else None)
+        view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
+        await self._safe_send(ctx, embed=embed, view=view)
+
+    @commands.hybrid_command(description="Open the command center menu.")
+    async def menu(self, ctx):
+        embed = self._build_command_center_embed("home", ctx.guild.name if ctx.guild else None)
+        view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
+        await self._safe_send(ctx, embed=embed, view=view)
 
     @commands.hybrid_command(description="Marcia's lore, values, and operating scope.")
     async def about(self, ctx):
@@ -647,6 +734,45 @@ class Utility(commands.Cog):
         """Purge chat history."""
         await ctx.channel.purge(limit=amount + 1)
         await ctx.send(f"🧹 {amount} signals cleared.", delete_after=3)
+
+
+class CommandCenterView(discord.ui.View):
+    def __init__(self, cog: Utility, guild_name: Optional[str]):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.guild_name = guild_name
+
+    async def _switch(self, interaction: discord.Interaction, section: str):
+        embed = self.cog._build_command_center_embed(section, self.guild_name)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🧭")
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "home")
+
+    @discord.ui.button(label="Quick Start", style=discord.ButtonStyle.primary, emoji="⚡")
+    async def quick_start(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "quick start")
+
+    @discord.ui.button(label="Events", style=discord.ButtonStyle.secondary, emoji="🛰️")
+    async def events(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "events")
+
+    @discord.ui.button(label="Trading", style=discord.ButtonStyle.success, emoji="🎣")
+    async def trading(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "trading")
+
+    @discord.ui.button(label="Profiles", style=discord.ButtonStyle.secondary, emoji="🧬")
+    async def profiles(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "profiles")
+
+    @discord.ui.button(label="Admin", style=discord.ButtonStyle.danger, emoji="🛡️")
+    async def admin(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "admin")
+
+    @discord.ui.button(label="Support", style=discord.ButtonStyle.secondary, emoji="📚")
+    async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "support")
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))

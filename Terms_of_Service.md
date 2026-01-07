@@ -1,5 +1,5 @@
 # Terms of Service for Marcia OS
-**Last Updated: February 2026**
+**Last Updated: March 2026**
 
 By using Marcia OS you agree to these terms. Marcia is a private, owner-operated bot and is not intended for public installation or third-party hosting.
 
@@ -8,13 +8,13 @@ By using Marcia OS you agree to these terms. Marcia is a private, owner-operated
 * The owner is responsible for configuring channels, roles, and permissions so the bot can operate safely.
 
 ### 2. Acceptable Use
-* **No exploitation:** Do not spam commands, farm XP with scripts, or tamper with timers/cooldowns.
+* **No exploitation:** Do not spam commands, farm XP or scavenge streaks with scripts, or tamper with timers/cooldowns.
 * **No harassment:** Fish-Link DMs and event pings may not be used to bully, threaten, or dox anyone.
 * **No self-bots/automation:** Interact with Marcia through standard Discord clients only.
 * **Security:** Do not attempt to access other servers’ data, reverse engineer database files, or scrape telemetry.
 
 ### 3. Data Integrity & Persistence
-* Marcia stores server-specific data (settings, XP, inventory, trade listings, command usage counts) in `data/marcia_os.db`.
+* Marcia stores server-specific data (settings, XP, scavenge streaks, inventory, trade listings, command usage counts) in `data/marcia_os.db`.
 * Database migrations may run on startup to preserve historical data; do not delete or move the database while the bot is running.
 * The owner is responsible for backing up server data.
 

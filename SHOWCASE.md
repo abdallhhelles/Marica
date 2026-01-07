@@ -8,6 +8,7 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 - Former underground hacker who now guards scattered hubs with a drone fleet (Sparky, Vulture-7, Ghost-Link, and more).
 - Protects refugees while hiding empathy behind sarcasm; rewards self-sufficient crews and mocks freeloaders.
 - Drones patrol every linked sector; her voice and quotes keep broadcasts human, not robotic.
+- Tracks scavenging streaks as war diaries and pushes crews to earn freedom with discipline, not shortcuts.
 
 ## Core Systems
 ### Owner Control & Analytics
@@ -26,8 +27,8 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 - Automatic donor DMs when matches appear.
 
 ### Progression & Scavenging
-- Endless XP ladder with scaling milestones and auto-created rank roles (colors and names adjust per tier).
-- Hourly `/scavenge` for Common → Mythic loot, XP bursts, and ultra-rare catalog items.
+- Endless XP ladder with scaling milestones and auto-created Uplink Tier roles (colors and names adjust per tier).
+- Hourly `/scavenge` for Common → Mythic loot, zone hazard pay, streak + overclock bonuses, milestone XP, and ultra-rare catalog items.
 - Inventory tracking per guild; prestige **Vaultwalker** role when a member completes the loot catalog.
 - `/leaderboard` shows XP plus CP/kills from profile scans with 10/25/50/100 row controls and a DM export.
 - `/trade_item @user <item> <qty>` lets survivors barter scavenged goods.

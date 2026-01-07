@@ -18,7 +18,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Command refresh:** `/refresh_commands` if slash commands go out of sync.
 
 ### 3) Member-facing commands (share with your crew)
-- **Scavenge loop:** `/scavenge` for hourly loot/XP.
+- **Scavenge loop:** `/scavenge` for hourly loot/XP with zone hazard pay and streak bonuses.
 - **Profiles:** `/profile` for XP + stash + scan summary; `/profile_stats` for scan details.
 - **Leaderboards:** `/leaderboard` for XP + scan stats, with export.
 - **Inventory:** `/inventory` to review collected items and set bonuses.
@@ -26,7 +26,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 
 ### 4) Automation & passive features
 - **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes, with opt-in DM pings via 📬 at the 60-minute alert.
-- **XP leveling:** Message-based XP with cooldowns, auto-created rank roles every 5 levels, and prestige unlocks when collections are complete.
+- **XP leveling:** Message-based XP with cooldowns, auto-created **Uplink Tier** roles every 5 levels, and prestige unlocks when collections are complete.
 - **Trading intelligence:** Fish-Link matches spares to wants and DMs players when matches appear.
 - **Safety guardrails:** Channel ignore rules prevent reminders and automation from posting in muted rooms.
 
@@ -47,6 +47,10 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 ## Scavenge & progression
 - **Run a scavenge:** `/scavenge` (1-hour cooldown per user).
 - **Momentum bonus:** running again within 90 minutes grants bonus XP.
+- **Streak chain:** running again within 3 hours keeps a streak and adds XP; streaks scale up to 10 runs.
+- **Overclock bonus:** every 3rd streak tier adds extra XP and improves bonus cache odds.
+- **Milestone XP:** hit streak 5 or 10 for an extra XP spike (even on failed runs).
+- **Zone hazard pay:** your level determines the zone, boosting XP and rare drop odds.
 - **Cooldown messaging:** Marcia reports remaining time in minutes/seconds when you need to wait.
 - **View profile:** `/profile [@member]` for level/xp, cooldown state, and stash summary.
 - **Trade loot:** `/trade_item @member <quantity> <item name>` moves scavenged items between survivors.
@@ -70,7 +74,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 
 ## Leaderboard & roles
 - **Leaderboards:** `/leaderboard` opens a selector for local XP, global XP, and scanned profile stats. You can choose 10/25/50/100 rows and tap **Export (Excel)** to receive a TSV in your DMs. `/global_leaderboard` is kept for quick access to network XP.
-- Level-based tier roles are applied automatically when `Sector Rank` roles exist and permissions allow role edits.
+- Level-based tier roles are applied automatically when `Uplink Tier` roles exist and permissions allow role edits.
 
 ## Channels & automation
 - Duel directives post at game-day reset when an event channel is configured.
