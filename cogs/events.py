@@ -49,16 +49,23 @@ def _marcia_quip():
 # --- UI COMPONENTS ---
 
 class TemplateSelect(discord.ui.Select):
-    def __init__(self, templates, callback_func, placeholder="Select a template...", mode="use"):
-        options = [discord.SelectOption(label=t['template_name'], emoji="📋" if mode=="use" else "🗑️") for t in templates[:24]]
+    def __init__(self, templates, callback_func, ctx, placeholder="Select a template...", mode="use"):
+        options = [
+            discord.SelectOption(
+                label=t["template_name"],
+                emoji="📋" if mode == "use" else "🗑️",
+            )
+            for t in templates[:24]
+        ]
         options.append(discord.SelectOption(label="Cancel", emoji="❌"))
         super().__init__(placeholder=placeholder, options=options)
         self.callback_func = callback_func
+        self.ctx = ctx
 
     async def callback(self, interaction: discord.Interaction):
         if self.values[0] == "Cancel":
             return await interaction.response.edit_message(content="📡 Directive cancelled.", view=None, embed=None)
-        await self.callback_func(interaction, self.values[0])
+        await self.callback_func(interaction, self.values[0], self.ctx)
 
 class EventMenuView(discord.ui.View):
     def __init__(self, cog, ctx):
@@ -74,13 +81,25 @@ class EventMenuView(discord.ui.View):
     async def template_event(self, it, btn):
         tps = await get_templates(it.guild.id)
         if not tps: return await it.response.send_message("❌ Archive is empty.", ephemeral=True)
-        view = discord.ui.View(); view.add_item(TemplateSelect(tps, self.cog.use_template_callback))
+        view = discord.ui.View()
+        view.add_item(TemplateSelect(tps, self.cog.use_template_callback, self.ctx))
         await it.response.edit_message(content="**Select a mission preset:**", view=view, embed=None)
 
     @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾")
     async def create_template_btn(self, it, btn):
         await it.response.send_message("💾 Archiving Module Active. Check DMs.", ephemeral=True)
         await self.cog.create_template_flow(self.ctx)
+
+    @discord.ui.button(label="Upcoming Events", style=discord.ButtonStyle.secondary, emoji="📆")
+    async def upcoming_events(self, it, btn):
+        missions = await get_upcoming_missions(it.guild.id, limit=10)
+        if not missions:
+            return await it.response.send_message(
+                "📡 *No upcoming events logged for this sector.*",
+                ephemeral=True,
+            )
+        embed = self.cog._build_upcoming_events_embed(it.guild, missions)
+        await it.response.send_message(embed=embed, ephemeral=True)
 
 # --- COG MAIN ---
 
@@ -158,6 +177,7 @@ class Events(commands.Cog):
             description=(
                 "Pick how you want me to broadcast your operation.\n"
                 "`Custom Event` opens a DM interview, `Use Template` pulls from your archive.\n"
+                "`Upcoming Events` previews the next ops list for this sector.\n"
                 "I track everything in UTC-2 (Dark War Survival)."
             ),
             color=0x2b2d31
@@ -171,22 +191,7 @@ class Events(commands.Cog):
         missions = await get_upcoming_missions(ctx.guild.id, limit=10)
         if not missions:
             return await ctx.send("📡 *No upcoming events logged for this sector.*")
-
-        embed = discord.Embed(
-            title="🛰️ Upcoming Operations (UTC-2)",
-            color=0x3498db,
-            description="I'll ping this channel when it's go-time."
-        )
-        for m in missions:
-            start_game = format_game(datetime.fromisoformat(m['target_utc']).astimezone(timezone.utc))
-            details = [f"📝 {m['description']}"]
-            if m['location']:
-                details.append(f"📍 {m['location']}")
-            embed.add_field(
-                name=f"🔹 {m['codename']}",
-                value="\n".join(details + [f"⏰ `{start_game}`"]),
-                inline=False,
-            )
+        embed = self._build_upcoming_events_embed(ctx.guild, missions)
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="event_remove", description="Delete a scheduled operation.")
@@ -237,6 +242,77 @@ class Events(commands.Cog):
             await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_target)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
+
+    async def create_template_mission_flow(self, ctx, template_name, template_desc):
+        def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
+        try:
+            await ctx.author.send(
+                f"📋 **Template Loaded:** `{template_name}`\n{template_desc}\n\n"
+                "Reply with a new codename or type `skip` to keep this name."
+            )
+            name_msg = await self.bot.wait_for('message', check=check, timeout=120)
+            name = template_name if name_msg.content.lower().strip() == "skip" else name_msg.content
+
+            await ctx.author.send("📍 **Location or voice channel?** Reply with coords/link or type `skip`.")
+            location_msg = await self.bot.wait_for('message', check=check, timeout=180)
+            location = None if location_msg.content.lower().strip() == "skip" else location_msg.content
+
+            await ctx.author.send(
+                "👥 **Ping who?** Mention a role, type `everyone`, or `none` to stay quiet."
+            )
+            ping_msg = await self.bot.wait_for('message', check=check, timeout=120)
+            ping_target = await self._resolve_ping(ctx, ping_msg.content)
+
+            await ctx.author.send(
+                "⏰ **Target Time?** `YYYY-MM-DD HH:MM` using the game clock (UTC-2)."
+            )
+            t_msg = await self.bot.wait_for('message', check=check, timeout=180)
+            await self.finalize_mission(ctx, name, template_desc, t_msg.content, location, ping_target)
+        except asyncio.TimeoutError:
+            await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
+
+    async def use_template_callback(self, interaction, template_name, ctx):
+        templates = await get_templates(ctx.guild.id)
+        selected = next(
+            (template for template in templates if template["template_name"] == template_name),
+            None,
+        )
+        if not selected:
+            return await self.bot._safe_interaction_reply(
+                interaction,
+                content="❌ Template not found. Try again from `/event`.",
+                ephemeral=True,
+            )
+
+        await self.bot._safe_interaction_reply(
+            interaction,
+            content="📡 Template loaded. Check your DMs to schedule the time.",
+            ephemeral=True,
+        )
+        await self.create_template_mission_flow(
+            ctx,
+            selected["template_name"],
+            selected["description"],
+        )
+
+    def _build_upcoming_events_embed(self, guild, missions):
+        embed = discord.Embed(
+            title="🛰️ Upcoming Operations (UTC-2)",
+            color=0x3498db,
+            description="I'll ping this channel when it's go-time.",
+        )
+        for m in missions:
+            start_game = format_game(datetime.fromisoformat(m['target_utc']).astimezone(timezone.utc))
+            details = [f"📝 {m['description']}"]
+            if m['location']:
+                details.append(f"📍 {m['location']}")
+            embed.add_field(
+                name=f"🔹 {m['codename']}",
+                value="\n".join(details + [f"⏰ `{start_game}`"]),
+                inline=False,
+            )
+        embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
+        return embed
 
     async def finalize_mission(self, ctx, name, desc, t_str, location, ping_target):
         try:
