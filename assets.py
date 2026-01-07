@@ -6,7 +6,7 @@ FEATURES: Contains all lore text, drone names, randomized quotes,
           PUBLIC READY: Expanded to 15+ variations per category.
 """
 
-MARICA_LORE = """
+MARCIA_LORE = """
 Marcia grew up in the underbelly of the Old Net—a ghost in the wires who bled corporations for
 credits and vanished into encrypted alleys. She never meant to become a guardian, but when the
 world cracked and the satellites fell silent, her drones were the last lights moving through the
@@ -66,7 +66,7 @@ FISH_NAMES = {
     ],
 }
 
-MARICA_QUOTES = [
+MARCIA_QUOTES = [
     "You looking for a handout? I only steal from people richer than you.",
     "Careful. Sparky says you're standing too close to the hardware.",
     "I'm busy making the local zombies dance. What do you want?",
@@ -107,7 +107,7 @@ MARICA_QUOTES = [
     "My safety briefings have a 0% fun rating and a 100% survival rating.",
     "Everything in this sector runs on sarcasm and spare parts. Keep up.",
     "I'm the firewall between you and the wasteland. Try not to leak.",
-    "Marica, version three: more grit, fewer apologies. Adjust your expectations.",
+    "Marcia, version three: more grit, fewer apologies. Adjust your expectations.",
     "If you see Sparky circling, that's not a greeting—that's target tracking.",
     "I learned diplomacy from breaking encryption. Either way, the lock opens.",
     "You want mercy? Earn it. You want mentorship? Bring coffee.",
@@ -120,7 +120,7 @@ MARICA_QUOTES = [
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
-MARICA_TRAITS = [
+MARCIA_TRAITS = [
     "Shadow Weaver of the Old Net, now a reluctant guardian of survivor hubs.",
     "Commands a roaming drone squadron: Sparky scouts, Ghost-Link disrupts, Vulture-7 rescues.",
     "Believes in earned freedom and ruthless mercy—kind to allies, sharp to tyrants.",
@@ -131,13 +131,13 @@ MARICA_TRAITS = [
     "Uses humor as armor and drones as punctuation for the truth.",
 ]
 
-MARICA_SLOGANS = [
+MARCIA_SLOGANS = [
     "Trust the drones. Question everyone else.",
     "Freedom first. Paperwork never.",
     "If you hear humming, you're already on my radar.",
     "I don't do miracles. I do maintenance and mayhem.",
     "Dark nights, bright uplinks.",
-    "Tyrants crash; Marica debugs.",
+    "Tyrants crash; Marcia debugs.",
     "Less talk, more signal.",
     "Hope is a system; I keep it patched.",
 ]
@@ -147,7 +147,7 @@ PROFILE_TAGLINES = [
     "Vaultwatch active. Your stats sit in my encrypted ledger.",
     "Signal verified. I keep the uplink steady so you can keep fighting.",
     "Another survivor logged. Try not to make me regret the bandwidth.",
-    "Filed under Marica's vault: sharp, reliable, and worth the ammo.",
+    "Filed under Marcia's vault: sharp, reliable, and worth the ammo.",
     "Your dossier hums on my screen. Stay lethal, stay free.",
     "Profile cached. My drones now know your good side and your bad angles.",
     "Everything you do leaves a signal. I just made yours official.",
@@ -164,7 +164,7 @@ PROFILE_SEALS = [
     "[DRONE CHECK] Sparky logged your pulse and your swagger.",
     "[BUNKER CODE] Clearance granted; bring honor to the grid.",
     "[FIELD NOTE] Survivors with steady stats get priority airlift.",
-    "[UPLINK MARK] Frequency bound to Marica's watchlist—earn the slot.",
+    "[UPLINK MARK] Frequency bound to Marcia's watchlist—earn the slot.",
     "[ARCHIVE ID] Metrics stacked. Next step: make the raiders jealous.",
     "[RELAY TAG] Numbers stable. Don't let them decay.",
     "[SIGIL] This profile glows with anti-tyrant energy.",
@@ -172,7 +172,7 @@ PROFILE_SEALS = [
 ]
 
 # Story fragments for broadcasts, flavor embeds, and profile cards
-MARICA_BROADCASTS = [
+MARCIA_BROADCASTS = [
     "Sparky Report 014: We recovered a busted relay and turned it into a beacon. Raiders now follow it into a minefield.",
     "Echo Log 223: The old metro tunnels still carry Wi‑Fi ghosts. I ride the static to find trapped civilians.",
     "Drone Chant: 'We see the night; we own the dark.' My crew hums it when they dive into blackout sectors.",
@@ -328,7 +328,7 @@ TIMED_REMINDERS = {
 INTEL_DATABASE = {
     "verify": "Proceed to your local verification terminal and complete your bio-scan.",
     "rules": "Protocol is simple: Respect the crew, follow the chain, and don't touch my drones.",
-    "marica": "I'm the hacker who keeps this place running while you're all sleeping.",
+    "marcia": "I'm the hacker who keeps this place running while you're all sleeping.",
     "drones": "Sparky and his friends. They're smarter than you and they don't ask stupid questions.",
     "scavenge": "Use the `/scavenge` command. If you're lucky, my drones will find you something better than dirt.",
     "safety": "Stay inside the walls. Outside is for people who want to become zombie food.",
@@ -400,7 +400,7 @@ SCAVENGE_FIELD_REPORTS = [
 # Prestige title for collectors who secure every scavenged item once per sector
 PRESTIGE_ROLE = "Vaultwalker"
 
-MARICA_STATUSES = [
+MARCIA_STATUSES = [
     "Recalibrating Drones...",
     "Checking Heat Maps...",
     "Watching the Grid.",

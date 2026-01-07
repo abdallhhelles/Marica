@@ -1,14 +1,14 @@
-# Marica Test Server Playbook (Server ID: 1454704176662843525)
+# Marcia Test Server Playbook (Server ID: 1454704176662843525)
 
-This playbook organizes the Marica testing hub and supplies in-character copy you can paste directly into new channels. Use it to recreate the community if the guild is wiped or when onboarding new testers.
+This playbook organizes the Marcia testing hub and supplies in-character copy you can paste directly into new channels. Use it to recreate the community if the guild is wiped or when onboarding new testers.
 
 ## Core Categories & Channels
 - **[Category] Control Tower**
   - `#readme` — Single source of truth for rules, verification, and quick start.
-  - `#changelog` — Ship notes for every deploy. Keep only Marica/staff posts.
+  - `#changelog` — Ship notes for every deploy. Keep only Marcia/staff posts.
   - `#announcements` — Major milestones, maintenance notices, and beta calls.
   - `#mod-log` — Private; pipe moderation actions and transcripts here.
-  - `#about` — Overview of Marica OS, its purpose, and what testers should expect.
+  - `#about` — Overview of Marcia OS, its purpose, and what testers should expect.
 - **[Category] Operations (UTC-2)**
   - `#events` — Quiet channel for `/event` reminders (60/30/15/3/0) and schedules.
   - `#ops-planning` — Player chatter for raid/defense prep.
@@ -27,21 +27,21 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 - **[Category] General**
   - `#welcome` — Auto welcomes + verification reminders.
   - `#lounge` — Free chat for testers.
-  - `#showcase` — Screenshots and clips of Marica in action.
+  - `#showcase` — Screenshots and clips of Marcia in action.
   - `#intel` — `/intel` answers, FAQs, guides.
   - `#usage-guide` — Step-by-step setup and usage flow for new testers.
 
 ## Roles
-- `Control` — Admins; ensure Marica sits above this for permission checks.
+- `Control` — Admins; ensure Marcia sits above this for permission checks.
 - `Ops Crew` — Pings for live operations; use in `/event` role prompt.
 - `Traders` — Opt-in for Fish-Link updates.
 - `QA` — Testers allowed to run `/setup audit` and report findings.
 - `Vaultwalkers` — Awarded manually when someone finishes the scavenging catalog.
 
-## Starter Channel Copy (Marica’s Voice)
+## Starter Channel Copy (Marcia’s Voice)
 
 ### #readme (pin this)
-> **Marica:** "Welcome to the test grid. I don’t babysit — I calibrate."
+> **Marcia:** "Welcome to the test grid. I don’t babysit — I calibrate."
 >
 > **Setup:** Run `/setup` to link `events`, `welcome`, `verify`, `rules`, and auto-role. Data is siloed per guild in `data/marcia_os.db`. Use `/setup audit` after perms change.
 > 
@@ -56,7 +56,7 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 > **Conduct:** No spam in events/level-up channels. Keep repro steps clear in QA threads. Freedom is expensive — don’t waste my time for free.
 
 ### #about
-> **Marica:** "I’m the ops spine for your raids, trades, and ranks."
+> **Marcia:** "I’m the ops spine for your raids, trades, and ranks."
 >
 > **What I do:**
 > - Automate ops reminders on UTC-2 with `/event`.
@@ -70,9 +70,9 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 > - Stress the buttons in `#load-tests` before major pushes.
 
 ### #usage-guide
-> **Goal:** Get Marica online in under 5 minutes.
+> **Goal:** Get Marcia online in under 5 minutes.
 >
-> **1) Permissions:** Invite with message content + Manage Roles. Place Marica’s role above auto-roles.
+> **1) Permissions:** Invite with message content + Manage Roles. Place Marcia’s role above auto-roles.
 >
 > **2) Core setup:** Run `/setup` and map: `events`, `welcome`, `verify`, `rules`, auto-role. Confirm in `/setup audit`.
 >
@@ -92,10 +92,10 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 > - QA: e.g., "Telemetry now shows command counts per guild."
 
 ### #announcements
-> **Marica:** "Broadcasting to all sectors. New firmware pushed — check `/features` then go break it."
+> **Marcia:** "Broadcasting to all sectors. New firmware pushed — check `/features` then go break it."
 
 ### #events
-> Keep this channel read-only for everyone except Marica. All `/event` reminders land here with drone call-signs. Pin the current week’s schedule.
+> Keep this channel read-only for everyone except Marcia. All `/event` reminders land here with drone call-signs. Pin the current week’s schedule.
 
 ### #fish-link
 > Run `/setup_trade` once. Pin the terminal. Remind traders: "Add Spare" for extras, "Find Fish" for wants, "My Listings" to clean, "Who Has My Wanted?" to check matches.
@@ -104,7 +104,7 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 > **Format:** What happened, expected behavior, exact command, screenshot/log, timestamp (UTC-2). Include message link if translation/reaction related.
 
 ### #feature-requests
-> **Marica:** "Pitch the upgrade. If it saves time or ammo, I’ll consider it."
+> **Marcia:** "Pitch the upgrade. If it saves time or ammo, I’ll consider it."
 > - Use bullets, not essays. Include intended user flow and channel targets.
 
 ### #load-tests
@@ -114,15 +114,15 @@ This playbook organizes the Marica testing hub and supplies in-character copy yo
 > Collect emoji flags that fail to trigger translations, edge-case languages, or layout issues. Include source message links.
 
 ### #welcome
-> Configure `/setup` to point here. Marica’s joins remind newcomers to read `#readme`, verify, and grab `Traders`/`Ops Crew` opt-in roles.
+> Configure `/setup` to point here. Marcia’s joins remind newcomers to read `#readme`, verify, and grab `Traders`/`Ops Crew` opt-in roles.
 
 ### #intel
 > Seed with `/intel rules`, `/intel events`, `/intel trading`, and `/intel ranks` to keep testers aligned.
 
 ## Operational Checklist
-- Invite Marica with message content + manage role permissions enabled.
+- Invite Marcia with message content + manage role permissions enabled.
 - Run `/setup` to link channels and auto-role; verify stored paths in `data/marcia_os.db`.
-- Place Marica’s role above `Control` and auto-roles so she can assign ranks.
+- Place Marcia’s role above `Control` and auto-roles so she can assign ranks.
 - After restarts, confirm Fish-Link re-anchors in `#fish-link` and that `/status` shows green.
 - Use `/analytics` to review command volume and drop-off. Share screenshots in `#changelog`.
 

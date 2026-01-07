@@ -14,7 +14,7 @@ from discord.errors import HTTPException
 from discord.ext import commands
 import httpx
 
-from assets import INTEL_DATABASE, MARICA_LORE, MARICA_SLOGANS, MARICA_TRAITS
+from assets import INTEL_DATABASE, MARCIA_LORE, MARCIA_SLOGANS, MARCIA_TRAITS
 from database import (
     get_settings,
     guild_analytics_snapshot,
@@ -170,9 +170,9 @@ class Utility(commands.Cog):
             description="Shadow Weaver, drone wrangler, and sarcastic guardian of refugees.",
             color=0x5865F2,
         )
-        embed.add_field(name="Lore (signal tap)", value="\n".join(MARICA_LORE.strip().split("\n")[:4]), inline=False)
-        embed.add_field(name="Traits", value="\n".join(f"• {t}" for t in MARICA_TRAITS), inline=False)
-        embed.add_field(name="Slogans", value="\n".join(f"“{s}”" for s in MARICA_SLOGANS), inline=False)
+        embed.add_field(name="Lore (signal tap)", value="\n".join(MARCIA_LORE.strip().split("\n")[:4]), inline=False)
+        embed.add_field(name="Traits", value="\n".join(f"• {t}" for t in MARCIA_TRAITS), inline=False)
+        embed.add_field(name="Slogans", value="\n".join(f"“{s}”" for s in MARCIA_SLOGANS), inline=False)
         embed.set_footer(text=f"Sector: {scope} | Data never leaves your guild")
         return embed
 

@@ -1,4 +1,4 @@
-# 📂 MARICA OS v3.0 | Helles Hub Tactical Bot
+# 📂 MARCIA OS v3.0 | Helles Hub Tactical Bot
 
 ![Status](https://img.shields.io/badge/Status-Online-brightgreen)
 ![Library](https://img.shields.io/badge/Library-Discord.py-blue)
@@ -6,7 +6,7 @@
 
 > *"Freedom is expensive. Don't waste my time for free."* — **Marcia**
 
-Marica is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
+Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
@@ -117,6 +117,6 @@ TOKEN=your_discord_bot_token_here
 ---
 
 ## Outreach blurb
-Use this when someone asks what Marica is or how to try her:
+Use this when someone asks what Marcia is or how to try her:
 
-> Hey! I play **Dark War Survival** and built Marica to make life easier for my alliance—translations, ops reminders, trading, and more. She's updated daily with new in-game helpers. Invite her: https://discord.com/oauth2/authorize?client_id=1428179195938476204. Join the beta/test hub: https://discord.gg/ePhRntSzB. Check `/commands`, `/features`, or `/showcase` for a quick tour, and run `/setup` right after inviting. I'm open to ideas and feedback!
+> Hey! I play **Dark War Survival** and built Marcia to make life easier for my alliance—translations, ops reminders, trading, and more. She's updated daily with new in-game helpers. Invite her: https://discord.com/oauth2/authorize?client_id=1428179195938476204. Join the beta/test hub: https://discord.gg/ePhRntSzB. Check `/commands`, `/features`, or `/showcase` for a quick tour, and run `/setup` right after inviting. I'm open to ideas and feedback!

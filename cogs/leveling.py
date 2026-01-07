@@ -20,7 +20,7 @@ from assets import (
     SCAVENGE_MISHAPS,
     SCAVENGE_OUTCOMES,
     DRONE_NAMES,
-    MARICA_QUOTES,
+    MARCIA_QUOTES,
     PRESTIGE_ROLE,
 )
 from database import (
@@ -172,7 +172,7 @@ class Leveling(commands.Cog):
                     title="🎊 LEVEL SYNCHRONIZED",
                     description=(
                         f"{message.author.mention}, your bio-signature has evolved to **Level {new_lvl}**.\n"
-                        f"{random.choice(MARICA_QUOTES)}"
+                        f"{random.choice(MARCIA_QUOTES)}"
                     ),
                     color=0x2ecc71
                 )
@@ -313,7 +313,7 @@ class Leveling(commands.Cog):
             await update_user_xp(ctx.guild.id, ctx.author.id, total_xp)
             await update_scavenge_time(ctx.guild.id, ctx.author.id)
 
-            description_lines = [f"_{mishap_reason}_", "", field_report, "", random.choice(MARICA_QUOTES)]
+            description_lines = [f"_{mishap_reason}_", "", field_report, "", random.choice(MARCIA_QUOTES)]
             embed = discord.Embed(
                 title=f"🚫 {drone_name.upper()} RETURNED EMPTY",
                 description="\n".join(description_lines),
@@ -352,7 +352,7 @@ class Leveling(commands.Cog):
 
         # Build richer scavenge report
         color_choices = [RARITY_COLORS.get(rarity, 0x2b2d31)]
-        description_lines = [f"_{flavor}_", "", field_report, random.choice(MARICA_QUOTES)]
+        description_lines = [f"_{flavor}_", "", field_report, random.choice(MARCIA_QUOTES)]
         if recent_run:
             description_lines.insert(1, "⚡ Momentum maintained — drones pushed harder on this route.")
         if bonus_outcome:
@@ -432,7 +432,7 @@ class Leveling(commands.Cog):
             title="🤝 Trade Logged",
             description=(
                 f"{ctx.author.mention} sent **{quantity}x {item_name}** to {member.mention}.\n"
-                f"{random.choice(MARICA_QUOTES)}"
+                f"{random.choice(MARCIA_QUOTES)}"
             ),
             color=0x3498db,
         )
