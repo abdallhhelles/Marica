@@ -10,7 +10,7 @@ import random
 import discord
 from discord.ext import commands
 
-from assets import MARICA_QUOTES
+from assets import MARCIA_QUOTES
 from database import (
     add_reminder_template,
     delete_reminder_template,
@@ -69,7 +69,7 @@ class Reminders(commands.Cog):
             names = ", ".join(t['template_name'] for t in templates) or "none"
             return await ctx.send(f"❌ Template not found. Available: {names}")
 
-        quote = random.choice(MARICA_QUOTES)
+        quote = random.choice(MARCIA_QUOTES)
         await ctx.send(f"📡 **Reminder:** {match['template_name']}\n{match['body']}\n\n{quote}")
 
     @remind.command(name="send", description="Broadcast a saved reminder template.")
@@ -103,7 +103,7 @@ class Reminders(commands.Cog):
             await ctx.send("🚫 That channel is muted for Marcia. Pick another sector.")
             return
 
-        quote = random.choice(MARICA_QUOTES)
+        quote = random.choice(MARCIA_QUOTES)
 
         async def _post():
             await channel.send(f"📡 **Reminder:** {body}\n\n{quote}")

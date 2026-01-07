@@ -1,6 +1,6 @@
 """
 FILE: cogs/devhub.py
-PURPOSE: Maintain the Marica Devs server with stats and patch-note broadcasts.
+PURPOSE: Maintain the Marcia Devs server with stats and patch-note broadcasts.
 """
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ from patch_notes import PatchNotesStore
 
 DEV_GUILD_ID = 1455313963507257486
 TEST_GUILD_ID = 1454704176662843525
-INFO_CHANNEL_NAME = "marica-info"
-PATCH_NOTES_CHANNEL_NAME = "marica-patch-notes"
+INFO_CHANNEL_NAME = "marcia-info"
+PATCH_NOTES_CHANNEL_NAME = "marcia-patch-notes"
 EXTRA_CHANNELS = [
-    ("ops-requests", "Routing for tasks Marica should handle next."),
-    ("ideas-lab", "Brainstorming and design discussions for new Marica features."),
+    ("ops-requests", "Routing for tasks Marcia should handle next."),
+    ("ideas-lab", "Brainstorming and design discussions for new Marcia features."),
     ("bug-reports", "Log regressions or issues found during testing."),
 ]
 TEST_LAYOUT = [
@@ -57,8 +57,8 @@ TEST_LAYOUT = [
                 },
             ),
             (
-                "marica-stats",
-                "Live Marica stats and quick tips.",
+                "marcia-stats",
+                "Live Marcia stats and quick tips.",
                 {
                     "marker": "seed:stats:v1-min",
                     "content": textwrap.dedent(
@@ -91,7 +91,7 @@ TEST_LAYOUT = [
                 "Rank milestones and lightweight XP tips.",
                 {
                     "marker": "seed:level-up:v1-min",
-                    "content": "Marica posts rank-ups here. Keep it noise-free; drop congratulations with emojis only.",
+                    "content": "Marcia posts rank-ups here. Keep it noise-free; drop congratulations with emojis only.",
                 },
             ),
         ],
@@ -130,7 +130,7 @@ TEST_LAYOUT = [
         "Lounge",
         [
             ("lounge", "Low-noise chat for testers and devs.", None),
-            ("showcase", "Clips and screenshots of Marica in action.", None),
+            ("showcase", "Clips and screenshots of Marcia in action.", None),
         ],
     ),
 ]
@@ -140,7 +140,7 @@ logger = logging.getLogger("MarciaOS.DevHub")
 
 
 class DevServerManager(commands.Cog):
-    """Orchestrate housekeeping for the Marica Devs hub."""
+    """Orchestrate housekeeping for the Marcia Devs hub."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -177,12 +177,12 @@ class DevServerManager(commands.Cog):
         await self._get_or_create_channel(
             guild,
             INFO_CHANNEL_NAME,
-            topic="Live Marica stats across all servers.",
+            topic="Live Marcia stats across all servers.",
         )
         await self._get_or_create_channel(
             guild,
             PATCH_NOTES_CHANNEL_NAME,
-            topic="Autopublished Marica patch notes.",
+            topic="Autopublished Marcia patch notes.",
         )
 
         for name, topic in EXTRA_CHANNELS:
@@ -214,12 +214,12 @@ class DevServerManager(commands.Cog):
         if existing:
             if topic and existing.topic != topic:
                 try:
-                    await existing.edit(topic=topic, reason="Align Marica Devs channel topic")
+                    await existing.edit(topic=topic, reason="Align Marcia Devs channel topic")
                 except discord.Forbidden:
                     logger.warning("Missing permissions to edit topic for %s", name)
             if category and existing.category != category:
                 try:
-                    await existing.edit(category=category, reason="Align Marica Devs channel category")
+                    await existing.edit(category=category, reason="Align Marcia Devs channel category")
                 except discord.Forbidden:
                     logger.warning("Missing permissions to move channel %s", name)
             return existing
@@ -304,7 +304,7 @@ class DevServerManager(commands.Cog):
 
     async def _publish_info_panel(self, guild: discord.Guild) -> None:
         channel = await self._get_or_create_channel(
-            guild, INFO_CHANNEL_NAME, topic="Live Marica stats across all servers."
+            guild, INFO_CHANNEL_NAME, topic="Live Marcia stats across all servers."
         )
         if not channel:
             return
@@ -320,9 +320,9 @@ class DevServerManager(commands.Cog):
         command_total, top_command, top_uses = await command_usage_totals()
 
         embed = discord.Embed(
-            title="📊 Marica Ops Board",
+            title="📊 Marcia Ops Board",
             description=(
-                "Live pulse of Marica across every connected server. This panel refreshes automatically."
+                "Live pulse of Marcia across every connected server. This panel refreshes automatically."
             ),
             color=0x5865F2,
             timestamp=now,
@@ -338,7 +338,7 @@ class DevServerManager(commands.Cog):
                 inline=False,
             )
         embed.add_field(name="Commands Logged", value=str(command_total), inline=False)
-        embed.set_footer(text="Marica Devs | Auto-maintained")
+        embed.set_footer(text="Marcia Devs | Auto-maintained")
         return embed
 
     async def _upsert_bot_embed(self, channel: discord.TextChannel, embed: discord.Embed) -> None:
@@ -357,7 +357,7 @@ class DevServerManager(commands.Cog):
 
     async def _post_patch_notes(self, guild: discord.Guild) -> None:
         channel = await self._get_or_create_channel(
-            guild, PATCH_NOTES_CHANNEL_NAME, topic="Autopublished Marica patch notes."
+            guild, PATCH_NOTES_CHANNEL_NAME, topic="Autopublished Marcia patch notes."
         )
         if not channel:
             return

@@ -1,4 +1,4 @@
-# Marica command primer
+# Marcia command primer
 
 Concise guidance for the commands operators use most. Times use the in-game clock (UTC-2) unless noted.
 
@@ -6,7 +6,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Launch the wizard:** `/event`
 - **Create a new event:** select **Custom Event** and answer the DM prompts.
   - **Ping target:** type `everyone` to @everyone, mention a role, or type `none` for silent alerts (the selection is shown on the preview card).
-  - **Time format:** `YYYY-MM-DD HH:MM` in game time (UTC-2). Marica converts to UTC for scheduling.
+  - **Time format:** `YYYY-MM-DD HH:MM` in game time (UTC-2). Marcia converts to UTC for scheduling.
 - **Use a saved template:** choose **Use Template** when running `/event`.
 - **Remove an event:** `/event_remove <codename>`
 - **List upcoming events:** `/events`
@@ -19,12 +19,12 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 ## Scavenge & progression
 - **Run a scavenge:** `/scavenge` (1-hour cooldown per user).
 - **Momentum bonus:** running again within 90 minutes grants bonus XP.
-- **Cooldown messaging:** Marica reports remaining time in minutes/seconds when you need to wait.
+- **Cooldown messaging:** Marcia reports remaining time in minutes/seconds when you need to wait.
 - **View profile:** `/profile [@member]` for level/xp, cooldown state, and stash summary.
 - **Trade loot:** `/trade_item @member <quantity> <item name>` moves scavenged items between survivors.
 
 ## Profile screenshot scanner
-- **Set the intake channel:** `/setup_profile_channel #channel` scopes where Marica watches for profile screenshots.
+- **Set the intake channel:** `/setup_profile_channel #channel` scopes where Marcia watches for profile screenshots.
 - **Auto-capture stats:** screenshots in that channel log CP, kills, server, and alliance to the uploader.
 - **Review scans:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor with VIP, likes, and a self-view check.
 - **Compare stats:** `/leaderboard` opens a menu for XP plus CP/kills/likes/VIP from scanned profiles, with row counts (10/25/50/100) and an export-to-DM option for spreadsheet copy/paste.

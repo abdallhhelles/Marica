@@ -9,7 +9,7 @@ import asyncio
 import random
 import logging
 from datetime import datetime, timezone, timedelta
-from assets import TIMED_REMINDERS, DRONE_NAMES, MARICA_STATUSES, MARICA_QUOTES
+from assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_QUOTES
 from time_utils import now_game, game_to_utc, format_game, utc_to_game
 from database import (
     add_mission,
@@ -43,8 +43,8 @@ DUEL_DATA = {
 }
 
 
-def _marica_quip():
-    return random.choice(MARICA_QUOTES)
+def _marcia_quip():
+    return random.choice(MARCIA_QUOTES)
 
 # --- UI COMPONENTS ---
 
@@ -146,7 +146,7 @@ class Events(commands.Cog):
 
     @tasks.loop(minutes=30)
     async def cycle_status(self):
-        try: await self.bot.change_presence(activity=discord.Game(name=random.choice(MARICA_STATUSES)))
+        try: await self.bot.change_presence(activity=discord.Game(name=random.choice(MARCIA_STATUSES)))
         except: pass
 
     @commands.hybrid_command(name="event", description="Open Marcia's mission control console.")
@@ -204,7 +204,7 @@ class Events(commands.Cog):
             await ctx.author.send("📝 **Directives?** Drop the briefing text.")
             desc = (await self.bot.wait_for('message', check=check, timeout=300)).content
             await add_template(ctx.guild.id, title, desc)
-            await ctx.author.send(f"✅ Protocol `{title}` archived. {_marica_quip()}")
+            await ctx.author.send(f"✅ Protocol `{title}` archived. {_marcia_quip()}")
         except: await ctx.author.send("❌ Timeout.")
 
     async def create_mission_flow(self, ctx):
@@ -262,7 +262,7 @@ class Events(commands.Cog):
             )
 
             preview = self._build_event_embed(ctx.guild, name, desc, utc_dt, location, ping_role_id)
-            await ctx.author.send(f"✅ Mission `{name}` locked. {_marica_quip()}", embed=preview)
+            await ctx.author.send(f"✅ Mission `{name}` locked. {_marcia_quip()}", embed=preview)
 
             settings = await get_settings(ctx.guild.id)
             if settings and settings['event_channel_id']:
@@ -308,7 +308,7 @@ class Events(commands.Cog):
             location_line = f"\n📍 {location}" if location else ""
             title, body = random.choice(TIMED_REMINDERS.get(mins, [("📡 **ALERT:**", "`{name}` is coming up.")]))
             body = body.format(name=name, drone=drone)
-            quote = random.choice(MARICA_QUOTES)
+            quote = random.choice(MARCIA_QUOTES)
 
             if mins == 60:
                 msg = (

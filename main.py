@@ -31,7 +31,7 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from assets import MARICA_QUOTES
+from assets import MARCIA_QUOTES
 from bug_logging import log_command_exception
 from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
@@ -181,7 +181,7 @@ class MarciaBot(commands.Bot):
         if is_bot_mentioned or is_reply:
             async with message.channel.typing():
                 await asyncio.sleep(1)
-                await message.reply(random.choice(MARICA_QUOTES))
+                await message.reply(random.choice(MARCIA_QUOTES))
 
         # 2. Process Commands
         await self.process_commands(message)

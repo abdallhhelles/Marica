@@ -7,7 +7,7 @@ import asyncio
 import random
 import discord
 from discord.ext import commands
-from assets import MARICA_QUOTES
+from assets import MARCIA_QUOTES
 from database import (
     add_ignored_channel,
     get_ignored_channels,
@@ -17,9 +17,9 @@ from database import (
 )
 
 
-def _marica_line(prefix: str | None = None) -> str:
-    """Injects a lore-friendly line to keep Marica in character."""
-    quote = random.choice(MARICA_QUOTES)
+def _marcia_line(prefix: str | None = None) -> str:
+    """Injects a lore-friendly line to keep Marcia in character."""
+    quote = random.choice(MARCIA_QUOTES)
     return f"{prefix + ' ' if prefix else ''}{quote}"
 
 
@@ -277,7 +277,7 @@ class Settings(commands.Cog):
                 "I'll tune your channels and auto-role. Answer quickly or I'll time out."
             )
             await user.send(intro)
-            await user.send(_marica_line("While you think, remember:"))
+            await user.send(_marcia_line("While you think, remember:"))
 
             questions = [
                 ("event_channel_id", "Which channel receives mission pings? Mention it or paste an ID."),
@@ -291,7 +291,7 @@ class Settings(commands.Cog):
                 await user.send(f"💬 {prompt} (type `skip` to leave unchanged)")
                 msg = await self.bot.wait_for("message", check=check, timeout=180)
                 if msg.content.lower().strip() == "skip":
-                    await user.send(_marica_line("Skipping. Your call."))
+                    await user.send(_marcia_line("Skipping. Your call."))
                     continue
                 channel = _channel_from_message(msg, guild)
                 if channel:
@@ -310,7 +310,7 @@ class Settings(commands.Cog):
                 else:
                     await user.send("❌ Couldn't find that role. Use `/setup role @role` later.")
             else:
-                await user.send(_marica_line("Leaving auto-role untouched."))
+                await user.send(_marcia_line("Leaving auto-role untouched."))
 
             await update_setting(guild.id, "server_offset_hours", -2, guild.name)
             await user.send("🕒 Clock set to **UTC-2** (game time). I'll ignore local clocks.")
