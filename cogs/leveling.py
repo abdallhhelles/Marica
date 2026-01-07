@@ -213,12 +213,6 @@ class Leveling(commands.Cog):
             )
 
         member = member or ctx.author
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            try:
-                await ctx.defer()
-            except Exception:
-                pass
-
         data = await get_user_stats(ctx.guild.id, member.id)
 
         lvl = data['level'] if data else 1
