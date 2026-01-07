@@ -183,6 +183,13 @@ class MarciaBot(commands.Bot):
                 await asyncio.sleep(1)
                 await message.reply(random.choice(MARCIA_QUOTES))
 
+        # Avoid double-firing hybrid commands when slash commands also emit a
+        # visible message in chat.
+        if message.content.startswith("/"):
+            command_name = message.content[1:].split()[0]
+            if self.tree.get_command(command_name):
+                return
+
         # 2. Process Commands
         await self.process_commands(message)
 

@@ -389,6 +389,12 @@ class ProfileScanner(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
+        if getattr(message, "interaction", None):
+            return
+
+        if message.type is not discord.MessageType.default:
+            return
+
         # Ignore messages that are already being handled as bot commands to avoid
         # double-processing an uploaded screenshot (e.g., when invoking the hybrid
         # command with an attachment).
