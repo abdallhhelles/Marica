@@ -130,7 +130,7 @@ class BroadcastDMModal(discord.ui.Modal, title="Owner update DM"):
             label="Message body",
             placeholder="Short status update for every guild owner",
             style=discord.TextStyle.long,
-            max_length=500,
+            max_length=2000,
         )
         self.add_item(self.message)
 
@@ -219,34 +219,94 @@ class AkrottControl(commands.Cog):
 
     async def _build_xp_leaderboard(self) -> discord.Embed:
         embed = discord.Embed(title=f"{NUMBER_EMOJIS[0]} XP Leaderboard", color=0x5865F2)
+        per_server_limit = 3
+        server_field_limit = 6
+
+        def format_activity(ts: float) -> str:
+            if ts:
+                return f"<t:{int(ts)}:R>"
+            return "Never"
+
+        def format_entry(
+            rank: int,
+            row: aiosqlite.Row,
+            guild_name: str,
+            include_guild: bool = True,
+        ) -> str:
+            user = self.bot.get_user(row["user_id"])
+            user_display = user.mention if user else f"<@{row['user_id']}>"
+            msg_ts = format_activity(row["last_msg_ts"])
+            scav_ts = format_activity(row["last_scavenge_ts"])
+            base = f"{rank}. {user_display} — XP {row['xp']} | L{row['level']} | Msg {msg_ts} | Scav {scav_ts}"
+            return f"{base} ({guild_name})" if include_guild else base
+
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 """
-                SELECT guild_id, user_id, xp, level
+                SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts
                 FROM user_stats
                 ORDER BY xp DESC
                 LIMIT 5
                 """
             ) as cursor:
-                rows = await cursor.fetchall()
+                global_rows = await cursor.fetchall()
+            async with db.execute(
+                """
+                SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts
+                FROM user_stats
+                ORDER BY guild_id, xp DESC
+                """
+            ) as cursor:
+                server_rows = await cursor.fetchall()
 
-        if not rows:
+        if not global_rows:
             embed.description = "No XP data recorded yet."
             return embed
 
-        lines = []
-        for idx, row in enumerate(rows, start=1):
+        lines = ["**Global Leaderboard**"]
+        for idx, row in enumerate(global_rows, start=1):
             guild = self.bot.get_guild(row["guild_id"])
             guild_name = guild.name if guild else f"Guild {row['guild_id']}"
-            user = self.bot.get_user(row["user_id"])
-            user_display = user.mention if user else f"<@{row['user_id']}>"
-            lines.append(
-                f"{idx}. {user_display} — {row['xp']} XP | L{row['level']} ({guild_name})"
-            )
+            lines.append(format_entry(idx, row, guild_name))
 
         embed.description = "\n".join(lines)
-        embed.set_footer(text="Across all connected servers")
+
+        server_groups: dict[int, list[aiosqlite.Row]] = {}
+        for row in server_rows:
+            server_groups.setdefault(row["guild_id"], []).append(row)
+
+        sorted_servers = sorted(
+            server_groups.items(),
+            key=lambda item: (
+                (self.bot.get_guild(item[0]).name.lower() if self.bot.get_guild(item[0]) else ""),
+                item[0],
+            ),
+        )
+
+        for guild_id, rows in sorted_servers[:server_field_limit]:
+            guild = self.bot.get_guild(guild_id)
+            guild_name = guild.name if guild else f"Guild {guild_id}"
+            server_lines = []
+            for idx, row in enumerate(rows[:per_server_limit], start=1):
+                server_lines.append(format_entry(idx, row, guild_name, include_guild=False))
+            embed.add_field(
+                name=f"{guild_name} — Server Leaderboard",
+                value="\n".join(server_lines),
+                inline=False,
+            )
+
+        if len(sorted_servers) > server_field_limit:
+            embed.set_footer(
+                text=(
+                    f"Showing top {per_server_limit} per server for "
+                    f"{server_field_limit} of {len(sorted_servers)} servers"
+                )
+            )
+        else:
+            embed.set_footer(
+                text=f"Showing top {per_server_limit} per server across {len(sorted_servers)} servers"
+            )
         return embed
 
     async def _build_global_stats(self) -> discord.Embed:
@@ -432,7 +492,7 @@ class AkrottControl(commands.Cog):
                     continue
 
             try:
-                await owner.send(f"📡 Marcia OS Update for **{guild.name}**\n\n{content}")
+                await owner.send(content)
                 sent += 1
             except Exception:
                 failed += 1
