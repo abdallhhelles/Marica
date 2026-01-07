@@ -279,6 +279,13 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
     async def profile(self, ctx, member: discord.Member = None):
         """Displays user level, XP, inventory, and scanned stats."""
+        if ctx.interaction:
+            print(
+                "PROFILE HIT",
+                ctx.interaction.id,
+                ctx.interaction.user.id,
+                ctx.interaction.command.name,
+            )
         await self._send_profile_overview(ctx, member)
 
     @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
