@@ -233,7 +233,7 @@ class Leveling(commands.Cog):
         embed = discord.Embed(
             title=f"📇 Sector dossier | {member.display_name}",
             description=(
-                "Progression, stash, and OCR vitals in one view. Keep this handy before "
+                "Progression, stash, and profile scan vitals in one view. Keep this handy before "
                 "you deploy or trade."
             ),
             color=0x3498db,
@@ -270,7 +270,7 @@ class Leveling(commands.Cog):
             if snapshot.get("last_image_url"):
                 ingame.append(f"🖼️ [Latest scan]({snapshot['last_image_url']})")
             embed.add_field(
-                name="In-game Profile (OCR)", value="\n".join(ingame), inline=False
+                name="In-game Profile Scan", value="\n".join(ingame), inline=False
             )
 
             if snapshot.get("last_updated"):
@@ -279,7 +279,7 @@ class Leveling(commands.Cog):
         else:
             embed.add_field(
                 name="Profile Scan",
-                value="No OCR stats stored yet. Run `/scan_profile` to capture your card.",
+                value="No profile scan stats stored yet. Run `/scan_profile` to capture your card.",
                 inline=False,
             )
 
@@ -288,13 +288,6 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
     async def profile(self, ctx, member: discord.Member = None):
         """Displays user level, XP, inventory, and scanned stats."""
-        if ctx.interaction:
-            print(
-                "PROFILE HIT",
-                ctx.interaction.id,
-                ctx.interaction.user.id,
-                ctx.interaction.command.name,
-            )
         await self._send_profile_overview(ctx, member)
 
     @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
@@ -555,7 +548,7 @@ class Leveling(commands.Cog):
 
         embed = discord.Embed(
             title=f"{emoji} {stat_label} Leaderboard",
-            description="OCR-driven stats from the latest profile scans in this sector.",
+            description="Profile scan stats from the latest profile scans in this sector.",
             color=0xf1c40f,
         )
         lines = []
@@ -631,7 +624,7 @@ class Leveling(commands.Cog):
         buffer.seek(0)
         return buffer, filename, note
 
-    @commands.hybrid_command(description="Browse XP and OCR leaderboards from one menu.")
+    @commands.hybrid_command(description="Browse XP and profile scan leaderboards from one menu.")
     async def leaderboard(self, ctx):
         if not ctx.guild:
             return await self._safe_send(
@@ -749,7 +742,7 @@ class LeaderboardSelect(discord.ui.Select):
         for stat, (label, emoji) in PROFILE_STAT_LABELS.items():
             options.append(
                 discord.SelectOption(
-                    label=f"{label} (OCR)",
+                    label=f"{label} (Profile Scan)",
                     description=f"Profile scans ranked by {label.lower()}",
                     value=stat,
                     emoji=emoji,

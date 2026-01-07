@@ -42,7 +42,7 @@ class Missions(commands.Cog):
     async def mission_help(self, ctx):
         """Information and tips on using the Mission System."""
         await ctx.send(
-            "📡 Mission system has been folded into `/event`. Use `/event` to create ops or `/events` to list them."
+            "📡 Mission system has been folded into `/event`. Use `/event` to create ops or view the upcoming list."
         )
 
     @commands.command()
