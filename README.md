@@ -11,7 +11,7 @@
 Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
 **Quick feature overview (automated + commands):**
-* **Automated:** XP leveling on message activity, scheduled event reminders, scavenging drops, auto-matching trade requests, and profile scan snapshot caching.
+* **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
 * **Command-driven:** `/event` scheduling + upcoming ops, `/trade_item` exchanges, `/leaderboard` views and exports, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
@@ -31,8 +31,8 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 * **Inventory tools:** Add extras, discover needs, and clear listings quickly.
 
 ### Survivor progression & scavenging
-* **Endless XP tiers:** Message-based XP (60s cooldown) that auto-creates “Sector Rank” roles every 5 levels.
-* **Prestige collections:** Hourly scavenging drops Common → Mythic loot; completing the set grants **Vaultwalker**.
+* **Endless XP tiers:** Message-based XP (60s cooldown) that auto-creates “Uplink Tier” roles every 5 levels.
+* **Prestige collections:** Hourly scavenging runs feature zone hazard pay, streak + overclock bonuses, milestone XP, and Common → Mythic loot; completing the set grants **Vaultwalker**.
 * **Loot economy:** `/trade_item` lets squadmates exchange scavenged items.
 
 ### Commander protocols (events)

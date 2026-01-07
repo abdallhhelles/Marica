@@ -281,6 +281,7 @@ async def init_db():
                 level INTEGER DEFAULT 1,
                 last_msg_ts REAL DEFAULT 0,
                 last_scavenge_ts REAL DEFAULT 0,
+                scavenge_streak INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             )
         ''')
@@ -358,6 +359,13 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
+
+        async with db.execute("PRAGMA table_info(user_stats)") as cursor:
+            existing_columns = {row[1] async for row in cursor}
+        if "scavenge_streak" not in existing_columns:
+            await db.execute(
+                "ALTER TABLE user_stats ADD COLUMN scavenge_streak INTEGER DEFAULT 0"
+            )
         await db.execute("CREATE INDEX IF NOT EXISTS idx_metrics_guild ON activity_metrics(guild_id)")
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mission_prompt_guild ON mission_dm_prompts(guild_id)"
@@ -900,7 +908,7 @@ async def get_user_stats(guild_id: int, user_id: int):
         await db.commit()
         async with db.execute(
             """
-            SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts
+            SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts, scavenge_streak
             FROM user_stats
             WHERE guild_id = ? AND user_id = ?
             """,
@@ -1030,17 +1038,27 @@ async def transfer_inventory(guild_id: int, sender: int, receiver: int, item_nam
     return True
 
 
-async def update_scavenge_time(guild_id: int, user_id: int):
+async def update_scavenge_time(guild_id: int, user_id: int, streak: int | None = None):
     async with aiosqlite.connect(DB_PATH) as db:
         await _ensure_user(db, guild_id, user_id)
-        await db.execute(
-            """
-            UPDATE user_stats
-            SET last_scavenge_ts = ?
-            WHERE guild_id = ? AND user_id = ?
-            """,
-            (datetime.now(GAME_TZ).timestamp(), guild_id, user_id),
-        )
+        if streak is None:
+            await db.execute(
+                """
+                UPDATE user_stats
+                SET last_scavenge_ts = ?
+                WHERE guild_id = ? AND user_id = ?
+                """,
+                (datetime.now(GAME_TZ).timestamp(), guild_id, user_id),
+            )
+        else:
+            await db.execute(
+                """
+                UPDATE user_stats
+                SET last_scavenge_ts = ?, scavenge_streak = ?
+                WHERE guild_id = ? AND user_id = ?
+                """,
+                (datetime.now(GAME_TZ).timestamp(), streak, guild_id, user_id),
+            )
         await db.commit()
 
 
