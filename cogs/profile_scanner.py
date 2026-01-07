@@ -211,7 +211,7 @@ class ProfileScanner(commands.Cog):
         cached_path = self._persist_profile_image(
             ctx.guild.id, ctx.author.id, image_bytes, image.filename
         )
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+        parsed, raw_text, ocr_note = await self._perform_ocr(
             image_bytes, filename=image.filename, persisted_path=cached_path
         )
         payload = self._build_payload(
@@ -227,7 +227,7 @@ class ProfileScanner(commands.Cog):
             )
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
-        embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
+        embed = self._build_confirmation_embed(payload, ocr_note)
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
@@ -421,7 +421,7 @@ class ProfileScanner(commands.Cog):
         cached_path = self._persist_profile_image(
             message.guild.id, message.author.id, image_bytes, attachment.filename
         )
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
+        parsed, raw_text, ocr_note = await self._perform_ocr(
             image_bytes, filename=attachment.filename, persisted_path=cached_path
         )
         payload = self._build_payload(
@@ -438,7 +438,7 @@ class ProfileScanner(commands.Cog):
             return
 
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
-        await self._post_confirmation(message, payload, ocr_note, debug_note)
+        await self._post_confirmation(message, payload, ocr_note)
 
     async def _perform_ocr(
         self,
@@ -446,11 +446,10 @@ class ProfileScanner(commands.Cog):
         *,
         filename: str | None = None,
         persisted_path: Path | None = None,
-    ) -> tuple[dict, str, str | None, str | None]:
+    ) -> tuple[dict, str, str | None]:
         parsed: dict[str, str | int | None] = {}
         raw_text = ""
         ocr_note: str | None = None
-        debug_note: str | None = None
 
         async with self._scan_semaphore:
             temp_path = persisted_path or self._stash_temp_image(image_bytes, filename)
@@ -492,15 +491,14 @@ class ProfileScanner(commands.Cog):
                     except Exception:  # pragma: no cover - best-effort cleanup
                         self.log.debug("Temp profile image cleanup failed for %s", temp_path)
 
-        debug_note = self._compose_debug_note(parsed, raw_text, ocr_note)
         self.log.info(
             "Profile OCR summary | fields=%s | raw_lines=%s | note=%s",
             {k: v for k, v in parsed.items() if v is not None},
             self._raw_line_count(raw_text),
-            debug_note,
+            ocr_note,
         )
 
-        return parsed, raw_text, ocr_note, debug_note
+        return parsed, raw_text, ocr_note
 
     async def _run_ocr_space(
         self, image_bytes: bytes, filename: str | None = None
@@ -780,9 +778,8 @@ class ProfileScanner(commands.Cog):
         message: discord.Message,
         payload: dict,
         ocr_note: str | None,
-        debug_note: str | None,
     ) -> None:
-        embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
+        embed = self._build_confirmation_embed(payload, ocr_note)
 
         try:
             await message.reply(embed=embed, mention_author=False)
@@ -790,7 +787,7 @@ class ProfileScanner(commands.Cog):
             self.log.exception("Failed to reply with profile confirmation")
 
     def _build_confirmation_embed(
-        self, payload: dict, ocr_note: str | None = None, debug_note: str | None = None
+        self, payload: dict, ocr_note: str | None = None
     ) -> discord.Embed:
         embed = discord.Embed(
             title="🛰️ Profile logged",
@@ -814,9 +811,6 @@ class ProfileScanner(commands.Cog):
         embed.add_field(name="In-game Profile", value="\n".join(ingame), inline=False)
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
-        if debug_note:
-            embed.add_field(name="Debug", value=debug_note, inline=False)
-
         if not payload.get("raw_ocr"):
             footer = ocr_note or (
                 "OCR unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
@@ -824,60 +818,6 @@ class ProfileScanner(commands.Cog):
             )
             embed.set_footer(text=footer)
         return embed
-
-    def _compose_debug_note(
-        self, parsed: dict[str, str | int | None], raw_text: str, ocr_note: str | None
-    ) -> str | None:
-        """Return a short debug string to help understand why fields may be blank."""
-
-        parsed_fields = [
-            name for name, value in parsed.items() if value not in (None, "") and value is not False
-        ]
-        if parsed_fields:
-            field_list = ", ".join(parsed_fields)
-            raw_hint = f"raw lines={self._raw_line_count(raw_text)}"
-            return self._truncate_debug(f"Captured fields: {field_list} ({raw_hint}).")
-
-        notes: list[str] = []
-
-        if ocr_note:
-            self._append_unique(notes, ocr_note)
-
-        if raw_text:
-            preview = raw_text.replace("\n", " | ")
-            self._append_unique(notes, f"OCR text seen but no fields matched: {preview}")
-        else:
-            self._append_unique(notes, "OCR returned no text for this image.")
-
-        if self._easyocr_ready is False:
-            easyocr_hint = (
-                self._easyocr_failure_reason
-                or "EasyOCR unavailable or templates missing."
-            )
-            self._append_unique(notes, easyocr_hint)
-        elif self._easyocr_ready and not parsed_fields:
-            self._append_unique(
-                "EasyOCR ran but bounding boxes may not match this screenshot style."
-            )
-
-        if self._pytesseract_missing:
-            self._append_unique(notes, "Install the Tesseract binary so pytesseract can run.")
-
-        # Surface setup instructions directly on the confirmation embed so server owners
-        # know how to enable OCR when dependencies are missing.
-        diag = collect_ocr_diagnostics()
-        for tip in diag.install_tips:
-            self._append_unique(notes, tip)
-
-        if notes:
-            self._append_unique(notes, "Run `/ocr_status` for a full setup checklist.")
-
-        combined = "\n".join(f"• {note}" for note in notes)
-        return self._truncate_debug(combined)
-
-    @staticmethod
-    def _truncate_debug(text: str, limit: int = 950) -> str:
-        return text if len(text) <= limit else text[: limit - 3] + "..."
 
     @staticmethod
     def _append_unique(notes: list[str], text: str) -> None:
@@ -892,4 +832,3 @@ class ProfileScanner(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(ProfileScanner(bot))
-
