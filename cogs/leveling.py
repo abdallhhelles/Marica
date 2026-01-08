@@ -34,6 +34,7 @@ from database import (
     increment_activity_metric,
     is_channel_ignored,
     top_profile_stat,
+    top_global_profile_stat,
     top_global_xp,
     top_xp_leaderboard,
     transfer_inventory,
@@ -88,6 +89,11 @@ PROFILE_STAT_LABELS = {
     "kills": ("Kills", "☠️"),
     "likes": ("Likes", "👍"),
     "vip_level": ("VIP Level", "🎖️"),
+    "level": ("Profile Level", "⭐"),
+}
+LEADERBOARD_METRICS = {
+    "xp": ("XP", "🏆"),
+    **PROFILE_STAT_LABELS,
 }
 
 class Leveling(commands.Cog):
@@ -595,7 +601,11 @@ class Leveling(commands.Cog):
         await self.check_collector_prestige(member)
 
     async def _build_leaderboard_embed(
-        self, guild: discord.Guild | None, selection: str, limit: int = 10
+        self,
+        guild: discord.Guild | None,
+        scope: str,
+        metric: str,
+        limit: int = 10,
     ) -> discord.Embed:
         """Generate a leaderboard embed for the requested data slice."""
 
@@ -606,7 +616,7 @@ class Leveling(commands.Cog):
                 color=0xe67e22,
             )
 
-        if selection == "local_xp":
+        if metric == "xp" and scope != "global":
             rows = await top_xp_leaderboard(guild.id, limit)
             if not rows:
                 return discord.Embed(
@@ -633,7 +643,7 @@ class Leveling(commands.Cog):
             )
             return embed
 
-        if selection == "global_xp":
+        if metric == "xp" and scope == "global":
             rows = await top_global_xp(limit)
             if not rows:
                 return discord.Embed(
@@ -666,8 +676,38 @@ class Leveling(commands.Cog):
             )
             return embed
 
-        stat_label, emoji = PROFILE_STAT_LABELS.get(selection, (selection.title(), "📈"))
-        rows = await top_profile_stat(guild.id, selection, limit)
+        stat_label, emoji = PROFILE_STAT_LABELS.get(metric, (metric.title(), "📈"))
+        if scope == "global":
+            rows = await top_global_profile_stat(metric, limit)
+            if not rows:
+                return discord.Embed(
+                    title=f"{emoji} {stat_label} Leaderboard",
+                    description="No scanned profiles yet. Run `/scan_profile` and try again.",
+                    color=0xf1c40f,
+                )
+
+            embed = discord.Embed(
+                title=f"{emoji} {stat_label} Leaderboard",
+                description="Profile scan stats from across the entire network.",
+                color=0xf1c40f,
+            )
+            lines = []
+            for idx, row in enumerate(rows, start=1):
+                source_guild = self.bot.get_guild(row["guild_id"])
+                guild_name = source_guild.name if source_guild else f"Guild {row['guild_id']}"
+                user = self.bot.get_user(row["user_id"])
+                user_display = user.mention if user else f"<@{row['user_id']}>"
+                name = row["player_name"] or user_display
+                lines.append(
+                    f"**{idx}.** {name} — {self._format_metric(row['value'])} ({guild_name})"
+                )
+            embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+            embed.set_footer(
+                text=f"Showing top {len(rows)} survivors. Scan profiles to keep network stats fresh."
+            )
+            return embed
+
+        rows = await top_profile_stat(guild.id, metric, limit)
         if not rows:
             return discord.Embed(
                 title=f"{emoji} {stat_label} Leaderboard",
@@ -692,7 +732,11 @@ class Leveling(commands.Cog):
         return embed
 
     async def _export_leaderboard_data(
-        self, guild: discord.Guild | None, selection: str, limit: int
+        self,
+        guild: discord.Guild | None,
+        scope: str,
+        metric: str,
+        limit: int,
     ) -> tuple[io.StringIO, str, str] | None:
         if not guild:
             return None
@@ -702,7 +746,7 @@ class Leveling(commands.Cog):
         filename: str
         note: str
 
-        if selection == "local_xp":
+        if metric == "xp" and scope != "global":
             rows = await top_xp_leaderboard(guild.id, limit)
             if not rows:
                 return None
@@ -714,7 +758,7 @@ class Leveling(commands.Cog):
                 member = guild.get_member(row["user_id"])
                 name = member.display_name if member else f"User {row['user_id']}"
                 lines.append("\t".join(map(str, [idx, name, row["level"], row["xp"]])))
-        elif selection == "global_xp":
+        elif metric == "xp" and scope == "global":
             rows = await top_global_xp(limit)
             if not rows:
                 return None
@@ -735,13 +779,31 @@ class Leveling(commands.Cog):
                         )
                     )
                 )
+        elif scope == "global":
+            stat_label, _ = PROFILE_STAT_LABELS.get(metric, (metric.title(), ""))
+            rows = await top_global_profile_stat(metric, limit)
+            if not rows:
+                return None
+            headers = ["Rank", "User", stat_label, "Guild"]
+            filename = f"leaderboard_global_{metric}.tsv"
+            note = f"Global {stat_label} leaderboard (top {len(rows)})."
+            lines = ["\t".join(headers)]
+            for idx, row in enumerate(rows, start=1):
+                source_guild = self.bot.get_guild(row["guild_id"])
+                guild_name = source_guild.name if source_guild else f"Guild {row['guild_id']}"
+                user = self.bot.get_user(row["user_id"])
+                user_display = user.name if user else f"User {row['user_id']}"
+                name = row["player_name"] or user_display
+                lines.append(
+                    "\t".join(map(str, [idx, name, row["value"], guild_name]))
+                )
         else:
-            stat_label, _ = PROFILE_STAT_LABELS.get(selection, (selection.title(), ""))
-            rows = await top_profile_stat(guild.id, selection, limit)
+            stat_label, _ = PROFILE_STAT_LABELS.get(metric, (metric.title(), ""))
+            rows = await top_profile_stat(guild.id, metric, limit)
             if not rows:
                 return None
             headers = ["Rank", "User", stat_label]
-            filename = f"leaderboard_{selection}_{guild.id}.tsv"
+            filename = f"leaderboard_{metric}_{guild.id}.tsv"
             note = f"{stat_label} leaderboard (top {len(rows)})."
             lines = ["\t".join(headers)]
             for idx, row in enumerate(rows, start=1):
@@ -763,9 +825,9 @@ class Leveling(commands.Cog):
             )
 
         view = LeaderboardView(
-            self, ctx.guild, requester_id=ctx.author.id, selection="local_xp"
+            self, ctx.guild, requester_id=ctx.author.id, scope="local", metric="xp"
         )
-        embed = await self._build_leaderboard_embed(ctx.guild, "local_xp", view.limit)
+        embed = await self._build_leaderboard_embed(ctx.guild, "local", "xp", view.limit)
         message = await self._safe_send(ctx, embed=embed, view=view)
         if isinstance(message, discord.Message):
             view.bind_message(message)
@@ -773,9 +835,9 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="global_leaderboard", description="See the top survivors across every linked server.")
     async def global_leaderboard(self, ctx):
         view = LeaderboardView(
-            self, ctx.guild, requester_id=ctx.author.id, selection="global_xp"
+            self, ctx.guild, requester_id=ctx.author.id, scope="global", metric="xp"
         )
-        embed = await self._build_leaderboard_embed(ctx.guild, "global_xp", view.limit)
+        embed = await self._build_leaderboard_embed(ctx.guild, "global", "xp", view.limit)
         message = await self._safe_send(ctx, embed=embed, view=view)
         if isinstance(message, discord.Message):
             view.bind_message(message)
@@ -862,32 +924,25 @@ class Leveling(commands.Cog):
             except discord.Forbidden:
                 pass
 
-class LeaderboardSelect(discord.ui.Select):
+class LeaderboardScopeSelect(discord.ui.Select):
     def __init__(self, parent_view: "LeaderboardView"):
         self.parent_view = parent_view
         options = [
             discord.SelectOption(
-                label="Sector XP", description="Top survivors in this server", value="local_xp", emoji="🏆"
+                label="Sector (Server)", description="Rankings inside this server", value="local", emoji="🏠"
             ),
             discord.SelectOption(
-                label="Network XP", description="Top survivors across linked servers", value="global_xp", emoji="🌐"
+                label="Network (Global)",
+                description="Rankings across linked servers",
+                value="global",
+                emoji="🌐",
             ),
         ]
 
-        for stat, (label, emoji) in PROFILE_STAT_LABELS.items():
-            options.append(
-                discord.SelectOption(
-                    label=f"{label} (Profile Scan)",
-                    description=f"Profile scans ranked by {label.lower()}",
-                    value=stat,
-                    emoji=emoji,
-                )
-            )
-
         for option in options:
-            option.default = option.value == parent_view.selection
+            option.default = option.value == parent_view.scope
         super().__init__(
-            placeholder="Pick a leaderboard to view",
+            placeholder="Pick a scope",
             options=options,
             min_values=1,
             max_values=1,
@@ -899,7 +954,46 @@ class LeaderboardSelect(discord.ui.Select):
                 "Only the original requester can change this menu.", ephemeral=True
             )
 
-        self.parent_view.selection = self.values[0]
+        self.parent_view.scope = self.values[0]
+        for option in self.options:
+            option.default = option.value == self.values[0]
+        await self.parent_view.refresh(interaction)
+
+
+class LeaderboardMetricSelect(discord.ui.Select):
+    def __init__(self, parent_view: "LeaderboardView"):
+        self.parent_view = parent_view
+        options = []
+        for metric, (label, emoji) in LEADERBOARD_METRICS.items():
+            if metric == "xp":
+                description = "Activity-based XP rankings"
+            else:
+                description = f"Profile scans ranked by {label.lower()}"
+            options.append(
+                discord.SelectOption(
+                    label=label,
+                    description=description,
+                    value=metric,
+                    emoji=emoji,
+                )
+            )
+
+        for option in options:
+            option.default = option.value == parent_view.metric
+        super().__init__(
+            placeholder="Pick a stat",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.parent_view.requester_id:
+            return await interaction.response.send_message(
+                "Only the original requester can change this menu.", ephemeral=True
+            )
+
+        self.parent_view.metric = self.values[0]
         for option in self.options:
             option.default = option.value == self.values[0]
         await self.parent_view.refresh(interaction)
@@ -940,7 +1034,10 @@ class ExportLeaderboardButton(discord.ui.Button):
             )
 
         export = await self.parent_view.cog._export_leaderboard_data(
-            self.parent_view.guild, self.parent_view.selection, self.parent_view.limit
+            self.parent_view.guild,
+            self.parent_view.scope,
+            self.parent_view.metric,
+            self.parent_view.limit,
         )
         if not export:
             return await interaction.response.send_message(
@@ -970,17 +1067,20 @@ class LeaderboardView(discord.ui.View):
         guild: discord.Guild,
         requester_id: int,
         *,
-        selection: str,
+        scope: str,
+        metric: str,
         limit: int = 10,
     ):
         super().__init__(timeout=180)
         self.cog = cog
         self.guild = guild
         self.requester_id = requester_id
-        self.selection = selection
+        self.scope = scope
+        self.metric = metric
         self.limit = limit if limit in LEADERBOARD_LIMITS else LEADERBOARD_LIMITS[0]
         self.message: discord.Message | None = None
-        self.add_item(LeaderboardSelect(self))
+        self.add_item(LeaderboardScopeSelect(self))
+        self.add_item(LeaderboardMetricSelect(self))
         self.add_item(LeaderboardLimitSelect(self))
         self.add_item(ExportLeaderboardButton(self))
 
@@ -989,7 +1089,7 @@ class LeaderboardView(discord.ui.View):
 
     async def refresh(self, interaction: discord.Interaction | None = None):
         embed = await self.cog._build_leaderboard_embed(
-            self.guild, self.selection, self.limit
+            self.guild, self.scope, self.metric, self.limit
         )
         if interaction:
             await interaction.response.edit_message(embed=embed, view=self)
