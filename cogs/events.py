@@ -43,30 +43,214 @@ DUEL_DATA = {
     6: "**SUNDAY – Day 7: Preparation**\n\nDirectives: Prepare gatherers for Monday reset. Restock speedups."
 }
 
+KILL_EVENT_SHIELD_REMINDERS = {
+    0: "🛰️ Midnight sweep. The kill event just lit up, so drop that **24h shield** if you can.",
+    6: "☀️ Dawn check-in. If your shield is shorter, set alarms to refresh it before it fizzles.",
+    12: "🧭 Midday scan. Keep shields up and remind your squad—no free hits on my watch.",
+    18: "🌆 Dusk patrol. If you're on timers, renew now before the evening rush.",
+    22: "🌙 Late op window. Last stretch—top off protection and keep loved ones safe.",
+}
+
 
 def _marcia_quip():
     return random.choice(MARCIA_QUOTES)
 
 # --- UI COMPONENTS ---
 
+def _template_summary(template: dict) -> str:
+    summary = template.get("description", "")
+    if not summary:
+        return "No briefing saved."
+    return summary[:90] + ("…" if len(summary) > 90 else "")
+
+
+def _build_template_preview_embed(template_name: str, template_desc: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="📋 Mission Template Preview",
+        color=0x5865f2,
+    )
+    embed.add_field(name="Codename", value=template_name, inline=False)
+    embed.add_field(name="Briefing", value=template_desc or "No briefing saved.", inline=False)
+    embed.set_footer(text="Confirm or edit before scheduling this operation.")
+    return embed
+
+
 class TemplateSelect(discord.ui.Select):
-    def __init__(self, templates, callback_func, ctx, placeholder="Select a template...", mode="use"):
+    def __init__(self, templates, preview_callback, placeholder="Select a template..."):
         options = [
             discord.SelectOption(
                 label=t["template_name"],
-                emoji="📋" if mode == "use" else "🗑️",
+                description=_template_summary(t),
+                emoji="📋",
             )
             for t in templates[:24]
         ]
         options.append(discord.SelectOption(label="Cancel", emoji="❌"))
         super().__init__(placeholder=placeholder, options=options)
-        self.callback_func = callback_func
-        self.ctx = ctx
+        self.preview_callback = preview_callback
 
     async def callback(self, interaction: discord.Interaction):
         if self.values[0] == "Cancel":
-            return await interaction.response.edit_message(content="📡 Directive cancelled.", view=None, embed=None)
-        await self.callback_func(interaction, self.values[0], self.ctx)
+            return await interaction.response.edit_message(
+                content="📡 Directive cancelled.",
+                view=None,
+                embed=None,
+            )
+        await self.preview_callback(interaction, self.values[0])
+
+
+class TemplateEditModal(discord.ui.Modal, title="Edit Template Before Sending"):
+    def __init__(self, template_name: str, template_desc: str, on_submit_callback):
+        super().__init__()
+        self.template_name = discord.ui.TextInput(
+            label="Template Codename",
+            default=template_name,
+            max_length=100,
+        )
+        self.template_desc = discord.ui.TextInput(
+            label="Briefing",
+            style=discord.TextStyle.paragraph,
+            default=template_desc,
+            max_length=1500,
+        )
+        self.add_item(self.template_name)
+        self.add_item(self.template_desc)
+        self.on_submit_callback = on_submit_callback
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.on_submit_callback(
+            interaction,
+            self.template_name.value.strip(),
+            self.template_desc.value.strip(),
+        )
+
+
+class TemplatePreviewView(discord.ui.View):
+    def __init__(
+        self,
+        cog,
+        ctx,
+        template_name: str,
+        template_desc: str,
+        message_id: int | None = None,
+    ):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.ctx = ctx
+        self.template_name = template_name
+        self.template_desc = template_desc
+        self.message_id = message_id
+
+    async def _refresh_preview(self, interaction: discord.Interaction):
+        embed = _build_template_preview_embed(self.template_name, self.template_desc)
+        await interaction.response.edit_message(
+            content="Review the template below before scheduling.",
+            embed=embed,
+            view=self,
+        )
+
+    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="✅")
+    async def use_template(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.use_template_callback(
+            interaction,
+            self.template_name,
+            self.ctx,
+            template_desc_override=self.template_desc,
+        )
+
+    @discord.ui.button(label="Edit Before Sending", style=discord.ButtonStyle.primary, emoji="✏️")
+    async def edit_template(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = TemplateEditModal(
+            self.template_name,
+            self.template_desc,
+            self._handle_edit_submit,
+        )
+        await interaction.response.send_modal(modal)
+
+    async def _handle_edit_submit(
+        self,
+        interaction: discord.Interaction,
+        template_name: str,
+        template_desc: str,
+    ):
+        self.template_name = template_name or self.template_name
+        self.template_desc = template_desc
+        await interaction.response.defer()
+        embed = _build_template_preview_embed(self.template_name, self.template_desc)
+        if self.message_id is not None:
+            await interaction.followup.edit_message(
+                message_id=self.message_id,
+                content="Review the template below before scheduling.",
+                embed=embed,
+                view=self,
+            )
+        else:
+            await interaction.followup.send(
+                content="Review the template below before scheduling.",
+                embed=embed,
+                view=self,
+                ephemeral=True,
+            )
+
+    @discord.ui.button(label="Back to Templates", style=discord.ButtonStyle.secondary, emoji="↩️")
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        templates = await get_templates(interaction.guild.id)
+        if not templates:
+            return await interaction.response.edit_message(
+                content="❌ Archive is empty.",
+                view=None,
+                embed=None,
+            )
+        view = TemplateMenuView(self.cog, self.ctx, templates)
+        await interaction.response.edit_message(
+            content="**Select a mission preset to preview:**",
+            embed=None,
+            view=view,
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="🛑")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="📡 Directive cancelled.",
+            view=None,
+            embed=None,
+        )
+
+
+class TemplateMenuView(discord.ui.View):
+    def __init__(self, cog, ctx, templates: list[dict]):
+        super().__init__(timeout=90)
+        self.cog = cog
+        self.ctx = ctx
+        self.templates = templates
+        self.add_item(TemplateSelect(templates, self._preview_template))
+
+    async def _preview_template(self, interaction: discord.Interaction, template_name: str):
+        selected = next(
+            (template for template in self.templates if template["template_name"] == template_name),
+            None,
+        )
+        if not selected:
+            return await interaction.response.edit_message(
+                content="❌ Template not found. Try again from `/event`.",
+                view=None,
+                embed=None,
+            )
+        preview = _build_template_preview_embed(
+            selected["template_name"],
+            selected["description"],
+        )
+        await interaction.response.edit_message(
+            content="Review the template below before scheduling.",
+            embed=preview,
+            view=TemplatePreviewView(
+                self.cog,
+                self.ctx,
+                selected["template_name"],
+                selected["description"],
+                message_id=interaction.message.id if interaction.message else None,
+            ),
+        )
 
 class EventMenuView(discord.ui.View):
     def __init__(self, cog, ctx):
@@ -102,9 +286,12 @@ class EventMenuView(discord.ui.View):
             return
         tps = await get_templates(it.guild.id)
         if not tps: return await it.response.send_message("❌ Archive is empty.", ephemeral=True)
-        view = discord.ui.View()
-        view.add_item(TemplateSelect(tps, self.cog.use_template_callback, self.ctx))
-        await it.response.edit_message(content="**Select a mission preset:**", view=view, embed=None)
+        view = TemplateMenuView(self.cog, self.ctx, tps)
+        await it.response.edit_message(
+            content="**Select a mission preset to preview:**",
+            view=view,
+            embed=None,
+        )
 
     @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾")
     async def create_template_btn(self, it, btn):
@@ -191,6 +378,24 @@ class Events(commands.Cog):
                         info = DUEL_DATA.get(now_server.weekday(), "No data.")
                         await chan.send(
                             f"@everyone\n📡 **MARCIA OS | DUEL DIRECTIVE**\n\n{info}",
+                            allowed_mentions=discord.AllowedMentions(everyone=True),
+                        )
+                        await mark_task_complete(task_id, date_str=date_key)
+            if now_server.weekday() == 5 and now_server.hour in KILL_EVENT_SHIELD_REMINDERS:
+                date_key = now_server.strftime("%Y-%m-%d")
+                task_id = f"duel_shield_{guild.id}_{now_server.hour}"
+                if await can_run_daily_task(task_id, date_str=date_key):
+                    chan = guild.get_channel(settings['event_channel_id'])
+                    if chan and not await is_channel_ignored(guild.id, chan.id):
+                        hours_left = max(0, 24 - now_server.hour)
+                        reminder_line = KILL_EVENT_SHIELD_REMINDERS[now_server.hour]
+                        await chan.send(
+                            "@everyone\n"
+                            "🛡️ **KILL EVENT SHIELD CHECK**\n\n"
+                            f"{reminder_line}\n"
+                            f"⏳ **{hours_left}h** left in the kill event.\n"
+                            "If you can't do 24h, set alarms to renew before it ends.\n"
+                            "Marcia's watching the timers—remind your loved ones too. 💙",
                             allowed_mentions=discord.AllowedMentions(everyone=True),
                         )
                         await mark_task_complete(task_id, date_str=date_key)
@@ -305,7 +510,13 @@ class Events(commands.Cog):
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
-    async def use_template_callback(self, interaction, template_name, ctx):
+    async def use_template_callback(
+        self,
+        interaction,
+        template_name,
+        ctx,
+        template_desc_override: str | None = None,
+    ):
         templates = await get_templates(ctx.guild.id)
         selected = next(
             (template for template in templates if template["template_name"] == template_name),
@@ -326,7 +537,7 @@ class Events(commands.Cog):
         await self.create_template_mission_flow(
             ctx,
             selected["template_name"],
-            selected["description"],
+            template_desc_override if template_desc_override is not None else selected["description"],
         )
 
     def _build_upcoming_events_embed(self, guild, missions):
