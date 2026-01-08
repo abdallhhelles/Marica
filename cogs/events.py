@@ -57,8 +57,8 @@ def _marcia_quip():
 
 # --- UI COMPONENTS ---
 
-def _template_summary(template: dict) -> str:
-    summary = template.get("description", "")
+def _template_summary(template) -> str:
+    summary = template["description"] if "description" in template.keys() else ""
     if not summary:
         return "No briefing saved."
     return summary[:90] + ("…" if len(summary) > 90 else "")
