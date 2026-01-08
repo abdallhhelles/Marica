@@ -46,6 +46,28 @@ XP_PER_MESSAGE = 12
 BASE_XP = 120
 ROLE_STEP = 5
 ROLE_PREFIX = "Uplink Tier"
+ROLE_TITLES = [
+    "Scrap Initiate",
+    "Dustline Runner",
+    "Signal Scout",
+    "Relay Warden",
+    "Grid Operative",
+    "Outlands Ranger",
+    "Salvage Marshal",
+    "Blacksite Courier",
+    "Echo Pathfinder",
+    "Iron Vanguard",
+    "Ghostline Tracker",
+    "Rift Enforcer",
+    "Nullwatch Captain",
+    "Apex Cartographer",
+    "Vaultbreaker",
+    "Stormhand Commander",
+    "Redline Sentinel",
+    "Obsidian Overseer",
+    "Skyfall Director",
+    "Uplink Sovereign",
+]
 
 RARITY_COLORS = {
     "Common": 0x95a5a6,
@@ -162,7 +184,10 @@ class Leveling(commands.Cog):
         if tier_role and tier_role not in member.roles:
             try:
                 # Remove older tier roles to keep things tidy
-                old_tiers = [r for r in member.roles if r.name.startswith(f"{ROLE_PREFIX} ")]
+                old_tiers = [
+                    r for r in member.roles
+                    if r.name in ROLE_TITLES or r.name.startswith(f"{ROLE_PREFIX} ")
+                ]
                 if old_tiers:
                     await member.remove_roles(*old_tiers, reason="Upgrading tier role")
                 await member.add_roles(tier_role, reason="Level up reward")
@@ -239,6 +264,10 @@ class Leveling(commands.Cog):
                             pass
                 await self.apply_role_rewards(message.author, new_level)
 
+    def _tier_title_for_level(self, level: int) -> str:
+        tier = max(ROLE_STEP, (level // ROLE_STEP) * ROLE_STEP)
+        return self._tier_role_name(tier)
+
     async def _send_profile_overview(self, ctx, member: discord.Member | None = None):
         """Send the combined profile view with XP and scanned stats."""
         if not ctx.guild:
@@ -261,23 +290,24 @@ class Leveling(commands.Cog):
         bar = "▰" * progress + "▱" * (10 - progress)
         pct = min(100, int((xp / next_xp_req) * 100)) if next_xp_req else 0
 
+        tier_title = self._tier_title_for_level(lvl)
         embed = discord.Embed(
-            title=f"📇 Sector dossier | {member.display_name}",
+            title=f"📇 Sector Dossier | {member.display_name}",
             description=(
-                "Progression, stash, and profile scan vitals in one view. Keep this handy before "
-                "you deploy or trade."
+                "Fast-glance ops card for progression, stash, and profile intel."
             ),
             color=0x3498db,
         )
         embed.set_thumbnail(url=member.display_avatar.url)
 
         progression = [
-            f"Level **{lvl}**",
-            f"XP: {xp:,} / {next_xp_req:,}",
+            f"**Level:** {lvl}",
+            f"**Tier:** {tier_title}",
+            f"**XP:** {xp:,} / {next_xp_req:,}",
             f"`{bar}` ({pct}%)",
         ]
         embed.add_field(
-            name="Progress", value="\n".join(progression), inline=False
+            name="Progress", value="\n".join(progression), inline=True
         )
 
         inv = await get_inventory(ctx.guild.id, member.id)
@@ -788,10 +818,16 @@ class Leveling(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ **System Breach during migration:** `{e}`")
 
+    def _tier_role_name(self, tier: int) -> str:
+        index = max(0, (tier // ROLE_STEP) - 1)
+        if index < len(ROLE_TITLES):
+            return ROLE_TITLES[index]
+        return f"{ROLE_PREFIX} {tier:03d}"
+
     async def ensure_tier_role(self, guild: discord.Guild, level: int) -> discord.Role | None:
         tier = max(ROLE_STEP, (level // ROLE_STEP) * ROLE_STEP)
         color = discord.Color(TIER_COLORS[tier % len(TIER_COLORS)])
-        role_name = f"{ROLE_PREFIX} {tier:03d}"
+        role_name = self._tier_role_name(tier)
         role = discord.utils.get(guild.roles, name=role_name)
         if role:
             return role

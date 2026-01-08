@@ -636,7 +636,7 @@ async def top_global_xp(limit: int = 10) -> list[aiosqlite.Row]:
             """
             SELECT guild_id, user_id, xp, level
             FROM user_stats
-            ORDER BY xp DESC
+            ORDER BY level DESC, xp DESC
             LIMIT ?
             """,
             (limit,),
@@ -1111,7 +1111,7 @@ async def top_xp_leaderboard(guild_id: int, limit: int = 10):
             SELECT user_id, xp, level
             FROM user_stats
             WHERE guild_id = ?
-            ORDER BY xp DESC
+            ORDER BY level DESC, xp DESC
             LIMIT ?
             """,
             (guild_id, limit),
