@@ -5,6 +5,7 @@ FEATURES: SQL-backed setup, channel linking, auto-role, and clock sync.
 """
 import asyncio
 import random
+import re
 import discord
 from discord.ext import commands
 from assets import MARCIA_QUOTES
@@ -33,6 +34,15 @@ def _channel_from_message(msg: discord.Message, guild: discord.Guild) -> discord
         pass
     lowered = msg.content.strip().lstrip('#').lower()
     return discord.utils.get(guild.text_channels, name=lowered)
+
+
+def _channels_from_message(msg: discord.Message, guild: discord.Guild) -> list[discord.TextChannel]:
+    channels = list(msg.channel_mentions)
+    for match in re.findall(r"\d{15,20}", msg.content or ""):
+        channel = guild.get_channel(int(match))
+        if channel and channel not in channels:
+            channels.append(channel)
+    return channels
 
 
 def _role_from_message(msg: discord.Message, guild: discord.Guild) -> discord.Role | None:
@@ -75,6 +85,14 @@ class SetupWizardView(discord.ui.View):
         embed = self.cog._build_help_embed()
         await self.cog._safe_interaction_reply(interaction, embed=embed, ephemeral=True)
 
+    @discord.ui.button(label="Ignore Channels", style=discord.ButtonStyle.secondary, emoji="🚫")
+    async def ignore_channels(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog._prompt_ignore_channels(interaction)
+
+    @discord.ui.button(label="Unignore Channels", style=discord.ButtonStyle.secondary, emoji="✅")
+    async def unignore_channels(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog._prompt_unignore_channels(interaction)
+
 class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -94,6 +112,67 @@ class Settings(commands.Cog):
         return await self.bot._safe_interaction_reply(interaction, **kwargs)
 
     # --- Internal helpers ---
+    async def _prompt_ignore_channels(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild:
+            return
+        await interaction.response.send_message(
+            "🚫 Drop channel mentions or IDs here to ignore. Type `cancel` to abort.",
+            ephemeral=True,
+        )
+
+        def check(msg: discord.Message):
+            return msg.author.id == interaction.user.id and msg.channel == interaction.channel
+
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=120)
+        except asyncio.TimeoutError:
+            return await self._safe_interaction_reply(
+                interaction,
+                content="⌛ Timed out. Try again from `/setup` when ready.",
+                ephemeral=True,
+            )
+
+        if msg.content.lower().strip() == "cancel":
+            return await msg.reply(_marcia_line("Abort confirmed."))
+
+        channels = _channels_from_message(msg, interaction.guild)
+        if not channels:
+            return await msg.reply("❌ Couldn't read those channels. Try again.")
+
+        for channel in channels:
+            await add_ignored_channel(interaction.guild.id, channel.id)
+        await msg.reply("✅ Added to the ignore list.")
+
+    async def _prompt_unignore_channels(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild:
+            return
+        await interaction.response.send_message(
+            "✅ Mention ignored channels to remove, or paste IDs. Type `cancel` to abort.",
+            ephemeral=True,
+        )
+
+        def check(msg: discord.Message):
+            return msg.author.id == interaction.user.id and msg.channel == interaction.channel
+
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=120)
+        except asyncio.TimeoutError:
+            return await self._safe_interaction_reply(
+                interaction,
+                content="⌛ Timed out. Try again from `/setup` when ready.",
+                ephemeral=True,
+            )
+
+        if msg.content.lower().strip() == "cancel":
+            return await msg.reply(_marcia_line("Abort confirmed."))
+
+        channels = _channels_from_message(msg, interaction.guild)
+        if not channels:
+            return await msg.reply("❌ Couldn't read those channels. Try again.")
+
+        for channel in channels:
+            await remove_ignored_channel(interaction.guild.id, channel.id)
+        await msg.reply("✅ Removed from the ignore list.")
 
     def _channel_status(self, guild: discord.Guild, channel_id: int | None) -> tuple[str, str]:
         """Return a human-friendly status string plus a short warning slug."""
@@ -153,21 +232,20 @@ class Settings(commands.Cog):
             value=(
                 "Use **Start Guided Setup** to configure channels and auto-role in this channel.\n"
                 "Run **Sector Audit** to review links and permissions.\n"
-                "Ignore/unignore channels during the guided setup."
+                "Use **Ignore Channels** or **Unignore Channels** to manage event exclusions."
             ),
             inline=False
         )
-
-        if ignored_channels:
-            readable = []
-            for cid in ignored_channels:
-                channel = ctx.guild.get_channel(cid)
-                readable.append(channel.mention if channel else f"`#deleted ({cid})`")
-            embed.add_field(
-                name="🚫 Ignored Channels",
-                value=", ".join(readable),
-                inline=False,
-            )
+        readable = []
+        for cid in ignored_channels:
+            channel = ctx.guild.get_channel(cid)
+            readable.append(channel.mention if channel else f"`#deleted ({cid})`")
+        ignored_value = ", ".join(readable) if readable else "_None configured_"
+        embed.add_field(
+            name="🚫 Ignored Channels",
+            value=ignored_value,
+            inline=False,
+        )
 
         await self._safe_send(ctx, embed=embed, view=SetupWizardView(self, ctx.channel))
 
