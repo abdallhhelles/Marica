@@ -20,18 +20,33 @@ from database import (
     delete_mission,
     get_all_active_missions,
     get_mission_opt_ins,
+    get_rsvp_counts,
     get_settings,
     get_templates,
     get_upcoming_missions,
     increment_activity_metric,
     is_channel_ignored,
     lookup_dm_prompt,
+    lookup_rsvp_prompt,
     mark_task_complete,
+    remove_rsvp_status,
+    set_rsvp_status,
     upsert_dm_prompt,
+    upsert_rsvp_prompt,
 )
 
 logger = logging.getLogger('MarciaOS.Events')
 DM_OPT_IN_EMOJI = "📬"
+RSVP_EMOJIS = {
+    "✅": "going",
+    "❔": "maybe",
+    "❌": "no",
+}
+RSVP_LABELS = {
+    "going": "✅ Going",
+    "maybe": "❔ Maybe",
+    "no": "❌ Can't",
+}
 
 DUEL_DATA = {
     0: "**MONDAY – Day 1: Research / Building / Gathering**\n\n✅ **DO:**\n• Send gatherers before reset.\n• Duel points count on Return.\n• Use gathering heroes: Musashimaru, Bob, Joe.\n📊 **SP SLOTS:** Shelter → Hero → Unit → Science → Arms.",
@@ -590,7 +605,13 @@ class Events(commands.Cog):
             if settings and settings['event_channel_id']:
                 chan = ctx.guild.get_channel(settings['event_channel_id'])
                 if chan and not await is_channel_ignored(ctx.guild.id, chan.id):
-                    await chan.send("🛰️ **New Operation Logged**", embed=preview)
+                    announcement = await chan.send("🛰️ **New Operation Logged**", embed=preview)
+                    try:
+                        for emoji in RSVP_EMOJIS:
+                            await announcement.add_reaction(emoji)
+                    except Exception:
+                        logger.warning("Could not add RSVP reactions for %s", name)
+                    await upsert_rsvp_prompt(ctx.guild.id, name, announcement.id)
         except Exception:
             await ctx.author.send("❌ Use: `YYYY-MM-DD HH:MM`.")
 
@@ -631,12 +652,19 @@ class Events(commands.Cog):
             title, body = random.choice(TIMED_REMINDERS.get(mins, [("📡 **ALERT:**", "`{name}` is coming up.")]))
             body = body.format(name=name, drone=drone)
             quote = random.choice(MARCIA_QUOTES)
+            counts = await get_rsvp_counts(guild_id, name)
+            rsvp_line = (
+                f"RSVP — {RSVP_LABELS['going']}: {counts['going']} | "
+                f"{RSVP_LABELS['maybe']}: {counts['maybe']} | "
+                f"{RSVP_LABELS['no']}: {counts['no']}"
+            )
 
             if mins == 60:
                 msg = (
                     f"{title} {quote}\n"
                     f"{body}\n\n"
                     f"{desc}{location_line}\n\n"
+                    f"{rsvp_line}\n\n"
                     f"React with {DM_OPT_IN_EMOJI} to get DM pings for the next alerts."
                     f"\n\n*Drone: {drone}*"
                 )
@@ -653,6 +681,19 @@ class Events(commands.Cog):
                     logger.warning("Could not add DM opt-in reaction for %s", name)
                 await upsert_dm_prompt(guild_id, name, sent.id)
             else:
+                msg = (
+                    f"{title} {quote}\n"
+                    f"{body}\n\n"
+                    f"{desc}{location_line}\n\n"
+                    f"{rsvp_line}\n\n"
+                    f"*Drone: {drone}*"
+                )
+                if mention:
+                    msg = f"{mention}\n" + msg
+                await chan.send(
+                    msg,
+                    allowed_mentions=allowed_mentions,
+                )
                 await self._notify_dm_opt_ins(guild_id, name, mins, desc, location)
 
         await delete_mission(guild_id, name)
@@ -703,6 +744,8 @@ class Events(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if str(payload.emoji) != DM_OPT_IN_EMOJI:
+            if str(payload.emoji) in RSVP_EMOJIS:
+                await self._handle_rsvp_reaction(payload, RSVP_EMOJIS[str(payload.emoji)])
             return
 
         if payload.user_id == getattr(self.bot.user, "id", None):
@@ -735,6 +778,34 @@ class Events(commands.Cog):
             )
         except Exception:
             logger.debug("Could not DM opt-in confirmation to %s", user.id)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        if str(payload.emoji) not in RSVP_EMOJIS:
+            return
+        await self._handle_rsvp_reaction(payload, RSVP_EMOJIS[str(payload.emoji)], removing=True)
+
+    async def _handle_rsvp_reaction(
+        self,
+        payload: discord.RawReactionActionEvent,
+        status: str,
+        removing: bool = False,
+    ) -> None:
+        if payload.user_id == getattr(self.bot.user, "id", None):
+            return
+
+        prompt = await lookup_rsvp_prompt(payload.message_id)
+        if not prompt:
+            return
+
+        guild_id, codename = prompt
+        if payload.guild_id and payload.guild_id != guild_id:
+            return
+
+        if removing:
+            await remove_rsvp_status(guild_id, codename, payload.user_id)
+        else:
+            await set_rsvp_status(guild_id, codename, payload.user_id, status)
 
     async def _resolve_ping(self, ctx, msg_content):
         text = msg_content.strip().lower()

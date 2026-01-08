@@ -14,7 +14,7 @@ By using Marcia OS you agree to these terms. Marcia is a private, owner-operated
 * **Security:** Do not attempt to access other servers’ data, reverse engineer database files, or scrape telemetry.
 
 ### 3. Data Integrity & Persistence
-* Marcia stores server-specific data (settings, XP, scavenge streaks, inventory, trade listings, command usage counts) in `data/marcia_os.db`.
+* Marcia stores server-specific data (settings, XP, scavenge streaks, inventory, trade listings, RSVP selections, command usage counts) in `data/marcia_os.db`.
 * Database migrations may run on startup to preserve historical data; do not delete or move the database while the bot is running.
 * The owner is responsible for backing up server data.
 
