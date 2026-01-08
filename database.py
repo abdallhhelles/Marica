@@ -886,6 +886,33 @@ async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
         ) as cursor:
             return await cursor.fetchall()
 
+
+async def top_global_profile_stat(column: str, limit: int = 10):
+    allowed = {
+        "cp": "cp",
+        "kills": "kills",
+        "likes": "likes",
+        "vip_level": "vip_level",
+        "level": "level",
+    }
+    target = allowed.get(column)
+    if not target:
+        return []
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f'''
+            SELECT guild_id, user_id, player_name, {target} as value
+            FROM profile_snapshots
+            WHERE {target} IS NOT NULL
+            ORDER BY {target} DESC
+            LIMIT ?
+            ''',
+            (limit,),
+        ) as cursor:
+            return await cursor.fetchall()
+
 # --- LEVELING HELPERS ---
 
 async def _ensure_user(db: aiosqlite.Connection, guild_id: int, user_id: int) -> None:
