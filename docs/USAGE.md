@@ -25,7 +25,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Manual:** `/manual` and `/features` for onboarding.
 
 ### 4) Automation & passive features
-- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes, with opt-in DM pings via 📬 at the 60-minute alert.
+- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes, with RSVP rollups (✅/❔/❌) and opt-in DM pings via 📬 at the 60-minute alert.
 - **XP leveling:** Message-based XP with cooldowns, auto-created **Uplink Tier** roles every 5 levels, and prestige unlocks when collections are complete.
 - **Trading intelligence:** Fish-Link matches spares to wants and DMs players when matches appear.
 - **Safety guardrails:** Channel ignore rules prevent reminders and automation from posting in muted rooms.
@@ -38,6 +38,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Use a saved template:** choose **Use Template** when running `/event`.
 - **Remove an event:** `/event_remove <codename>`
 - **List upcoming events:** open `/event` and tap **Upcoming Events**
+- **RSVP tracking:** on the initial event announcement, members can react with ✅/❔/❌ to share attendance; reminders include the current counts.
 - **DM opt-ins:** at the 60-minute alert, members can react with 📬 to receive later reminders by DM.
 
 ### Event safeguards

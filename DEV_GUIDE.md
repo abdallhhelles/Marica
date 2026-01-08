@@ -13,7 +13,7 @@ This document covers how the bot is organized, how to run it locally, and how au
 - `cogs/`: feature cogs. Key ones:
   - `devhub.py`: server housekeeping, patch note broadcast, test guild layout.
   - `assets.py`: embeds, views, and reusable Discord UI components.
-  - `database.py`: database helpers (e.g., `command_usage_totals`).
+  - `database.py`: database helpers (e.g., `command_usage_totals`, mission RSVP helpers).
   - `time_utils.py`: shared datetime helpers for reminders and schedule formatting.
   - `patch_notes.py`: persistence + formatting helpers for release notes.
 - `data/`: JSON backing data (patch notes queue, templates, configs).

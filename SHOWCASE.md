@@ -18,7 +18,7 @@ A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. 
 
 ### Operations (UTC-2 clock)
 - `/event` DM wizard asks for codename, instructions, UTC-2 start, optional location, and role ping.
-- Reminder cadence: 60/30/15/3/0 minutes with Marcia’s quips, drone call-signs, and only the 60-minute alert carrying full directives/location context.
+- Reminder cadence: 60/30/15/3/0 minutes with Marcia’s quips, drone call-signs, and RSVP rollups (✅/❔/❌) baked into reminders.
 - Members use `/event` to see upcoming ops; admins clean with `/event_remove`.
 
 ### Trading: Fish-Link
