@@ -129,7 +129,17 @@ DB_PATH = str(DB_PATH_OBJ)
 
 # Seed fish trade listings captured before data loss so we can repopulate wiped hosts.
 _SEED_FILE = _BASE_DIR / "data" / "trade_seed.json"
-_SEED_DEFAULT_GUILD = int(os.getenv("MARCIA_SEED_GUILD_ID", "0"))
+_SEED_DEFAULT_GUILD: int | None = None
+_seed_env = os.getenv("MARCIA_SEED_GUILD_ID")
+if _seed_env:
+    try:
+        parsed_seed = int(_seed_env)
+        if parsed_seed > 0:
+            _SEED_DEFAULT_GUILD = parsed_seed
+        else:
+            logger.warning("MARCIA_SEED_GUILD_ID must be positive; got %s", _seed_env)
+    except ValueError:
+        logger.warning("Invalid MARCIA_SEED_GUILD_ID value %r; seed restore disabled", _seed_env)
 _TRADE_SEED_CACHE: dict | None = None
 
 async def init_db():
@@ -264,6 +274,24 @@ async def init_db():
             )
         ''')
 
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS mission_rsvp_prompts (
+                guild_id INTEGER,
+                codename TEXT,
+                message_id INTEGER PRIMARY KEY
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS mission_rsvps (
+                guild_id INTEGER,
+                codename TEXT,
+                user_id INTEGER,
+                status TEXT,
+                PRIMARY KEY (guild_id, codename, user_id)
+            )
+        ''')
+
         # 5. System Tracking
         await db.execute('''
             CREATE TABLE IF NOT EXISTS system_logs (
@@ -372,6 +400,12 @@ async def init_db():
         )
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mission_optins_guild ON mission_dm_opt_ins(guild_id)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mission_rsvp_guild ON mission_rsvps(guild_id)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mission_rsvp_prompt_guild ON mission_rsvp_prompts(guild_id)"
         )
         await db.commit()
 
@@ -1285,6 +1319,14 @@ async def delete_mission(guild_id, codename):
             "DELETE FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
             (guild_id, codename),
         )
+        await db.execute(
+            "DELETE FROM mission_rsvp_prompts WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.execute(
+            "DELETE FROM mission_rsvps WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
         await db.commit()
 
 
@@ -1341,6 +1383,83 @@ async def clear_mission_opt_ins(guild_id: int, codename: str) -> None:
         )
         await db.execute(
             "DELETE FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.commit()
+
+
+async def upsert_rsvp_prompt(guild_id: int, codename: str, message_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO mission_rsvp_prompts (guild_id, codename, message_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(message_id) DO UPDATE SET guild_id = excluded.guild_id, codename = excluded.codename
+            ''',
+            (guild_id, codename, message_id),
+        )
+        await db.commit()
+
+
+async def lookup_rsvp_prompt(message_id: int) -> tuple[int, str] | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT guild_id, codename FROM mission_rsvp_prompts WHERE message_id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return (row[0], row[1]) if row else None
+
+
+async def set_rsvp_status(guild_id: int, codename: str, user_id: int, status: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO mission_rsvps (guild_id, codename, user_id, status)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id, codename, user_id) DO UPDATE SET status = excluded.status
+            ''',
+            (guild_id, codename, user_id, status),
+        )
+        await db.commit()
+
+
+async def remove_rsvp_status(guild_id: int, codename: str, user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM mission_rsvps WHERE guild_id = ? AND codename = ? AND user_id = ?",
+            (guild_id, codename, user_id),
+        )
+        await db.commit()
+
+
+async def get_rsvp_counts(guild_id: int, codename: str) -> dict[str, int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            '''
+            SELECT status, COUNT(*) as total
+            FROM mission_rsvps
+            WHERE guild_id = ? AND codename = ?
+            GROUP BY status
+            ''',
+            (guild_id, codename),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            counts = {"going": 0, "maybe": 0, "no": 0}
+            for status, total in rows:
+                if status in counts:
+                    counts[status] = total
+            return counts
+
+
+async def clear_rsvp_data(guild_id: int, codename: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM mission_rsvp_prompts WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.execute(
+            "DELETE FROM mission_rsvps WHERE guild_id = ? AND codename = ?",
             (guild_id, codename),
         )
         await db.commit()

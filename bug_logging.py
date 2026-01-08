@@ -19,7 +19,20 @@ logger = logging.getLogger("MarciaOS.BugLog")
 
 LOG_FILE = Path("data/logs/bug_events.log")
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-BUG_LOG_CHANNEL_ID = int(os.getenv("BUG_LOG_CHANNEL_ID", "0") or 0)
+
+
+def _parse_env_int(name: str, default: int = 0) -> int:
+    value = os.getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger.warning("Invalid %s value %r; using %d", name, value, default)
+        return default
+
+
+BUG_LOG_CHANNEL_ID = _parse_env_int("BUG_LOG_CHANNEL_ID")
 
 
 def _serialize_error(error: Exception) -> dict[str, Any]:
