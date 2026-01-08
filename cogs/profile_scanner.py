@@ -159,6 +159,27 @@ class ProfileScanner(commands.Cog):
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
 
+    async def _safe_defer(self, ctx, *, ephemeral: bool = False):
+        interaction = getattr(ctx, "interaction", None)
+        if not interaction:
+            return await ctx.defer()
+
+        try:
+            if interaction.response.is_done() or getattr(interaction, "is_expired", lambda: False)():
+                return None
+            return await interaction.response.defer(ephemeral=ephemeral)
+        except HTTPException as exc:
+            if exc.code == 40060:
+                self.log.debug(
+                    "Skipped duplicate defer for %s",
+                    getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+                )
+                return None
+            self.log.exception("Failed to defer interaction")
+        except Exception:
+            self.log.exception("Failed to defer interaction")
+        return None
+
     # --------------------
     # Commands
     # --------------------
@@ -199,7 +220,7 @@ class ProfileScanner(commands.Cog):
                 ephemeral=True,
             )
 
-        await ctx.defer(ephemeral=True)
+        await self._safe_defer(ctx, ephemeral=True)
 
         try:
             image_bytes = await image.read()
