@@ -20,12 +20,14 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 ### 3) Member-facing commands (share with your crew)
 - **Scavenge loop:** `/scavenge` for hourly loot/XP with zone hazard pay and streak bonuses.
 - **Profiles:** `/profile` for XP + stash + scan summary; `/profile_stats` for scan details.
-- **Leaderboards:** `/leaderboard` for XP + scan stats, with export.
+- **Leaderboards:** `/leaderboard` for unified XP + scan stats (local and global), with server numbers and export.
+- **Reminders:** `/remind` for flexible reminders with templates, channel selection, and scheduling.
 - **Inventory:** `/inventory` to review collected items and set bonuses.
 - **Manual:** `/manual` and `/features` for onboarding.
 
 ### 4) Automation & passive features
-- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes, with RSVP rollups (✅/❔/❌) and opt-in DM pings via 📬 at the 60-minute alert.
+- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes with natural @ mentions, Join Event reactions (✅/❔/❌), and opt-in DM pings via 📬 at the 60-minute alert. All messages follow Marcia's personality: clear, calm, firm, and encouraging.
+- **Duel directives:** Daily duel instructions posted at midnight (game time) with detailed priorities, strategies, and SP slot rotations. Kill Event shield reminders send throughout Friday evening and Saturday.
 - **XP leveling:** Message-based XP with cooldowns, auto-created **Uplink Tier** roles every 5 levels, and prestige unlocks when collections are complete.
 - **Trading intelligence:** Fish-Link matches spares to wants and DMs players when matches appear.
 - **Safety guardrails:** Channel ignore rules prevent reminders and automation from posting in muted rooms.
@@ -38,12 +40,26 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Use a saved template:** choose **Use Template** when running `/event`.
 - **Remove an event:** `/event_remove <codename>`
 - **List upcoming events:** open `/event` and tap **Upcoming Events**
-- **RSVP tracking:** on the initial event announcement, members can react with ✅/❔/❌ to share attendance; reminders include the current counts.
+- **Join Event tracking:** on the initial event announcement, members can react with ✅/❔/❌ to indicate attendance; reminders include the current counts.
 - **DM opt-ins:** at the 60-minute alert, members can react with 📬 to receive later reminders by DM.
 
 ### Event safeguards
 - Alerts only ping when a channel is configured in settings and not in the ignore list.
+- Natural @ mentions (e.g., "Dear @everyone", "Hello @everyone") blend into messages smoothly.
 - `@everyone` pings use explicit allowed mentions to avoid accidental server-wide alerts.
+
+## Reminders system
+- **Launch reminder menu:** `/remind` opens the reminder control panel with multiple options.
+- **Send to any channel:** Select **Send to Channel** and specify:
+  - Target channel (#channel mention, channel ID, or channel name)
+  - Reminder message text
+  - Optional schedule time in game time (YYYY-MM-DD HH:MM) or leave blank to send immediately
+- **Send to events channel:** Quick option to send to your configured events channel.
+- **Use templates:** Select **From Template** to choose from saved reminder templates.
+- **Manage templates:** Create with `/remind add <name> <body>` or delete old ones via **Manage Templates**.
+- **Scheduling:** All reminder options support:
+  - **Send now** — leave the time field blank
+  - **Schedule for later** — enter date/time in game time format (UTC-2)
 
 ## Scavenge & progression
 - **Run a scavenge:** `/scavenge` (1-hour cooldown per user).
@@ -74,8 +90,13 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 8. **Audit storage:** Inspect the SQLite DB (`data/marcia_os.db`, `profile_snapshots` table) to confirm `player_name`, metrics (including likes/VIP), `ownership_verified`, `last_image_url`, `local_image_path`, and `raw_ocr` are populated for the test guild/user. Profile uploads are cached under `shots/profiles/<guild_id>/` to avoid re-downloading images during rescans.
 
 ## Leaderboard & roles
-- **Leaderboards:** `/leaderboard` opens a selector for local XP, global XP, and scanned profile stats. You can choose 10/25/50/100 rows and tap **Export (Excel)** to receive a TSV in your DMs. `/global_leaderboard` is kept for quick access to network XP.
-- Level-based tier roles are applied automatically when `Uplink Tier` roles exist and permissions allow role edits.
+- **Unified leaderboard:** `/leaderboard` opens a comprehensive menu with:
+  - **Scope selector:** Toggle between Sector (server-only) and Network (global) rankings
+  - **Metric selector:** Choose from XP, Combat Power, Kills, Likes, VIP Level, or Profile Level
+  - **Row count:** Display 10, 25, 50, or 100 entries
+  - **Export:** Tap **Export (Excel)** to receive a TSV file in your DMs
+- **Global rankings:** Network leaderboards show server numbers next to each player for easy identification.
+- **Tier roles:** Level-based tier roles are applied automatically when `Uplink Tier` roles exist and permissions allow role edits.
 
 ## Channels & automation
 - Duel directives post at game-day reset when an event channel is configured.

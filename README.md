@@ -12,7 +12,7 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
-* **Command-driven:** `/event` scheduling + upcoming ops, RSVP reactions with attendance counts in reminders, `/trade_item` exchanges, `/leaderboard` views and exports, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
+* **Command-driven:** `/event` scheduling + upcoming ops, participant tracking with Join Event reactions, `/remind` for flexible reminders with templates, `/trade_item` exchanges, `/leaderboard` unified views with global rankings and server numbers, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
