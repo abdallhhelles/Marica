@@ -49,21 +49,125 @@ RSVP_LABELS = {
 }
 
 DUEL_DATA = {
-    0: "**MONDAY – Day 1: Research / Building / Gathering**\n\n✅ **DO:**\n• Send gatherers before reset.\n• Duel points count on Return.\n• Use gathering heroes: Musashimaru, Bob, Joe.\n📊 **SP SLOTS:** Shelter → Hero → Unit → Science → Arms.",
-    1: "**TUESDAY – Day 2: Radar / Recruitment / Heroes**\n\n✅ **DO:**\n• Claim radar missions. Use Prime tickets.\n• Spend hero fragments.\n📊 **SP SLOTS:** Hero → Unit → Science → Arms → Shelter → Hero.",
-    2: "**WEDNESDAY – Day 3: Trucks / Orange / Training**\n\n✅ **DO:**\n• Run 4 S-Trucks & 8-9 Orange missions.\n• Use Power Cores. Train units passively.\n📊 **SP SLOTS:** Unit → Science → Arms → Shelter → Hero → Unit.",
-    3: "**THURSDAY – Day 4: Radar / Vehicles / Monsters**\n\n✅ **DO:**\n• Burn stamina on Lv20+ mummies.\n• Use vehicle gears and blueprints.\n📊 **SP SLOTS:** Science → Arms → Shelter → Hero → Unit → Science.",
-    4: "**FRIDAY – Day 5: Vehicles / Fragments / Wisdom**\n\n✅ **DO:**\n• Collect Zombie Siege rewards.\n• Use Wisdom Medals.\n📊 **SP SLOTS:** Arms → Shelter → Hero → Unit → Science → Arms.",
-    5: "**SATURDAY – Day 6: Enemy Buster**\n\n✅ **DO:**\n• KE and RSS hunting. Focus on easy 40K slots.\n📊 **SP SLOTS:** Shelter → Hero → Unit → Science → Arms → Shelter.",
-    6: "**SUNDAY – Day 7: Preparation**\n\nDirectives: Prepare gatherers for Monday reset. Restock speedups."
+    0: (
+        "**MONDAY – Day 1: Research / Building / Gathering**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Deploy gatherers **before** daily reset (points count on return)\n"
+        "• Focus on resource gathering missions with bonus heroes\n"
+        "• Complete research and building upgrades for points\n\n"
+        "**👥 RECOMMENDED HEROES:**\n"
+        "• Musashimaru, Bob, Joe (gathering specialists)\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Shelter → Hero → Unit → Science → Arms → (repeat)\n\n"
+        "**💡 PRO TIP:** Stack speedups on long research/builds before reset to maximize points."
+    ),
+    1: (
+        "**TUESDAY – Day 2: Radar / Recruitment / Heroes**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Claim and complete radar missions (use Prime tickets for efficiency)\n"
+        "• Spend accumulated hero fragments on recruitment\n"
+        "• Focus on hero development tasks\n\n"
+        "**🎯 KEY STRATEGY:**\n"
+        "• Save Prime tickets for Tuesday to maximize hero fragment gains\n"
+        "• Upgrade hero skills and levels for additional points\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Hero → Unit → Science → Arms → Shelter → Hero → (repeat)\n\n"
+        "**💡 PRO TIP:** Check alliance shop for hero fragments before spending."
+    ),
+    2: (
+        "**WEDNESDAY – Day 3: Trucks / Orange / Training**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Run 4 S-Trucks (minimum) for maximum efficiency\n"
+        "• Complete 8-9 Orange missions throughout the day\n"
+        "• Use Power Cores to boost training speed\n"
+        "• Train units passively while completing other tasks\n\n"
+        "**⚙️ OPTIMIZATION:**\n"
+        "• Space out S-Truck runs to maintain consistent points\n"
+        "• Orange missions offer high point-to-energy ratio\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Unit → Science → Arms → Shelter → Hero → Unit → (repeat)\n\n"
+        "**💡 PRO TIP:** Save training speedups for burst scoring near end of day."
+    ),
+    3: (
+        "**THURSDAY – Day 4: Radar / Vehicles / Monsters**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Burn stamina on Level 20+ mummy hunts for optimal points\n"
+        "• Upgrade vehicles using saved gears and blueprints\n"
+        "• Complete radar missions (any remaining from Tuesday)\n\n"
+        "**🎯 MONSTER HUNTING:**\n"
+        "• Lv20+ mummies provide best point-to-stamina ratio\n"
+        "• Use stamina consumables strategically\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Science → Arms → Shelter → Hero → Unit → Science → (repeat)\n\n"
+        "**💡 PRO TIP:** Coordinate with alliance for monster rallies to maximize gains."
+    ),
+    4: (
+        "**FRIDAY – Day 5: Vehicles / Fragments / Wisdom**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Collect all Zombie Siege rewards if available\n"
+        "• Spend Wisdom Medals on appropriate upgrades\n"
+        "• Continue vehicle development (gears/blueprints)\n"
+        "• Use any remaining fragments from earlier in the week\n\n"
+        "**🎁 REWARD COLLECTION:**\n"
+        "• Check alliance rewards and personal milestones\n"
+        "• Claim any pending duel chest rewards\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Arms → Shelter → Hero → Unit → Science → Arms → (repeat)\n\n"
+        "**💡 PRO TIP:** Save Friday as a catch-up day for incomplete earlier tasks."
+    ),
+    5: (
+        "**SATURDAY – Day 6: Enemy Buster (Kill Event)**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Kill Event (KE) participation - focus on easy targets\n"
+        "• Resource (RSS) hunting from unshielded players\n"
+        "• Target easy 40K power slots for safe point gains\n\n"
+        "**⚔️ KILL EVENT STRATEGY:**\n"
+        "• Maintain **24h shields** throughout the event\n"
+        "• Coordinate with alliance for organized attacks\n"
+        "• Focus on players significantly weaker than you\n"
+        "• Scout targets before committing troops\n\n"
+        "**🛡️ DEFENSE:**\n"
+        "• Keep shields active at all times\n"
+        "• Set alarms if using shorter shields\n"
+        "• Shelter troops when shield expires\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Shelter → Hero → Unit → Science → Arms → Shelter → (repeat)\n\n"
+        "**💡 PRO TIP:** Easy points > risky fights. Play it safe and rack up wins."
+    ),
+    6: (
+        "**SUNDAY – Day 7: Preparation & Planning**\n\n"
+        "**📋 PRIORITY TASKS:**\n"
+        "• Prepare gatherers for Monday reset (deploy late Sunday)\n"
+        "• Restock speedups and consumables for next week\n"
+        "• Review alliance performance and coordinate improvements\n"
+        "• Check inventory and plan resource allocation\n\n"
+        "**📦 PREPARATION CHECKLIST:**\n"
+        "• ✓ Speedups restocked\n"
+        "• ✓ Stamina items available\n"
+        "• ✓ Hero fragments ready\n"
+        "• ✓ Gathering fleet prepared\n"
+        "• ✓ Alliance communication established\n\n"
+        "**📊 SP SLOT ROTATION:**\n"
+        "Shelter → Hero → Unit → Science → Arms → Shelter → (repeat)\n\n"
+        "**💡 PRO TIP:** Sunday is recovery day. Plan ahead for a strong Monday start."
+    )
 }
 
 KILL_EVENT_SHIELD_REMINDERS = {
     0: "🛰️ Midnight sweep. The kill event just lit up, so drop that **24h shield** if you can.",
+    2: "🌙 Early hours check. Two hours into the kill event. Make sure that shield is solid and refresh if needed.",
+    4: "🌃 Pre-dawn watch. Four hours in—if you're running short on shield time, top it off now.",
     6: "☀️ Dawn check-in. If your shield is shorter, set alarms to refresh it before it fizzles.",
     12: "🧭 Midday scan. Keep shields up and remind your squad—no free hits on my watch.",
     18: "🌆 Dusk patrol. If you're on timers, renew now before the evening rush.",
+    20: "🌆 Evening sweep. Four hours left—make sure protection is maxed and rally your allies.",
     22: "🌙 Late op window. Last stretch—top off protection and keep loved ones safe.",
+}
+
+# Reminders for the day BEFORE kill event (Friday)
+KILL_EVENT_PRE_SHIELD_REMINDERS = {
+    20: "⚠️ Kill event starts in 4 hours. Get your **24h shield** ready. Check inventory and prepare your squad.",
+    22: "🛡️ Kill event starts in 2 hours. Last call to drop shields. Coordinate with your alliance now.",
 }
 
 
@@ -391,11 +495,16 @@ class Events(commands.Cog):
                     chan = guild.get_channel(settings['event_channel_id'])
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         info = DUEL_DATA.get(now_server.weekday(), "No data.")
+                        day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now_server.weekday()]
                         await chan.send(
-                            f"@everyone\n📡 **MARCIA OS | DUEL DIRECTIVE**\n\n{info}",
+                            f"Good morning @everyone,\n\n"
+                            f"📡 **MARCIA OS | DUEL DIRECTIVE – {day_name.upper()}**\n\n"
+                            f"{info}\n\n"
+                            f"Stay sharp and keep those points climbing. I'm tracking your progress.",
                             allowed_mentions=discord.AllowedMentions(everyone=True),
                         )
                         await mark_task_complete(task_id, date_str=date_key)
+            # Saturday (weekday 5) - Kill Event Shield Reminders
             if now_server.weekday() == 5 and now_server.hour in KILL_EVENT_SHIELD_REMINDERS:
                 date_key = now_server.strftime("%Y-%m-%d")
                 task_id = f"duel_shield_{guild.id}_{now_server.hour}"
@@ -405,12 +514,32 @@ class Events(commands.Cog):
                         hours_left = max(0, 24 - now_server.hour)
                         reminder_line = KILL_EVENT_SHIELD_REMINDERS[now_server.hour]
                         await chan.send(
-                            "@everyone\n"
+                            "Dear @everyone,\n\n"
                             "🛡️ **KILL EVENT SHIELD CHECK**\n\n"
                             f"{reminder_line}\n"
-                            f"⏳ **{hours_left}h** left in the kill event.\n"
-                            "If you can't do 24h, set alarms to renew before it ends.\n"
-                            "Marcia's watching the timers—remind your loved ones too. 💙",
+                            f"⏳ **{hours_left}h** remaining in the kill event.\n"
+                            "If you can't maintain 24h shields, set alarms to refresh before they expire.\n"
+                            "Marcia's monitoring the grid—keep your squad protected. 💙",
+                            allowed_mentions=discord.AllowedMentions(everyone=True),
+                        )
+                        await mark_task_complete(task_id, date_str=date_key)
+            
+            # Friday (weekday 4) - Pre-Kill Event Shield Reminders
+            if now_server.weekday() == 4 and now_server.hour in KILL_EVENT_PRE_SHIELD_REMINDERS:
+                date_key = now_server.strftime("%Y-%m-%d")
+                task_id = f"duel_pre_shield_{guild.id}_{now_server.hour}"
+                if await can_run_daily_task(task_id, date_str=date_key):
+                    chan = guild.get_channel(settings['event_channel_id'])
+                    if chan and not await is_channel_ignored(guild.id, chan.id):
+                        hours_until = 24 - now_server.hour
+                        reminder_line = KILL_EVENT_PRE_SHIELD_REMINDERS[now_server.hour]
+                        await chan.send(
+                            "Attention @everyone,\n\n"
+                            "🛡️ **PRE-KILL EVENT PREPARATION**\n\n"
+                            f"{reminder_line}\n"
+                            f"⏰ Kill event begins at midnight (in **{hours_until}h**).\n"
+                            "Stack your shields, coordinate with your alliance, and be ready.\n"
+                            "Marcia's got your back—but only if you prep smart. 💙",
                             allowed_mentions=discord.AllowedMentions(everyone=True),
                         )
                         await mark_task_complete(task_id, date_str=date_key)
@@ -648,28 +777,43 @@ class Events(commands.Cog):
             elif role:
                 mention = role.mention
                 allowed_mentions = discord.AllowedMentions(everyone=False, roles=True)
+            
+            # Add natural greeting variations for mentions
+            greetings = ["Dear", "Hello", "Attention", "Listen up,", "Heads up,"]
+            natural_mention = f"{random.choice(greetings)} {mention}" if mention else ""
+            
             location_line = f"\n📍 {location}" if location else ""
-            title, body = random.choice(TIMED_REMINDERS.get(mins, [("📡 **ALERT:**", "`{name}` is coming up.")]))
+            title, body = random.choice(TIMED_REMINDERS.get(mins, [("", "`{name}` is coming up.")]))
             body = body.format(name=name, drone=drone)
             quote = random.choice(MARCIA_QUOTES)
             counts = await get_rsvp_counts(guild_id, name)
             rsvp_line = (
-                f"RSVP — {RSVP_LABELS['going']}: {counts['going']} | "
+                f"Join Event — {RSVP_LABELS['going']}: {counts['going']} | "
                 f"{RSVP_LABELS['maybe']}: {counts['maybe']} | "
                 f"{RSVP_LABELS['no']}: {counts['no']}"
             )
 
             if mins == 60:
-                msg = (
-                    f"{title} {quote}\n"
-                    f"{body}\n\n"
-                    f"{desc}{location_line}\n\n"
-                    f"{rsvp_line}\n\n"
-                    f"React with {DM_OPT_IN_EMOJI} to get DM pings for the next alerts."
-                    f"\n\n*Drone: {drone}*"
-                )
-                if mention:
-                    msg = f"{mention}\n" + msg
+                # Build the message with natural mention integration
+                if natural_mention:
+                    msg = (
+                        f"{natural_mention},\n\n"
+                        f"{quote}\n\n"
+                        f"{body}\n\n"
+                        f"{desc}{location_line}\n\n"
+                        f"{rsvp_line}\n\n"
+                        f"React with {DM_OPT_IN_EMOJI} to receive follow-up reminders directly."
+                        f"\n\n*Drone: {drone}*"
+                    )
+                else:
+                    msg = (
+                        f"{quote}\n\n"
+                        f"{body}\n\n"
+                        f"{desc}{location_line}\n\n"
+                        f"{rsvp_line}\n\n"
+                        f"React with {DM_OPT_IN_EMOJI} to receive follow-up reminders directly."
+                        f"\n\n*Drone: {drone}*"
+                    )
                 sent = await chan.send(
                     msg,
                     allowed_mentions=allowed_mentions,
@@ -681,15 +825,24 @@ class Events(commands.Cog):
                     logger.warning("Could not add DM opt-in reaction for %s", name)
                 await upsert_dm_prompt(guild_id, name, sent.id)
             else:
-                msg = (
-                    f"{title} {quote}\n"
-                    f"{body}\n\n"
-                    f"{desc}{location_line}\n\n"
-                    f"{rsvp_line}\n\n"
-                    f"*Drone: {drone}*"
-                )
-                if mention:
-                    msg = f"{mention}\n" + msg
+                # Build the message with natural mention integration
+                if natural_mention:
+                    msg = (
+                        f"{natural_mention},\n\n"
+                        f"{quote}\n\n"
+                        f"{body}\n\n"
+                        f"{desc}{location_line}\n\n"
+                        f"{rsvp_line}\n\n"
+                        f"*Drone: {drone}*"
+                    )
+                else:
+                    msg = (
+                        f"{quote}\n\n"
+                        f"{body}\n\n"
+                        f"{desc}{location_line}\n\n"
+                        f"{rsvp_line}\n\n"
+                        f"*Drone: {drone}*"
+                    )
                 await chan.send(
                     msg,
                     allowed_mentions=allowed_mentions,
