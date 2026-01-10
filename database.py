@@ -13,8 +13,8 @@ import aiosqlite
 from datetime import datetime, timezone
 import logging
 
-from time_utils import GAME_TZ
-from assets import REMINDER_TEMPLATE_STARTER
+from utils.time_utils import GAME_TZ
+from utils.assets import REMINDER_TEMPLATE_STARTER
 
 logger = logging.getLogger('MarciaOS.DB')
 
@@ -710,7 +710,7 @@ async def log_feedback_entry(
 
 # --- TRADING HELPERS ---
 
-async def add_fish_to_inventory(guild_id, user_id, rarity, index, trade_type):
+async def add_fish_to_inventory(guild_id: int, user_id: int, rarity: str, index: int, trade_type: str) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
             INSERT OR IGNORE INTO trade_pool (guild_id, user_id, fish_rarity, fish_index, type)
@@ -718,7 +718,7 @@ async def add_fish_to_inventory(guild_id, user_id, rarity, index, trade_type):
         ''', (guild_id, user_id, rarity, index, trade_type))
         await db.commit()
 
-async def get_fish_inventory(guild_id, user_id):
+async def get_fish_inventory(guild_id: int, user_id: int) -> list[aiosqlite.Row]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute('''
@@ -729,14 +729,14 @@ async def get_fish_inventory(guild_id, user_id):
 
 # --- SERVER SETTINGS HELPERS ---
 
-async def get_settings(guild_id):
+async def get_settings(guild_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM settings WHERE guild_id = ?", (guild_id,)) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
-async def update_setting(guild_id, column, value, server_name=None):
+async def update_setting(guild_id: int, column: str, value: int | str | None, server_name: str | None = None) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(f'''
             INSERT INTO settings (guild_id, server_name, {column}) 

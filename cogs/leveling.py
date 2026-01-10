@@ -14,8 +14,8 @@ import random
 import time
 import aiosqlite
 from datetime import datetime, timezone
-from bug_logging import log_command_exception
-from assets import (
+from utils.bug_logging import log_command_exception
+from utils.assets import (
     SCAVENGE_FIELD_REPORTS,
     SCAVENGE_ZONES,
     SCAVENGE_CONTRACTS,
@@ -846,11 +846,11 @@ class Leveling(commands.Cog):
     @commands.has_permissions(manage_guild=True)
     async def import_old_levels(self, ctx):
         """Critical migration tool: Transfers legacy JSON data to the SQL database."""
-        if not os.path.exists("levels.json"):
-            return await ctx.send("❌ `levels.json` not found in root directory.")
+        if not os.path.exists("legacy/levels.json"):
+            return await ctx.send("❌ `legacy/levels.json` not found in root directory.")
         
         try:
-            with open("levels.json", "r") as f:
+            with open("legacy/levels.json", "r") as f:
                 old_data = json.load(f)
             
             async with aiosqlite.connect(DB_PATH) as db:

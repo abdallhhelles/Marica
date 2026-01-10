@@ -13,7 +13,7 @@ from discord import app_commands
 from discord.ext import commands
 import httpx
 
-from assets import INTEL_DATABASE, MARCIA_LORE, MARCIA_SLOGANS, MARCIA_TRAITS
+from utils.assets import INTEL_DATABASE, MARCIA_LORE, MARCIA_SLOGANS, MARCIA_TRAITS
 from database import (
     get_settings,
     guild_analytics_snapshot,

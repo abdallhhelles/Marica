@@ -9,7 +9,7 @@ import random
 import discord
 from discord.ext import commands
 
-from assets import FAREWELL_VARIATIONS, WELCOME_VARIATIONS
+from utils.assets import FAREWELL_VARIATIONS, WELCOME_VARIATIONS
 from database import get_settings, is_channel_ignored
 
 

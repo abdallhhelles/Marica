@@ -31,8 +31,8 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from assets import MARCIA_QUOTES
-from bug_logging import log_command_exception
+from utils.assets import MARCIA_QUOTES
+from utils.bug_logging import log_command_exception
 from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
 
