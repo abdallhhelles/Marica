@@ -16,10 +16,40 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
-2. [Deployment overview](#deployment-overview)
-3. [Hosting patterns](#hosting-patterns)
-4. [Local configuration](#local-configuration)
-5. [Operations & troubleshooting](#operations--troubleshooting)
+2. [Project structure](#project-structure)
+3. [Deployment overview](#deployment-overview)
+4. [Hosting patterns](#hosting-patterns)
+5. [Local configuration](#local-configuration)
+6. [Operations & troubleshooting](#operations--troubleshooting)
+
+---
+
+## Project structure
+
+The codebase is organized for maintainability and clarity:
+
+```
+Marica/
+├── cogs/              # Discord command modules (features)
+├── utils/             # Shared utilities and helpers
+│   ├── assets.py      # Static data (quotes, lore, constants)
+│   ├── time_utils.py  # Game timezone helpers (UTC-2)
+│   ├── bug_logging.py # Error logging and Discord notifications
+│   └── patch_notes.py # Release notes persistence
+├── config/            # Configuration templates (JSON)
+├── data/              # Runtime data (database, logs, backups)
+├── docs/              # Documentation files
+├── ocr/               # Profile scanning OCR system
+├── legacy/            # Legacy migration data
+├── main.py            # Bot entry point
+└── database.py        # Database operations and schema
+```
+
+**Key directories:**
+* **cogs/**: Each file is a feature module (trading, leveling, events, etc.)
+* **utils/**: Shared code used across multiple cogs
+* **data/**: Auto-created at runtime for database and logs
+* **config/**: Static configuration templates
 
 ---
 
