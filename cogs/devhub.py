@@ -13,7 +13,7 @@ import discord
 from discord.ext import commands, tasks
 
 from database import activity_metric_totals, command_usage_totals, top_commands, total_active_missions
-from patch_notes import PatchNotesStore
+from utils.patch_notes import PatchNotesStore
 
 DEV_GUILD_ID = 1455313963507257486
 TEST_GUILD_ID = 1454704176662843525

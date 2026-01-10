@@ -10,7 +10,7 @@ import random
 import discord
 from discord.ext import commands
 
-from assets import MARCIA_QUOTES
+from utils.assets import MARCIA_QUOTES
 from database import (
     add_reminder_template,
     delete_reminder_template,
@@ -18,7 +18,7 @@ from database import (
     get_settings,
     is_channel_ignored,
 )
-from time_utils import GAME_TZ, game_to_utc, format_game
+from utils.time_utils import GAME_TZ, game_to_utc, format_game
 
 
 class Reminders(commands.Cog):

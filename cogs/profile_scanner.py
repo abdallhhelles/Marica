@@ -27,7 +27,7 @@ from database import (
     set_profile_channel,
     upsert_profile_snapshot,
 )
-from assets import PROFILE_SEALS, PROFILE_TAGLINES
+from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
 from ocr.diagnostics import collect_ocr_diagnostics
 
 _PIL_SPEC = importlib.util.find_spec("PIL")

@@ -8,7 +8,7 @@ from discord.ext import commands
 import aiosqlite
 import logging
 import asyncio
-from assets import FISH_NAMES
+from utils.assets import FISH_NAMES
 from database import DB_PATH, ensure_seed_trade_pool
 
 logger = logging.getLogger('MarciaOS.Trading')

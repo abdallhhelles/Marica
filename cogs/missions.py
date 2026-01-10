@@ -11,7 +11,7 @@ from database import (
     add_mission, delete_mission, get_all_active_missions,
     add_template, get_templates, delete_template, get_upcoming_missions
 )
-from time_utils import now_game, game_to_utc, format_game
+from utils.time_utils import now_game, game_to_utc, format_game
 
 logger = logging.getLogger('MarciaOS.Missions')
 

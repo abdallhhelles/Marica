@@ -13,8 +13,8 @@ import aiosqlite
 from datetime import datetime, timezone
 import logging
 
-from time_utils import GAME_TZ
-from assets import REMINDER_TEMPLATE_STARTER
+from utils.time_utils import GAME_TZ
+from utils.assets import REMINDER_TEMPLATE_STARTER
 
 logger = logging.getLogger('MarciaOS.DB')
 

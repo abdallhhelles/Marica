@@ -9,8 +9,8 @@ import asyncio
 import random
 import logging
 from datetime import datetime, timezone, timedelta
-from assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_QUOTES
-from time_utils import now_game, game_to_utc, format_game, utc_to_game
+from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_QUOTES
+from utils.time_utils import now_game, game_to_utc, format_game, utc_to_game
 from database import (
     add_mission,
     add_mission_opt_in,

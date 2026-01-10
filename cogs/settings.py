@@ -8,7 +8,7 @@ import random
 import re
 import discord
 from discord.ext import commands
-from assets import MARCIA_QUOTES
+from utils.assets import MARCIA_QUOTES
 from database import (
     add_ignored_channel,
     get_ignored_channels,
