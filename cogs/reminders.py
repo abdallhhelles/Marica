@@ -46,20 +46,25 @@ class Reminders(commands.Cog):
         embed = discord.Embed(
             title="🛰️ Reminder Control",
             description=(
-                "Choose how you want to broadcast a reminder. Options include sending to the "
-                "configured events channel, posting a custom message, broadcasting a saved "
-                "template, or cleaning up templates you no longer need."
+                "Choose how you want to send a reminder:\n\n"
+                "**Send to Channel**: Pick any channel and schedule a custom reminder.\n"
+                "**Send to Events Channel**: Quick send to your configured events channel.\n"
+                "**From Template**: Use a saved reminder template.\n"
+                "**Manage Templates**: Delete old templates you no longer need."
             ),
             color=0x2b2d31,
         )
         embed.add_field(
-            name="Send timing",
+            name="📅 Scheduling Options",
             value=(
-                "Every send flow allows you to pick **Send now** or enter a custom date/time in "
-                f"game time ({format_game(datetime.now(timezone.utc))})."
+                "For all options, you can either:\n"
+                "• **Send now** — Leave the time field blank\n"
+                "• **Schedule for later** — Enter date/time in game time format:\n"
+                f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
             ),
             inline=False,
         )
+        embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
         await ctx.send(embed=embed, view=view)
 
     async def _send_template(self, ctx: commands.Context, template: str):
@@ -161,19 +166,19 @@ class ReminderMenuView(discord.ui.View):
         self.cog = cog
         self.ctx = ctx
 
-    @discord.ui.button(label="Events channel", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Send to Channel", style=discord.ButtonStyle.primary)
+    async def send_to_channel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(
+            ReminderChannelModal(self.cog, self.ctx)
+        )
+
+    @discord.ui.button(label="Send to Events Channel", style=discord.ButtonStyle.secondary)
     async def send_events(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
             ReminderModal(self.cog, self.ctx, target="events")
         )
 
-    @discord.ui.button(label="Custom message", style=discord.ButtonStyle.secondary)
-    async def send_custom(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            ReminderModal(self.cog, self.ctx, target="custom")
-        )
-
-    @discord.ui.button(label="From template", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="From Template", style=discord.ButtonStyle.success)
     async def send_from_template(self, interaction: discord.Interaction, button: discord.ui.Button):
         templates = await get_reminder_templates(self.ctx.guild.id)
         if not templates:
@@ -188,7 +193,7 @@ class ReminderMenuView(discord.ui.View):
             ephemeral=True,
         )
 
-    @discord.ui.button(label="Delete template", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Manage Templates", style=discord.ButtonStyle.danger)
     async def delete_template(self, interaction: discord.Interaction, button: discord.ui.Button):
         templates = await get_reminder_templates(self.ctx.guild.id)
         if not templates:
@@ -202,6 +207,70 @@ class ReminderMenuView(discord.ui.View):
             view=TemplateDeleteView(self.ctx, templates),
             ephemeral=True,
         )
+
+
+class ReminderChannelModal(discord.ui.Modal):
+    def __init__(self, cog: Reminders, ctx: commands.Context):
+        super().__init__(title="Schedule Reminder to Channel")
+        self.cog = cog
+        self.ctx = ctx
+
+        self.channel_input = discord.ui.TextInput(
+            label="Channel (use #channel or channel ID)",
+            placeholder="#general or 1234567890",
+            max_length=100,
+        )
+        self.body = discord.ui.TextInput(
+            label="Reminder text",
+            style=discord.TextStyle.long,
+            max_length=800,
+            placeholder="What should Marcia announce?",
+        )
+        self.when = discord.ui.TextInput(
+            label="Send at (game time)",
+            required=False,
+            placeholder="YYYY-MM-DD HH:MM (UTC-2) — leave blank to send now",
+            max_length=32,
+        )
+        self.add_item(self.channel_input)
+        self.add_item(self.body)
+        self.add_item(self.when)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        # Parse channel
+        channel_str = str(self.channel_input.value).strip()
+        channel = None
+        
+        # Try to extract channel ID from mention format (#channel)
+        if channel_str.startswith("<#") and channel_str.endswith(">"):
+            channel_id = int(channel_str[2:-1])
+            channel = self.ctx.guild.get_channel(channel_id)
+        # Try as direct ID
+        elif channel_str.isdigit():
+            channel = self.ctx.guild.get_channel(int(channel_str))
+        # Try as channel name
+        else:
+            channel_name = channel_str.lstrip("#")
+            channel = discord.utils.get(self.ctx.guild.text_channels, name=channel_name)
+        
+        if not channel:
+            await interaction.followup.send(
+                f"❌ Could not find channel: {channel_str}\n"
+                "Please use #channel mention, channel ID, or channel name.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            when_utc = self.cog._parse_when(str(self.when.value))
+        except ValueError as e:
+            await interaction.followup.send(str(e), ephemeral=True)
+            return
+
+        await self.cog._send_or_schedule(self.ctx, channel, str(self.body.value), when_utc)
+        await interaction.followup.send(f"✅ Reminder queued for {channel.mention}.", ephemeral=True)
 
 
 class ReminderModal(discord.ui.Modal):

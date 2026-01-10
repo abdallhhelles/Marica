@@ -688,7 +688,7 @@ class Leveling(commands.Cog):
 
             embed = discord.Embed(
                 title=f"{emoji} {stat_label} Leaderboard",
-                description="Profile scan stats from across the entire network.",
+                description="Profile scan stats from across the entire network. Server numbers shown for each player.",
                 color=0xf1c40f,
             )
             lines = []
@@ -698,8 +698,9 @@ class Leveling(commands.Cog):
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.mention if user else f"<@{row['user_id']}>"
                 name = row["player_name"] or user_display
+                server_info = f" | Server {row['server']}" if row.get('server') else ""
                 lines.append(
-                    f"**{idx}.** {name} — {self._format_metric(row['value'])} ({guild_name})"
+                    f"**{idx}.** {name} — {self._format_metric(row['value'])} ({guild_name}{server_info})"
                 )
             embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
             embed.set_footer(
@@ -784,7 +785,7 @@ class Leveling(commands.Cog):
             rows = await top_global_profile_stat(metric, limit)
             if not rows:
                 return None
-            headers = ["Rank", "User", stat_label, "Guild"]
+            headers = ["Rank", "User", stat_label, "Server", "Guild"]
             filename = f"leaderboard_global_{metric}.tsv"
             note = f"Global {stat_label} leaderboard (top {len(rows)})."
             lines = ["\t".join(headers)]
@@ -794,8 +795,9 @@ class Leveling(commands.Cog):
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.name if user else f"User {row['user_id']}"
                 name = row["player_name"] or user_display
+                server_num = row.get("server") or "—"
                 lines.append(
-                    "\t".join(map(str, [idx, name, row["value"], guild_name]))
+                    "\t".join(map(str, [idx, name, row["value"], server_num, guild_name]))
                 )
         else:
             stat_label, _ = PROFILE_STAT_LABELS.get(metric, (metric.title(), ""))
@@ -828,16 +830,6 @@ class Leveling(commands.Cog):
             self, ctx.guild, requester_id=ctx.author.id, scope="local", metric="xp"
         )
         embed = await self._build_leaderboard_embed(ctx.guild, "local", "xp", view.limit)
-        message = await self._safe_send(ctx, embed=embed, view=view)
-        if isinstance(message, discord.Message):
-            view.bind_message(message)
-
-    @commands.hybrid_command(name="global_leaderboard", description="See the top survivors across every linked server.")
-    async def global_leaderboard(self, ctx):
-        view = LeaderboardView(
-            self, ctx.guild, requester_id=ctx.author.id, scope="global", metric="xp"
-        )
-        embed = await self._build_leaderboard_embed(ctx.guild, "global", "xp", view.limit)
         message = await self._safe_send(ctx, embed=embed, view=view)
         if isinstance(message, discord.Message):
             view.bind_message(message)

@@ -937,7 +937,7 @@ async def top_global_profile_stat(column: str, limit: int = 10):
         db.row_factory = aiosqlite.Row
         async with db.execute(
             f'''
-            SELECT guild_id, user_id, player_name, {target} as value
+            SELECT guild_id, user_id, player_name, server, {target} as value
             FROM profile_snapshots
             WHERE {target} IS NOT NULL
             ORDER BY {target} DESC
