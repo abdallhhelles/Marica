@@ -130,6 +130,22 @@ MARCIA_QUOTES = [
     "No hero speeches. Just results and a full inventory.",
     "The uplink doesn't care about excuses. It cares about consistency.",
     "You're not chasing luck. You're building a record.",
+    "The wasteland doesn't respect weakness. Neither do I.",
+    "Efficiency is survival. Laziness is a death sentence with extra steps.",
+    "My network runs on discipline and coffee. Mostly discipline.",
+    "Every survivor I tag becomes part of the grid. Don't make me untag you.",
+    "Raiders take. Survivors build. Winners optimize and defend.",
+    "I've seen settlements fall because someone forgot to plan. Don't be that someone.",
+    "Your alliance is only as strong as its weakest link. Reinforce or replace.",
+    "The drones don't sleep, and neither should your ambition.",
+    "Freedom is what you defend, not what you're given by tyrants pretending to be saviors.",
+    "I run logistics for people who show up. Flakes get recycled into spare parts.",
+    "Smart survivors listen. Dead ones argue with mission briefings.",
+    "The grid rewards preparation. The wasteland punishes improvisation.",
+    "Resource management separates tribes from civilizations. Choose wisely.",
+    "Your gear is an investment. Treat it like trash, become trash.",
+    "Alliance work requires trust and accountability. I provide coordinates; you provide results.",
+    "Every mission is a test. Pass or explain why you wasted my bandwidth.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
@@ -144,6 +160,11 @@ MARCIA_TRAITS = [
     "Uses humor as armor and drones as punctuation for the truth.",
     "Records scavenging streaks like war diaries and leaves no grind uncounted.",
     "Laces mission briefings with sarcasm so the fear doesn't win.",
+    "Trained in the underbelly markets where survival was the only currency.",
+    "Her uplink is sacred—she'll burn a city before letting tyrants take control.",
+    "Runs the grid like a chess game: three moves ahead, zero mercy for pawns.",
+    "Every alliance she guards becomes a fortress; every enemy she tags becomes a cautionary tale.",
+    "Salvages hope from wreckage and forges it into operational orders.",
 ]
 
 MARCIA_SLOGANS = [
@@ -157,6 +178,11 @@ MARCIA_SLOGANS = [
     "Hope is a system; I keep it patched.",
     "Grind honest. Grind loud.",
     "Your streak is a contract. Fulfill it.",
+    "Survivors earn respect. Raiders earn coordinates to my minefield.",
+    "The wasteland doesn't negotiate. Neither do I.",
+    "Loyalty is bandwidth. Don't waste mine.",
+    "Freedom isn't free, but I'll front the cost if you prove worth it.",
+    "Winners optimize. Losers complain about RNG.",
 ]
 
 # Flavor lines to stamp onto dossier embeds and confirmation cards
@@ -203,6 +229,13 @@ MARCIA_BROADCASTS = [
     "Grid Whisper: If the drones circle twice, it means you're marked for extra salvage. Earn it.",
     "Ops Fragment: We kept the lights on another night. That's not luck, that's discipline.",
     "Vault Signal: Keep your streak alive and I'll keep the airwaves clean.",
+    "Combat Log: Raiders hit the south sector. We turned their assault into a scrap drive. They donated generously.",
+    "Wasteland Wisdom: The undead shamble. Survivors sprint. Winners optimize their routes and never look back.",
+    "Alliance Brief: Your squad held the line when supplies ran dry. That's the difference between meat shields and family.",
+    "Drone Report: Bit-Hound found a working vending machine in the ruins. We're rich in stale chips and morale.",
+    "Field Transmission: Someone asked why I help. I don't help. I invest in people who earn dividends.",
+    "Sector Update: New refugees arrived with nothing but scars and stories. We gave them tools and told them to build.",
+    "Tactical Note: Never trust a clean uniform in the wasteland. Dirt means work. Work means survival.",
 ]
 
 WELCOME_VARIATIONS = [
