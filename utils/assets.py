@@ -148,6 +148,25 @@ MARCIA_QUOTES = [
     "Every mission is a test. Pass or explain why you wasted my bandwidth.",
 ]
 
+# Calm, consistent system tone lines for reminders and ops.
+MARCIA_SYSTEM_LINES = [
+    "Stay ready. The alliance is only as strong as its follow-through.",
+    "Keep your gear tight and your timelines tighter.",
+    "Commitments matter. Show up, or give your squad time to adapt.",
+    "You signed up for this sector. Act like it.",
+    "Clean comms, clear schedules, strong results.",
+    "Discipline wins the day. I just keep the clock honest.",
+    "If you say you're in, be in. The grid remembers.",
+    "Every reminder is a chance to lead by example.",
+    "Keep your squad steady. The wasteland doesn't forgive drift.",
+    "We move as one when the signal hits. Be part of it.",
+    "I'm not here to babysit. I'm here to keep you on time.",
+    "Stay calm, stay sharp, stay accountable.",
+    "The mission starts on time. So should you.",
+    "Nothing fancy. Just clear orders and clean execution.",
+    "Show up prepared. Your alliance is watching.",
+]
+
 # Additional character hooks and lore highlights for embeds and manuals
 MARCIA_TRAITS = [
     "Shadow Weaver of the Old Net, now a reluctant guardian of survivor hubs.",

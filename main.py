@@ -191,6 +191,17 @@ class MarciaBot(commands.Bot):
         if await is_channel_ignored(message.guild.id, message.channel.id):
             return
 
+        ctx = await self.get_context(message)
+        if ctx.valid:
+            await self.process_commands(message)
+            if message.content.startswith("/"):
+                await asyncio.sleep(2)
+                try:
+                    await message.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+            return
+
         # 1. Personality Logic: Replies to mentions or direct replies
         is_bot_mentioned = self.user.mentioned_in(message) and not message.mention_everyone
         is_reply = await self._is_reply_to_bot(message)
