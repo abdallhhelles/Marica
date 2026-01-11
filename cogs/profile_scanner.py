@@ -23,7 +23,10 @@ import httpx
 from database import (
     get_profile_channel,
     get_profile_snapshot,
+    get_profile_snapshots,
     increment_activity_metric,
+    delete_profile_snapshot,
+    set_profile_scan_valid,
     set_profile_channel,
     upsert_profile_snapshot,
 )
@@ -57,12 +60,12 @@ else:  # pragma: no cover - optional dependency guard
 
 NUMBER_RE = re.compile(r"(?P<value>[\d.,]+)\s*(?P<suffix>[kmbKMB]?)")
 LABEL_HINTS = {
-    "cp": ("cp", "power"),
-    "kills": ("kills",),
-    "likes": ("likes", "like"),
-    "vip_level": ("vip", "vip level", "vip lvl"),
+    "cp": ("cp", "power", "battle power", "total power", "combat power"),
+    "kills": ("kills", "defeats", "defeated", "eliminations", "total kills"),
+    "likes": ("likes", "like", "likes received"),
+    "vip_level": ("vip", "vip level", "vip lvl", "vip lv"),
     "alliance": ("alliance", "all", "guild"),
-    "server": ("server", "state"),
+    "server": ("server", "state", "world"),
 }
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
@@ -268,11 +271,11 @@ class ProfileScanner(commands.Cog):
 
         target = member or ctx.author
         data = await get_profile_snapshot(ctx.guild.id, target.id)
-        if not data:
+        if not data or data.get("scan_valid") == 0:
             return await self._safe_send(
                 ctx,
                 content=(
-                    "No profile stored yet. Drop a screenshot in the configured channel first."
+                    "No valid profile stored yet. Drop a screenshot in the configured channel first."
                 ),
                 ephemeral=True,
             )
@@ -309,6 +312,33 @@ class ProfileScanner(commands.Cog):
 
         await increment_activity_metric(ctx.guild.id, "profile_views")
         await self._safe_send(ctx, embed=embed)
+
+    @commands.hybrid_command(
+        name="profile_review",
+        description="Review, invalidate, or delete recent profile scans.",
+    )
+    @commands.has_permissions(manage_guild=True)
+    async def profile_review(self, ctx):
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="Profile reviews only work inside servers.",
+                ephemeral=True,
+            )
+
+        snapshots = await get_profile_snapshots(ctx.guild.id, limit=25, include_invalid=True)
+        if not snapshots:
+            return await self._safe_send(
+                ctx,
+                content="No profile scans found yet.",
+                ephemeral=True,
+            )
+
+        view = ProfileReviewView(self, ctx.guild.id, snapshots)
+        embed = view.build_embed()
+        message = await self._safe_send(ctx, embed=embed, view=view, ephemeral=True)
+        if isinstance(message, discord.Message):
+            view.bind_message(message)
 
     @commands.hybrid_command(
         name="ocr_status",
@@ -447,6 +477,13 @@ class ProfileScanner(commands.Cog):
                 if easyocr_results:
                     parsed.update(easyocr_results["parsed"])
                     raw_text = easyocr_results["raw"]
+                    if not self._has_profile_metrics(parsed):
+                        easyocr_full = await self._run_easyocr_full_text(
+                            image_bytes, temp_path=temp_path
+                        )
+                        if easyocr_full:
+                            raw_text = raw_text or easyocr_full
+                            parsed.update(_parse_profile_text(easyocr_full))
                 elif self._easyocr_ready is False and self._easyocr_failure_reason:
                     ocr_note = self._easyocr_failure_reason
 
@@ -694,12 +731,47 @@ class ProfileScanner(commands.Cog):
                 else:
                     results[mapped] = best_text
 
-            results["ownership_verified"] = len(verification_hits) == len(VERIFY_FIELDS)
+            if verification_hits:
+                results["ownership_verified"] = len(verification_hits) == len(VERIFY_FIELDS)
+            else:
+                results["ownership_verified"] = None
 
             raw = "\n".join(raw_lines)
             return {"parsed": results, "raw": raw}
 
         return await loop.run_in_executor(None, _scan)
+
+    async def _run_easyocr_full_text(
+        self, image_bytes: bytes, temp_path: Path | None = None
+    ) -> str:
+        ready = await self._ensure_easyocr()
+        if not ready or not self._easyocr_reader:
+            return ""
+
+        loop = asyncio.get_running_loop()
+
+        def _scan() -> str:
+            if temp_path and temp_path.exists():
+                img = cv2.imread(str(temp_path))
+            else:
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                return ""
+
+            detections = self._easyocr_reader.readtext(img)
+            if not detections:
+                return ""
+            return "\n".join(item[1].strip() for item in detections if item[1].strip())
+
+        return await loop.run_in_executor(None, _scan)
+
+    @staticmethod
+    def _has_profile_metrics(parsed: dict[str, str | int | None]) -> bool:
+        return any(
+            parsed.get(field)
+            for field in ("player_name", "cp", "kills", "likes", "vip_level", "alliance", "server")
+        )
 
     def _crop_by_ratio(self, img, box):
         h, w = img.shape[:2]
@@ -816,6 +888,167 @@ class ProfileScanner(commands.Cog):
     def _raw_line_count(raw_text: str) -> int:
         """Count OCR output lines while tolerating empty payloads."""
         return raw_text.count("\n") + (1 if raw_text else 0)
+
+
+class ProfileReviewSelect(discord.ui.Select):
+    def __init__(self, review_view: "ProfileReviewView"):
+        self.review_view = review_view
+        super().__init__(
+            placeholder="Select a scanned profile...",
+            options=review_view.build_options(),
+            min_values=1,
+            max_values=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not await self.review_view.authorize(interaction):
+            return
+        self.review_view.selected_user_id = int(self.values[0])
+        await interaction.response.edit_message(
+            embed=self.review_view.build_embed(), view=self.review_view
+        )
+
+
+class ProfileReviewView(discord.ui.View):
+    def __init__(self, cog: ProfileScanner, guild_id: int, snapshots: list[dict]):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.snapshots = {row["user_id"]: row for row in snapshots}
+        self.selected_user_id = next(iter(self.snapshots), None)
+        self.message: discord.Message | None = None
+        self.select = ProfileReviewSelect(self)
+        self.add_item(self.select)
+
+    def bind_message(self, message: discord.Message) -> None:
+        self.message = message
+
+    async def authorize(self, interaction: discord.Interaction) -> bool:
+        if not interaction.guild:
+            return False
+        perms = interaction.user.guild_permissions
+        if not perms.manage_guild:
+            await interaction.response.send_message(
+                "🔒 Manage Server permission required.", ephemeral=True
+            )
+            return False
+        return True
+
+    def build_options(self) -> list[discord.SelectOption]:
+        options: list[discord.SelectOption] = []
+        guild = self.cog.bot.get_guild(self.guild_id)
+        for user_id, row in list(self.snapshots.items())[:25]:
+            member = guild.get_member(user_id) if guild else None
+            name = row.get("player_name") or (member.display_name if member else f"User {user_id}")
+            status = "✅" if row.get("scan_valid", 1) else "⚠️"
+            details = f"{status} CP {row.get('cp') or '—'} • Kills {row.get('kills') or '—'}"
+            options.append(
+                discord.SelectOption(
+                    label=name[:100],
+                    description=details[:100],
+                    value=str(user_id),
+                )
+            )
+        if not options:
+            options.append(
+                discord.SelectOption(label="No scans available", value="0", default=True)
+            )
+        return options
+
+    def _selected_snapshot(self) -> dict | None:
+        if self.selected_user_id is None:
+            return None
+        return self.snapshots.get(self.selected_user_id)
+
+    def build_embed(self) -> discord.Embed:
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return discord.Embed(
+                title="🛰️ Profile Review",
+                description="No scans available.",
+                color=0xe67e22,
+            )
+
+        guild = self.cog.bot.get_guild(self.guild_id)
+        member = guild.get_member(snapshot["user_id"]) if guild else None
+        name = snapshot.get("player_name") or (member.display_name if member else f"User {snapshot['user_id']}")
+        status = "✅ Active" if snapshot.get("scan_valid", 1) else "⚠️ Invalidated"
+        embed = discord.Embed(
+            title=f"🛰️ Profile Review | {name}",
+            description=f"Scan status: **{status}**",
+            color=0x3498db if snapshot.get("scan_valid", 1) else 0xe74c3c,
+        )
+        embed.add_field(name="🏰 Alliance", value=snapshot.get("alliance") or "—", inline=True)
+        embed.add_field(name="🌐 Server", value=snapshot.get("server") or "—", inline=True)
+        embed.add_field(
+            name="🎖️ VIP / Likes",
+            value=f"{_format_metric(snapshot.get('vip_level'))} / {_format_metric(snapshot.get('likes'))}",
+            inline=True,
+        )
+        embed.add_field(
+            name="⚔️ CP / ☠️ Kills",
+            value=f"{_format_metric(snapshot.get('cp'))} / {_format_metric(snapshot.get('kills'))}",
+            inline=True,
+        )
+        if snapshot.get("ownership_verified") is not None:
+            status_line = (
+                "✅ Self-view detected" if snapshot["ownership_verified"] else "⚠️ Ownership unverified"
+            )
+            embed.add_field(name="Ownership", value=status_line, inline=False)
+        if snapshot.get("last_image_url"):
+            embed.add_field(name="Latest scan", value=f"[View image]({snapshot['last_image_url']})", inline=False)
+        if snapshot.get("last_updated"):
+            dt = datetime.fromtimestamp(snapshot["last_updated"], tz=timezone.utc)
+            embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
+        return embed
+
+    def _refresh_options(self) -> None:
+        self.select.options = self.build_options()
+        if self.selected_user_id not in self.snapshots:
+            self.selected_user_id = next(iter(self.snapshots), None)
+
+    @discord.ui.button(label="Invalidate", style=discord.ButtonStyle.danger)
+    async def invalidate_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.authorize(interaction):
+            return
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return await interaction.response.send_message(
+                "No scan selected.", ephemeral=True
+            )
+        await set_profile_scan_valid(self.guild_id, snapshot["user_id"], False)
+        snapshot["scan_valid"] = 0
+        self._refresh_options()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="Restore", style=discord.ButtonStyle.success)
+    async def restore_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.authorize(interaction):
+            return
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return await interaction.response.send_message(
+                "No scan selected.", ephemeral=True
+            )
+        await set_profile_scan_valid(self.guild_id, snapshot["user_id"], True)
+        snapshot["scan_valid"] = 1
+        self._refresh_options()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.secondary)
+    async def delete_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.authorize(interaction):
+            return
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return await interaction.response.send_message(
+                "No scan selected.", ephemeral=True
+            )
+        await delete_profile_snapshot(self.guild_id, snapshot["user_id"])
+        self.snapshots.pop(snapshot["user_id"], None)
+        self._refresh_options()
+        embed = self.build_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 async def setup(bot):

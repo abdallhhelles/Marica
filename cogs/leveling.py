@@ -225,6 +225,10 @@ class Leveling(commands.Cog):
         if message.type is not discord.MessageType.default:
             return
 
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
+            return
+
         gid, uid = message.guild.id, message.author.id
         if await is_channel_ignored(gid, message.channel.id):
             return
@@ -338,7 +342,7 @@ class Leveling(commands.Cog):
         embed.add_field(name="Scavenge Status", value="\n".join(scavenge_status), inline=True)
 
         snapshot = await get_profile_snapshot(ctx.guild.id, member.id)
-        if snapshot:
+        if snapshot and snapshot.get("scan_valid", 1):
             ingame = [
                 f"🪪 Name: {snapshot.get('player_name') or member.display_name}",
                 f"🏰 Alliance: {snapshot.get('alliance') or '—'}",
@@ -361,7 +365,7 @@ class Leveling(commands.Cog):
         else:
             embed.add_field(
                 name="Profile Scan",
-                value="No profile scan stats stored yet. Run `/scan_profile` to capture your card.",
+                value="No valid profile scan stats stored yet. Run `/scan_profile` to capture your card.",
                 inline=False,
             )
 
@@ -667,8 +671,14 @@ class Leveling(commands.Cog):
                 guild_name = source_guild.name if source_guild else f"Guild {row['guild_id']}"
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.mention if user else f"<@{row['user_id']}>"
+                snapshot = await get_profile_snapshot(row["guild_id"], row["user_id"])
+                server_info = (
+                    f" | Server {snapshot['server']}"
+                    if snapshot and snapshot.get("scan_valid", 1) and snapshot.get("server")
+                    else ""
+                )
                 lines.append(
-                    f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']:,} XP ({guild_name})"
+                    f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']:,} XP ({guild_name}{server_info})"
                 )
             embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
             embed.set_footer(
@@ -763,7 +773,7 @@ class Leveling(commands.Cog):
             rows = await top_global_xp(limit)
             if not rows:
                 return None
-            headers = ["Rank", "User", "Level", "XP", "Guild"]
+            headers = ["Rank", "User", "Level", "XP", "Guild", "Server"]
             filename = "leaderboard_global.tsv"
             note = f"Network XP leaderboard (top {len(rows)})."
             lines = ["\t".join(headers)]
@@ -772,11 +782,13 @@ class Leveling(commands.Cog):
                 guild_name = source_guild.name if source_guild else f"Guild {row['guild_id']}"
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.name if user else f"User {row['user_id']}"
+                snapshot = await get_profile_snapshot(row["guild_id"], row["user_id"])
+                server_num = snapshot.get("server") if snapshot and snapshot.get("scan_valid", 1) else "—"
                 lines.append(
                     "\t".join(
                         map(
                             str,
-                            [idx, user_display, row["level"], row["xp"], guild_name],
+                            [idx, user_display, row["level"], row["xp"], guild_name, server_num],
                         )
                     )
                 )

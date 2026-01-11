@@ -26,7 +26,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Manual:** `/manual` and `/features` for onboarding.
 
 ### 4) Automation & passive features
-- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes with natural @ mentions, Join Event reactions (✅/❔/❌), and opt-in DM pings via 📬 at the 60-minute alert. All messages follow Marcia's personality: clear, calm, firm, and encouraging.
+- **Event reminders:** Scheduled alerts fire at 60/30/15/3/0 minutes with natural @ mentions, a clear Join Event reaction (🤝), and automatic DM reminders for participants. All messages follow Marcia's personality: clear, calm, firm, and encouraging.
 - **Duel directives:** Daily duel instructions posted at midnight (game time) with detailed priorities, strategies, and SP slot rotations. Kill Event shield reminders send throughout Friday evening and Saturday.
 - **XP leveling:** Message-based XP with cooldowns, auto-created **Uplink Tier** roles every 5 levels, and prestige unlocks when collections are complete.
 - **Trading intelligence:** Fish-Link matches spares to wants and DMs players when matches appear.
@@ -40,13 +40,27 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Use a saved template:** choose **Use Template** when running `/event`.
 - **Remove an event:** `/event_remove <codename>`
 - **List upcoming events:** open `/event` and tap **Upcoming Events**
-- **Join Event tracking:** on the initial event announcement, members can react with ✅/❔/❌ to indicate attendance; reminders include the current counts.
-- **DM opt-ins:** at the 60-minute alert, members can react with 📬 to receive later reminders by DM.
+- **Join Event tracking:** at the 60-minute notification, members can react with 🤝 to join; reminders include the participant count.
+- **Automatic DMs:** members who react with 🤝 receive DM reminders at 30/15/3 minutes and at kickoff.
 
 ### Event safeguards
 - Alerts only ping when a channel is configured in settings and not in the ignore list.
 - Natural @ mentions (e.g., "Dear @everyone", "Hello @everyone") blend into messages smoothly.
 - `@everyone` pings use explicit allowed mentions to avoid accidental server-wide alerts.
+
+### Event lifecycle (creation to completion)
+1. **Create an event:** `/event` → **Custom Event** (or **Use Template**) captures codename, briefing, time, location, and ping target.
+2. **Scheduled confirmation:** the event is logged and a preview card is posted to the events channel.
+3. **60-minute broadcast:** the first notification always fires at the 60-minute mark and pings `@everyone`. The message includes a **Join Event (🤝)** reaction.
+4. **Participation tracking:** members who react with 🤝 are marked as participants and counted in reminder updates.
+5. **DM reminders:** participants receive direct messages at 30/15/3 minutes and at kickoff.
+6. **Completion:** once the event starts, reminders finish and the event is cleared from the active list.
+
+### Future enhancements (suggested)
+- **Auto-summary reports:** post a brief after-action summary with participation counts and outcomes.
+- **Role-based readiness:** allow optional role pings for specific squads while still keeping @everyone on the 60-minute broadcast.
+- **Calendar exports:** generate an iCal feed for alliance planners.
+- **Attendance streaks:** reward consistent participation with a badge or weekly shoutout.
 
 ## Reminders system
 - **Launch reminder menu:** `/remind` opens the reminder control panel with multiple options.
@@ -75,7 +89,9 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 ## Profile screenshot scanner
 - **Set the intake channel:** `/setup_profile_channel #channel` scopes where Marcia watches for profile screenshots.
 - **Auto-capture stats:** screenshots in that channel log CP, kills, server, and alliance to the uploader.
+- **Extended More tab:** scans from the in-game **More** profile tab are supported via full-text OCR parsing.
 - **Review scans:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor with VIP, likes, and a self-view check.
+- **Admin review:** `/profile_review` opens a management view to invalidate or delete scans when needed.
 - **Compare stats:** `/leaderboard` opens a menu for XP plus CP/kills/likes/VIP from scanned profiles, with row counts (10/25/50/100) and an export-to-DM option for spreadsheet copy/paste.
 - **OCR dependencies:** Tesseract+pytesseract cover basic scans. For higher accuracy, install the OCR extras bundled in `requirements.txt` (easyocr, opencv, numpy) unless memory is constrained; on tiny hosts you can skip them with `requirements-lite.txt` (scanning stays disabled).
 
