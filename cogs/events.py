@@ -9,147 +9,133 @@ import asyncio
 import random
 import logging
 from datetime import datetime, timezone, timedelta
-from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_QUOTES
+from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_SYSTEM_LINES
 from utils.time_utils import now_game, game_to_utc, format_game, utc_to_game
 from database import (
     add_mission,
-    add_mission_opt_in,
     add_template,
     can_run_daily_task,
-    clear_mission_opt_ins,
     delete_mission,
     get_all_active_missions,
-    get_mission_opt_ins,
     get_rsvp_counts,
+    get_rsvp_members,
     get_settings,
     get_templates,
     get_upcoming_missions,
     increment_activity_metric,
     is_channel_ignored,
-    lookup_dm_prompt,
     lookup_rsvp_prompt,
     mark_task_complete,
     remove_rsvp_status,
     set_rsvp_status,
-    upsert_dm_prompt,
     upsert_rsvp_prompt,
 )
 
 logger = logging.getLogger('MarciaOS.Events')
-DM_OPT_IN_EMOJI = "📬"
+JOIN_EVENT_EMOJI = "🤝"
 RSVP_EMOJIS = {
-    "✅": "going",
-    "❔": "maybe",
-    "❌": "no",
-}
-RSVP_LABELS = {
-    "going": "✅ Going",
-    "maybe": "❔ Maybe",
-    "no": "❌ Can't",
+    JOIN_EVENT_EMOJI: "going",
 }
 
 DUEL_DATA = {
     0: (
-        "**MONDAY – Day 1: Shelter Expansion**\n\n"
-        "Listen up, Wanderers. The week starts with foundation work—build strong, stack resources, and don't waste what you saved. Marcia's watching the metrics.\n\n"
-        "**💾 SAVE FOR LATER:**\n"
-        "• Radars, Gears, Titanium Alloy, Power Cores\n"
-        "• Hero Equipment Lucky Chests, Prime Recruit (Gold Tickets)\n"
-        "• Truck Refresh tickets, Shadow Mission Refresh tickets\n"
-        "• ALL hero fragments\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• 🏗️ Construction – Upgrade and complete settlement structures. Every wall matters when raiders come knocking.\n"
-        "• 📜 Wisdom Medals – Use to boost Research Center, Duel, Battle Strategy progression. Knowledge is armor.\n"
-        "• 🔬 Research – Start/upgrade and finish tech trees. Stack with Wisdom Medals for maximum efficiency!\n"
-        "• ⚙️ Speedups – Construction and Research ONLY for Day 1. Save the rest for later.\n"
-        "• 💰 Resource Gathering – Send cars ALL DAY for wood, iron, electricity, and bonus for mint/coin. The wasteland provides.\n"
-        "• Precision parts - use them now. Don't hoard what you need today.\n\n"
-        "**💡 MARCIA'S INSIGHT:** Stack speedups on long research/builds before reset. Every second counts when you're chasing the top slots."
+        "**MONDAY — Day 1: Shelter Expansion**\n\n"
+        "**Event Focus:** Construction, Research, and Wisdom Medals.\n"
+        "**Primary Score Sources:** Building upgrades, Research completions, Wisdom Medal spending.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• 🏗️ **Construction:** Start long upgrades early so they finish before reset.\n"
+        "• 🔬 **Research:** Queue big tech nodes; stack Wisdom Medals for better ROI.\n"
+        "• 📜 **Wisdom Medals:** Spend on Research Center, Duel, and Battle Strategy trees.\n"
+        "• ⚙️ **Speedups:** Use only construction/research boosts today.\n"
+        "• 💰 **Gathering:** Keep fleets running for wood/iron/electricity + mint bonus.\n\n"
+        "**💾 Save For Later:**\n"
+        "• Radar missions, gears, titanium alloy, power cores\n"
+        "• Hero equipment chests, Prime Recruit tickets\n"
+        "• Truck/Shadow refresh tickets, hero fragments\n\n"
+        "**💡 Marcia’s Call:** Front-load long builds now. Finishing after reset still scores today."
     ),
     1: (
-        "**TUESDAY – Day 2: Hero Initiative**\n\n"
-        "Heroes win wars, Survivors. Today's about making your commanders sharper, faster, and deadlier. Don't hold back on those fragments—your squad needs leaders, not hoarded potential.\n\n"
-        "**💾 SAVE FOR LATER:**\n"
-        "• Gears, Power Cores, Wisdom Medals\n"
-        "• Hero Equipment Lucky Chests\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• 📡 Radar Missions – Finish as many as possible. Intel is currency in the wasteland.\n"
-        "• 🎖️ Prime Recruit – Use ALL your Golden Tickets today! Don't save these—you're burning points.\n"
-        "• 🧩 Hero Fragments – Promote (Star Rise) heroes by spending fragments (especially orange/purple). Elite commanders make elite squads.\n"
-        "• 🎯 Exclusive Equipment – Star-rise your best gear (be cautious with resources). Premium gear, premium results.\n\n"
-        "**💡 MARCIA'S INSIGHT:** Before reset into Day 3, start troop training to complete AFTER reset. That's called timing the market, and it pays dividends."
+        "**TUESDAY — Day 2: Hero Initiative**\n\n"
+        "**Event Focus:** Hero upgrades, Prime Recruit, Radar missions.\n"
+        "**Primary Score Sources:** Tickets, hero fragments, exclusive equipment upgrades.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• 🎖️ **Prime Recruit:** Spend gold tickets today—no hoarding.\n"
+        "• 🧩 **Hero Fragments:** Star-rise orange/purple heroes first.\n"
+        "• 🎯 **Exclusive Gear:** Upgrade core gear on your main squad.\n"
+        "• 📡 **Radar Missions:** Clear every radar you can for steady points.\n\n"
+        "**💾 Save For Later:**\n"
+        "• Gears, power cores, wisdom medals, equipment chests\n\n"
+        "**💡 Marcia’s Call:** Queue troop training late tonight so it finishes after reset for Day 3 points."
     ),
     2: (
-        "**WEDNESDAY – Day 3: Keep Progressing**\n\n"
-        "Midweek grind, Wanderers. This is where discipline separates winners from corpses. Stack those trucks, run those shadows, and keep your troops cycling. The wasteland doesn't rest—neither should you.\n\n"
-        "**💾 SAVE FOR LATER:**\n"
-        "• Energy (Rally tomorrow), Gears, Wisdom Medals\n"
-        "• Construction and Research speedups\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• 🚚 S-tier Escort/Cargo Trucks – Do S-tier for maximum points. High risk, high reward.\n"
-        "• 🕶️ S-tier (Orange) Shadow Calls Missions – Prioritize orange missions for massive point boosts. The shadows pay well.\n"
-        "• 🔋 Power Cores – Use to upgrade orange hero equipment. Turn good gear into legendary gear.\n"
-        "• 🎁 Hero Equipment Lucky Chests – Use saved chests to boost power. Enhance equipment or attach to heroes.\n"
-        "• ⚙️ Speedups – Troop Training ONLY for Day 3. Save other speedups for the right moment.\n"
-        "• 🪖 Training – Always be training troops. Train mid-tier troops in bulk. Numbers win wars.\n"
-        "• 🔧 Red Equipment – Orange gear must be level 100 and enhanced to level 10 using Power Cores. No shortcuts here.\n\n"
-        "**💡 MARCIA'S INSIGHT:** Orange missions offer the best point-to-energy ratio. Run them smart, run them hard, and watch your rank climb."
+        "**WEDNESDAY — Day 3: Logistics Surge**\n\n"
+        "**Event Focus:** Cargo/Shadow missions and troop training.\n"
+        "**Primary Score Sources:** S-tier trucks, orange shadow calls, troop training speedups.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• 🚚 **Escort/Cargo:** Run S-tier only. Prioritize refreshes for orange trucks.\n"
+        "• 🕶️ **Shadow Calls:** Orange missions deliver the best point-per-stamina.\n"
+        "• 🪖 **Troop Training:** Train steadily all day; use training speedups only.\n"
+        "• 🔋 **Power Cores:** Push orange equipment upgrades now.\n\n"
+        "**💾 Save For Later:**\n"
+        "• Construction/research speedups, wisdom medals, excess energy\n\n"
+        "**💡 Marcia’s Call:** Keep queues full. Empty barracks means empty scoreboard."
     ),
     3: (
-        "**THURSDAY – Day 4: Arms Expert**\n\n"
-        "Vehicle day, Survivors. Your APCs are your lifeline in the field—upgrade them or watch your squads get shredded. And those roamers? They're walking loot piñatas. Hit them hard.\n\n"
-        "**💾 SAVE FOR LATER:**\n"
-        "• Precision parts, APC upgrades, Power Cores\n"
-        "• Hero fragments, Wisdom Medals\n"
-        "• Acceleration for construction, research, and unit training/promotion\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• 🚙 Upgrade APCs – Consume gears, titanium alloy, and design blueprints. Better wheels, better survival odds.\n"
-        "• 📡 Radar Events – Complete them all. Every ping is potential profit.\n"
-        "• 🧟‍♂️ Kill Roamers or Boomers – Scale will be posted by alliance leadership. Hunt smart, not hard.\n\n"
-        "**💡 MARCIA'S INSIGHT:** Coordinate with alliance for monster rallies. Solo heroes die alone. Pack hunters survive and thrive."
+        "**THURSDAY — Day 4: Arms Expert**\n\n"
+        "**Event Focus:** APC upgrades and radar events.\n"
+        "**Primary Score Sources:** APC parts, vehicle upgrades, roamer hunts.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• 🚙 **APC Upgrades:** Spend gears/titanium/blueprints on your main vehicle.\n"
+        "• 📡 **Radar Events:** Clear all available radar missions.\n"
+        "• 🧟 **Roamers/Boomers:** Follow alliance scale callouts for efficient kills.\n\n"
+        "**💾 Save For Later:**\n"
+        "• Hero fragments, wisdom medals, general speedups\n\n"
+        "**💡 Marcia’s Call:** Hunt in coordinated waves. Efficiency beats chaos."
     ),
     4: (
-        "**FRIDAY – Day 5: Holistic Growth**\n\n"
-        "Friday's your cleanup day, Wanderers. Finish what you started, upgrade what's lagging, and prepare for the weekend chaos. Tomorrow's a battlefield—today you sharpen your tools.\n\n"
-        "**💾 SAVE FOR LATER:**\n"
-        "• Shadow Call refresh, Dark Syndicate refresh\n"
-        "• Accelerations\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• 🚙 Upgrade APCs – Consume gears, titanium alloy, and design blueprints. Keep those engines running.\n"
-        "• ⏫ Hero Fragments – Upgrade the stars of heroes to gain points; the higher the rarity the better. Elite squads, elite results.\n"
-        "• 🏅 Consume Wisdom Medals – Obtained from VS duel boxes and alliance store. Knowledge translates to power.\n"
-        "• ⏩ Acceleration – Use construction, research, or unit training/promotion speedups. Time is a weapon—use it.\n\n"
-        "**💡 MARCIA'S INSIGHT:** This is your catch-up day for incomplete earlier tasks. Don't carry technical debt into the weekend war."
+        "**FRIDAY — Day 5: Holistic Growth**\n\n"
+        "**Event Focus:** Catch-up growth across systems.\n"
+        "**Primary Score Sources:** Hero fragments, wisdom medals, APC upgrades, speedups.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• ⏫ **Hero Fragments:** Star-rise high-rarity heroes first.\n"
+        "• 🏅 **Wisdom Medals:** Spend on the most impactful research tiers.\n"
+        "• 🚙 **APC Upgrades:** Finish any vehicle upgrades queued earlier in the week.\n"
+        "• ⏩ **Speedups:** Use targeted boosts where you lag behind.\n\n"
+        "**💾 Save For Later:**\n"
+        "• Dark Syndicate/Shadow refreshes if you plan for Saturday.\n\n"
+        "**💡 Marcia’s Call:** Fix weak links today so Saturday doesn’t expose them."
     ),
     5: (
-        "**SATURDAY – Day 6: Enemy Buster**\n\n"
-        "The kill event is live, Survivors. This is where alliances are tested and the weak get culled. If you're playing, play smart. If you're sitting out, SHIELD UP and don't become a statistic on my grid.\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• 🚚 Gold Dark Syndicate Trucks – Use refreshes to escort gold trucks. High value, high risk.\n"
-        "• 🎫 Gold Shadow Calls – Use refreshes to obtain gold shadow call events. If you don't have enough S-tier heroes, do them in intervals. Don't burn out.\n"
-        "• 💀 Defeat Units & Have Your Units Defeated – Extra points for defeating rival alliance units, though the whole state can be farmed for less points. Pick your battles wisely.\n"
-        "• ⏩ Acceleration – Use construction, research, or unit training/promotion speedups. Keep the pressure on.\n\n"
-        "**🛡️ DEFENSE - SHIELD UP IF YOU ARE NOT PARTICIPATING!**\n"
-        "• Maintain **24h shields** throughout the event. I'm not rescuing careless survivors.\n"
-        "• Set alarms if using shorter shields to renew before expiration. Time blindness gets you killed.\n"
-        "• Shelter troops when shield expires. Empty bases are honeypots for raiders.\n\n"
-        "**💡 MARCIA'S INSIGHT:** As seasons progress, more ways to earn points will be added. The wasteland evolves—so should you."
+        "**SATURDAY — Day 6: Enemy Buster (Kill Event)**\n\n"
+        "**Event Focus:** PvP eliminations and high-risk scoring.\n"
+        "**Primary Score Sources:** Rival unit defeats, gold trucks, gold shadow calls.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• 💀 **Combat:** Choose targets wisely; avoid wasteful fights.\n"
+        "• 🚚 **Gold Trucks:** Use refreshes to secure gold-tier escorts.\n"
+        "• 🎫 **Gold Shadow Calls:** Run in intervals to avoid stamina burnout.\n"
+        "• ⏩ **Speedups:** Spend only if it converts to direct points.\n\n"
+        "**🛡️ DEFENSE (If Not Participating):**\n"
+        "• Keep **24h shields** active for the full event.\n"
+        "• Set alarms for shorter shields—missed refreshes get you zeroed.\n"
+        "• Shelter troops before shields drop.\n\n"
+        "**💡 Marcia’s Call:** This day is high-risk. Win smart or sit safe."
     ),
     6: (
-        "**SUNDAY – Day 7: Preparation & Planning**\n\n"
-        "Recovery day, Wanderers. The week's grind is done—now you prep for the next cycle. Smart survivors plan ahead. Foolish ones scramble on Monday morning. Which one are you?\n\n"
-        "**📋 PRIORITY TASKS:**\n"
-        "• Prepare gatherers for Monday reset (deploy late Sunday). Resource nodes refill at midnight—be the first in line.\n"
-        "• Restock speedups and consumables for next week. Running dry mid-week is amateur hour.\n"
-        "• Review alliance performance and coordinate improvements. Learn from wins AND losses.\n"
-        "• Check inventory and plan resource allocation. Know what you have before you need it.\n\n"
-        "**📦 PREPARATION CHECKLIST:**\n"
-        "• ✓ Speedups restocked\n"
-        "• ✓ Stamina items available\n"
-        "• ✓ Hero fragments ready\n"
-        "• ✓ Gathering fleet prepared\n"
-        "• ✓ Alliance communication established\n\n"
-        "**💡 MARCIA'S INSIGHT:** Sunday is recovery day, not lazy day. Plan ahead and save resources for a strong Monday start. Refer to GENERAL TIPS guide for radar optimization. Winners prepare, losers repair."
+        "**SUNDAY — Day 7: Preparation & Planning**\n\n"
+        "**Event Focus:** Reset prep and alliance alignment.\n"
+        "**Primary Score Sources:** Minimal—this day is for setup.\n\n"
+        "**📋 Action Plan (Today):**\n"
+        "• 🧭 **Gathering Prep:** Queue gatherers before reset.\n"
+        "• 📦 **Inventory Audit:** Stock speedups, stamina, and medals.\n"
+        "• 📣 **Alliance Brief:** Review the week and align on Monday priorities.\n"
+        "• 🗺️ **Resource Plan:** Assign farming targets for the next cycle.\n\n"
+        "**✅ Checklist:**\n"
+        "• Speedups restocked\n"
+        "• Stamina items ready\n"
+        "• Hero fragments staged\n"
+        "• Gathering fleet prepared\n"
+        "• Alliance comms confirmed\n\n"
+        "**💡 Marcia’s Call:** Monday rewards preparation. Set the pace before the week starts."
     )
 }
 
@@ -166,13 +152,14 @@ KILL_EVENT_SHIELD_REMINDERS = {
 
 # Reminders for the day BEFORE kill event (Friday)
 KILL_EVENT_PRE_SHIELD_REMINDERS = {
-    20: "⚠️ Kill event starts in 4 hours. Get your **24h shield** ready. Check inventory and prepare your squad.",
-    22: "🛡️ Kill event starts in 2 hours. Last call to drop shields. Coordinate with your alliance now.",
+    20: "⚠️ Kill event starts in 4 hours. Prep your **24h shield** stock and coordinate with your squad.",
+    21: "🛡️ Kill event starts in 3 hours. Confirm shield timers and notify anyone still unprotected.",
+    22: "🛡️ Kill event starts in 2 hours. Last call to drop shields and lock in protection.",
 }
 
 
 def _marcia_quip():
-    return random.choice(MARCIA_QUOTES)
+    return random.choice(MARCIA_SYSTEM_LINES)
 
 # --- UI COMPONENTS ---
 
@@ -734,13 +721,7 @@ class Events(commands.Cog):
             if settings and settings['event_channel_id']:
                 chan = ctx.guild.get_channel(settings['event_channel_id'])
                 if chan and not await is_channel_ignored(ctx.guild.id, chan.id):
-                    announcement = await chan.send("🛰️ **New Operation Logged**", embed=preview)
-                    try:
-                        for emoji in RSVP_EMOJIS:
-                            await announcement.add_reaction(emoji)
-                    except Exception:
-                        logger.warning("Could not add RSVP reactions for %s", name)
-                    await upsert_rsvp_prompt(ctx.guild.id, name, announcement.id)
+                    await chan.send("🛰️ **Operation Scheduled**", embed=preview)
         except Exception:
             await ctx.author.send("❌ Use: `YYYY-MM-DD HH:MM`.")
 
@@ -785,13 +766,10 @@ class Events(commands.Cog):
             location_line = f"\n📍 {location}" if location else ""
             title, body = random.choice(TIMED_REMINDERS.get(mins, [("", "`{name}` is coming up.")]))
             body = body.format(name=name, drone=drone)
-            quote = random.choice(MARCIA_QUOTES)
+            quote = random.choice(MARCIA_SYSTEM_LINES)
             counts = await get_rsvp_counts(guild_id, name)
-            rsvp_line = (
-                f"Join Event — {RSVP_LABELS['going']}: {counts['going']} | "
-                f"{RSVP_LABELS['maybe']}: {counts['maybe']} | "
-                f"{RSVP_LABELS['no']}: {counts['no']}"
-            )
+            participant_count = counts.get("going", 0)
+            rsvp_line = f"Join Event {JOIN_EVENT_EMOJI}: {participant_count} joined"
 
             if mins == 60:
                 # Build the message with natural mention integration
@@ -802,7 +780,7 @@ class Events(commands.Cog):
                         f"{body}\n\n"
                         f"{desc}{location_line}\n\n"
                         f"{rsvp_line}\n\n"
-                        f"React with {DM_OPT_IN_EMOJI} to receive follow-up reminders directly."
+                        f"React with {JOIN_EVENT_EMOJI} to join this event and receive DM reminders."
                         f"\n\n*Drone: {drone}*"
                     )
                 else:
@@ -811,7 +789,7 @@ class Events(commands.Cog):
                         f"{body}\n\n"
                         f"{desc}{location_line}\n\n"
                         f"{rsvp_line}\n\n"
-                        f"React with {DM_OPT_IN_EMOJI} to receive follow-up reminders directly."
+                        f"React with {JOIN_EVENT_EMOJI} to join this event and receive DM reminders."
                         f"\n\n*Drone: {drone}*"
                     )
                 sent = await chan.send(
@@ -820,10 +798,10 @@ class Events(commands.Cog):
                 )
 
                 try:
-                    await sent.add_reaction(DM_OPT_IN_EMOJI)
+                    await sent.add_reaction(JOIN_EVENT_EMOJI)
                 except Exception:
-                    logger.warning("Could not add DM opt-in reaction for %s", name)
-                await upsert_dm_prompt(guild_id, name, sent.id)
+                    logger.warning("Could not add join reaction for %s", name)
+                await upsert_rsvp_prompt(guild_id, name, sent.id)
             else:
                 # Build the message with natural mention integration
                 if natural_mention:
@@ -847,10 +825,9 @@ class Events(commands.Cog):
                     msg,
                     allowed_mentions=allowed_mentions,
                 )
-                await self._notify_dm_opt_ins(guild_id, name, mins, desc, location)
+                await self._notify_dm_participants(guild_id, name, mins, desc, location)
 
         await delete_mission(guild_id, name)
-        await clear_mission_opt_ins(guild_id, name)
 
     def _build_event_embed(self, guild, name, desc, utc_dt, location=None, ping_role_id=None):
         embed = discord.Embed(
@@ -871,8 +848,8 @@ class Events(commands.Cog):
         embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
         return embed
 
-    async def _notify_dm_opt_ins(self, guild_id: int, codename: str, mins: int, desc: str, location: str | None) -> None:
-        subscribers = await get_mission_opt_ins(guild_id, codename)
+    async def _notify_dm_participants(self, guild_id: int, codename: str, mins: int, desc: str, location: str | None) -> None:
+        subscribers = await get_rsvp_members(guild_id, codename, status="going")
         if not subscribers:
             return
 
@@ -889,48 +866,16 @@ class Events(commands.Cog):
             try:
                 await user.send(
                     f"📡 `{codename}` hits {countdown}.\n{desc}{location_line}\n\n"
-                    "You raised your hand for DM alerts. I'll keep them coming for this op."
+                    "You joined this operation. Keep your gear ready and your squad accountable."
                 )
             except Exception:
-                logger.debug("Failed to DM opt-in user %s for %s", uid, codename)
+                logger.debug("Failed to DM participant %s for %s", uid, codename)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        if str(payload.emoji) != DM_OPT_IN_EMOJI:
-            if str(payload.emoji) in RSVP_EMOJIS:
-                await self._handle_rsvp_reaction(payload, RSVP_EMOJIS[str(payload.emoji)])
+        if str(payload.emoji) in RSVP_EMOJIS:
+            await self._handle_rsvp_reaction(payload, RSVP_EMOJIS[str(payload.emoji)])
             return
-
-        if payload.user_id == getattr(self.bot.user, "id", None):
-            return
-
-        prompt = await lookup_dm_prompt(payload.message_id)
-        if not prompt:
-            return
-
-        guild_id, codename = prompt
-        if payload.guild_id and payload.guild_id != guild_id:
-            return
-
-        guild = self.bot.get_guild(guild_id)
-        member = guild.get_member(payload.user_id) if guild else None
-        if member is None and guild:
-            try:
-                member = await guild.fetch_member(payload.user_id)
-            except Exception:
-                member = None
-
-        user = member or self.bot.get_user(payload.user_id)
-        if not user or getattr(user, "bot", False):
-            return
-
-        await add_mission_opt_in(guild_id, codename, user.id)
-        try:
-            await user.send(
-                f"📡 Locked in. I'll DM you the next `{codename}` reminders for **{guild.name if guild else 'this sector'}**."
-            )
-        except Exception:
-            logger.debug("Could not DM opt-in confirmation to %s", user.id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):

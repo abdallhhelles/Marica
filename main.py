@@ -157,6 +157,25 @@ class MarciaBot(commands.Bot):
             activity=discord.Game(name="Dark War: Survival | /manual"),
         )
 
+    async def _is_reply_to_bot(self, message: discord.Message) -> bool:
+        """Return True when a message replies to the bot, even if uncached."""
+        reference = message.reference
+        if not reference or not reference.message_id:
+            return False
+        if reference.resolved and reference.resolved.author.id == self.user.id:
+            return True
+        if reference.channel_id and reference.channel_id != message.channel.id:
+            channel = message.guild.get_channel(reference.channel_id)
+        else:
+            channel = message.channel
+        if not channel:
+            return False
+        try:
+            referenced = await channel.fetch_message(reference.message_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return False
+        return referenced.author.id == self.user.id
+
     async def on_message(self, message):
         """Centralized message handling and personality logic."""
         if message.author.bot or not message.guild:
@@ -172,11 +191,20 @@ class MarciaBot(commands.Bot):
         if await is_channel_ignored(message.guild.id, message.channel.id):
             return
 
+        ctx = await self.get_context(message)
+        if ctx.valid:
+            await self.process_commands(message)
+            if message.content.startswith("/"):
+                await asyncio.sleep(2)
+                try:
+                    await message.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+            return
+
         # 1. Personality Logic: Replies to mentions or direct replies
         is_bot_mentioned = self.user.mentioned_in(message) and not message.mention_everyone
-        is_reply = (message.reference and 
-                    message.reference.resolved and 
-                    message.reference.resolved.author.id == self.user.id)
+        is_reply = await self._is_reply_to_bot(message)
         
         if is_bot_mentioned or is_reply:
             async with message.channel.typing():
