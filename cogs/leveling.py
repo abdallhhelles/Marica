@@ -641,7 +641,7 @@ class Leveling(commands.Cog):
                 lines.append(
                     f"**{idx}. {name}** — Level {row['level']} | {row['xp']:,} XP"
                 )
-            embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+            embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
                 text=f"Showing top {len(rows)} survivors. Data is saved between restarts. Keep grinding."
             )
@@ -680,7 +680,7 @@ class Leveling(commands.Cog):
                 lines.append(
                     f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']:,} XP ({guild_name}{server_info})"
                 )
-            embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+            embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
                 text=f"Showing top {len(rows)} survivors. Run your alliance like a war machine. /scavenge and climb."
             )
@@ -708,11 +708,12 @@ class Leveling(commands.Cog):
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.mention if user else f"<@{row['user_id']}>"
                 name = row["player_name"] or user_display
-                server_info = f" | Server {row['server']}" if row.get('server') else ""
+                server_value = row["server"] if "server" in row.keys() else None
+                server_info = f" | Server {server_value}" if server_value else ""
                 lines.append(
                     f"**{idx}.** {name} — {self._format_metric(row['value'])} ({guild_name}{server_info})"
                 )
-            embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+            embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
                 text=f"Showing top {len(rows)} survivors. Scan profiles to keep network stats fresh."
             )
@@ -736,11 +737,25 @@ class Leveling(commands.Cog):
             user = guild.get_member(row["user_id"])
             name = row["player_name"] or (user.display_name if user else f"User {row['user_id']}")
             lines.append(f"**{idx}.** {name} — {self._format_metric(row['value'])}")
-        embed.add_field(name="Ranks", value="\n".join(lines), inline=False)
+        embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
         embed.set_footer(
             text=f"Showing top {len(rows)} survivors. Use `/scan_profile` then `/leaderboard` to surface fresh scans."
         )
         return embed
+
+    @staticmethod
+    def _fit_embed_lines(lines: list[str], max_len: int = 1024) -> str:
+        rendered: list[str] = []
+        total = 0
+        for line in lines:
+            candidate = line if not rendered else f"\n{line}"
+            if total + len(candidate) > max_len:
+                if not rendered:
+                    return line[: max_len - 1] + "…"
+                break
+            rendered.append(line)
+            total += len(candidate)
+        return "\n".join(rendered) if rendered else "—"
 
     async def _export_leaderboard_data(
         self,
