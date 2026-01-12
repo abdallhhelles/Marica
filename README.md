@@ -12,7 +12,7 @@ Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
-* **Command-driven:** `/event` scheduling + upcoming ops, participant tracking with Join Event reactions, `/remind` for flexible reminders with templates, `/trade_item` exchanges, `/leaderboard` unified views with global rankings and server numbers, `/profile_stats` snapshots, and admin setup commands like `/setup` and `/setup_trade`.
+* **Command-driven:** `/event` scheduling + upcoming ops, participant tracking with Join Event reactions, `/remind` for flexible reminders with templates, `/trade_item` exchanges, `/leaderboard` unified views with global rankings and server numbers, `/profile_stats` snapshots, `/profile_review` admin scan controls, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
@@ -51,6 +51,8 @@ Marica/
 * **data/**: Auto-created at runtime for database and logs
 * **config/**: Static configuration templates
 
+For the full map and module list, see [docs/STRUCTURE.md](docs/STRUCTURE.md).
+
 ---
 
 ## System capabilities
@@ -67,15 +69,15 @@ Marica/
 
 ### Commander protocols (events)
 * **Guided creation:** `/event` runs a DM wizard that captures codename, tag, instructions, start time (`YYYY-MM-DD HH:MM` in UTC-2), optional location/voice link, and ping target.
-* **Cadenced reminders:** Posts at T-minus 60/30/15/3/0 minutes with consistent formatting and allowed mentions.
-* **RSVP rollups:** Operation announcements collect ✅/❔/❌ reactions and reminders include attendance counts before launch.
+* **Cadenced reminders:** Posts at T-minus 60/30/15/3/0 minutes with consistent formatting and allowed mentions. The 60-minute notice always pings `@everyone`.
+* **Join Event tracking:** Participants react with 🤝 to join; reminders include live participant counts and trigger DM reminders for those who opted in by reacting.
 * **Visibility:** `/event` includes an upcoming ops view for the current server with UTC-2 timestamps.
 * **Cleanup & reuse:** `/event_remove <codename>` removes an operation; templates can be archived and reused.
 
 ### Profile scanning (Profile Scan)
 * **Channel guard:** `/setup_profile_channel` scopes ingestion to a specific channel; other channels are ignored by design.
-* **Metric extraction:** Parses CP, kills, server, and alliance from uploaded screenshots.
-* **Review & ranking:** `/profile_stats` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/leaderboard` surfaces XP plus CP/kills/likes/VIP (profile scan) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
+* **Metric extraction:** Parses CP, kills, server, and alliance from uploaded screenshots, including the extended **More** tab layouts.
+* **Review & ranking:** `/profile_stats` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/profile_review` lets admins invalidate or delete scans; `/leaderboard` surfaces XP plus CP/kills/likes/VIP (profile scan) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
 * **Health checks:** `/ocr_status` and `python ocr/diagnostics.py` verify dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
 
 ---

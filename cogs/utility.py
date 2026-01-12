@@ -13,7 +13,13 @@ from discord import app_commands
 from discord.ext import commands
 import httpx
 
-from utils.assets import INTEL_DATABASE, MARCIA_LORE, MARCIA_SLOGANS, MARCIA_TRAITS
+from utils.assets import (
+    INTEL_DATABASE,
+    MARCIA_CAPABILITIES,
+    MARCIA_LORE,
+    MARCIA_SLOGANS,
+    MARCIA_TRAITS,
+)
 from database import (
     get_settings,
     guild_analytics_snapshot,
@@ -158,35 +164,63 @@ class Utility(commands.Cog):
             self.log.warning("Owner lookup failed: %s", exc)
             return None
 
-    def _build_about_embed(self, guild_name: Optional[str]) -> discord.Embed:
-        """Concise lore, traits, and rally slogans for Marcia."""
+    def _build_about_embed(
+        self,
+        guild_name: Optional[str],
+        owner_label: str,
+    ) -> discord.Embed:
+        """Brief intro, purpose, and highlights for Marcia."""
         scope = guild_name or "your sector"
         embed = discord.Embed(
             title="🛰️ About Marcia OS",
-            description="Shadow Weaver, drone wrangler, and sarcastic guardian of refugees.",
+            description=(
+                "Shadow Weaver, drone wrangler, and calm-but-firm ops handler for Dark War: Survival."
+            ),
             color=0x5865F2,
         )
-        embed.add_field(name="Lore (signal tap)", value="\n".join(MARCIA_LORE.strip().split("\n")[:4]), inline=False)
         embed.add_field(
-            name="Purpose & Theme",
+            name="Mission Brief",
             value=(
-                "Built to coordinate Dark War Survival ops, keep crews on UTC-2, and "
-                "surface progress without leaking data across servers."
+                "Keep alliance ops coordinated, reminders on time, and progress visible—"
+                "without leaking data across servers."
             ),
             inline=False,
         )
-        embed.add_field(name="Traits", value="\n".join(f"• {t}" for t in MARCIA_TRAITS), inline=False)
-        embed.add_field(name="Slogans", value="\n".join(f"“{s}”" for s in MARCIA_SLOGANS), inline=False)
         embed.add_field(
-            name="Support & Feedback",
+            name="What I Can Do",
+            value=self._fit_embed_lines([f"• {line}" for line in MARCIA_CAPABILITIES]),
+            inline=False,
+        )
+        embed.add_field(
+            name="Personality Snapshot",
+            value=self._fit_embed_lines([f"• {t}" for t in MARCIA_TRAITS[:6]]),
+            inline=False,
+        )
+        embed.add_field(
+            name="Signals & Support",
             value=(
-                "Use `/feedback` to relay bugs or ideas. "
-                "Support the uptime: https://www.buymeacoffee.com/akrot"
+                f"Owner: {owner_label}\n"
+                "Support station: https://www.buymeacoffee.com/akrot\n"
+                "Official server: https://discord.gg/z9pdDMDgak"
             ),
             inline=False,
         )
         embed.set_footer(text=f"Sector: {scope} | Data never leaves your guild")
         return embed
+
+    @staticmethod
+    def _fit_embed_lines(lines: list[str], max_len: int = 1024) -> str:
+        rendered: list[str] = []
+        total = 0
+        for line in lines:
+            candidate = line if not rendered else f"\n{line}"
+            if total + len(candidate) > max_len:
+                if not rendered:
+                    return line[: max_len - 1] + "…"
+                break
+            rendered.append(line)
+            total += len(candidate)
+        return "\n".join(rendered) if rendered else "—"
 
     def _build_featureboard(self, guild_name: Optional[str] = None) -> discord.Embed:
         """Readable feature grid to pair with the showcase section."""
@@ -493,7 +527,9 @@ class Utility(commands.Cog):
     @commands.hybrid_command(description="Marcia's lore, values, and operating scope.")
     async def about(self, ctx):
         """Share Marcia's lore and promise to the guild."""
-        embed = self._build_about_embed(ctx.guild.name if ctx.guild else None)
+        owner = await self._resolve_owner_user()
+        owner_label = owner.mention if owner else "Unknown handler"
+        embed = self._build_about_embed(ctx.guild.name if ctx.guild else None, owner_label)
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Marcia's quick-start operations manual.")

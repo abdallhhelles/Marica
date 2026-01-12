@@ -226,6 +226,7 @@ async def init_db():
                 vip_level INTEGER,
                 level INTEGER,
                 ownership_verified INTEGER,
+                scan_valid INTEGER DEFAULT 1,
                 avatar_url TEXT,
                 last_image_url TEXT,
                 local_image_path TEXT,
@@ -420,6 +421,7 @@ async def init_db():
         await _ensure_column(db, "server_missions", "notes", "TEXT")
         await _ensure_column(db, "profile_snapshots", "local_image_path", "TEXT")
         await _ensure_column(db, "profile_snapshots", "ownership_verified", "INTEGER")
+        await _ensure_column(db, "profile_snapshots", "scan_valid", "INTEGER")
 
     print("📡 MARCIA OS | Database Core Synchronized (Trading, Missions & Config).")
 
@@ -826,6 +828,7 @@ async def upsert_profile_snapshot(
     vip_level: int | None = None,
     level: int | None = None,
     ownership_verified: bool | None = None,
+    scan_valid: bool | None = True,
     avatar_url: str | None = None,
     last_image_url: str | None = None,
     local_image_path: str | None = None,
@@ -837,9 +840,9 @@ async def upsert_profile_snapshot(
             '''
             INSERT INTO profile_snapshots (
                 guild_id, user_id, player_name, alliance, server, cp, kills, likes,
-                vip_level, level, ownership_verified, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
+                vip_level, level, ownership_verified, scan_valid, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(guild_id, user_id) DO UPDATE SET
                 player_name = COALESCE(excluded.player_name, profile_snapshots.player_name),
                 alliance = COALESCE(excluded.alliance, profile_snapshots.alliance),
@@ -850,6 +853,7 @@ async def upsert_profile_snapshot(
                 vip_level = COALESCE(excluded.vip_level, profile_snapshots.vip_level),
                 level = COALESCE(excluded.level, profile_snapshots.level),
                 ownership_verified = COALESCE(excluded.ownership_verified, profile_snapshots.ownership_verified),
+                scan_valid = excluded.scan_valid,
                 avatar_url = COALESCE(excluded.avatar_url, profile_snapshots.avatar_url),
                 last_image_url = COALESCE(excluded.last_image_url, profile_snapshots.last_image_url),
                 local_image_path = COALESCE(excluded.local_image_path, profile_snapshots.local_image_path),
@@ -868,6 +872,7 @@ async def upsert_profile_snapshot(
                 vip_level,
                 level,
                 int(ownership_verified) if ownership_verified is not None else None,
+                int(scan_valid) if scan_valid is not None else None,
                 avatar_url,
                 last_image_url,
                 local_image_path,
@@ -884,7 +889,7 @@ async def get_profile_snapshot(guild_id: int, user_id: int):
         async with db.execute(
             """
             SELECT guild_id, user_id, player_name, alliance, server, cp, kills, likes,
-                   vip_level, level, ownership_verified, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
+                   vip_level, level, ownership_verified, scan_valid, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
             FROM profile_snapshots
             WHERE guild_id = ? AND user_id = ?
             """,
@@ -892,6 +897,46 @@ async def get_profile_snapshot(guild_id: int, user_id: int):
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
+
+
+async def get_profile_snapshots(
+    guild_id: int, limit: int = 25, *, include_invalid: bool = True
+) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        where_clause = "" if include_invalid else "AND COALESCE(scan_valid, 1) = 1"
+        async with db.execute(
+            f"""
+            SELECT guild_id, user_id, player_name, alliance, server, cp, kills, likes,
+                   vip_level, level, ownership_verified, scan_valid, avatar_url, last_image_url,
+                   local_image_path, raw_ocr, last_updated
+            FROM profile_snapshots
+            WHERE guild_id = ? {where_clause}
+            ORDER BY last_updated DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def set_profile_scan_valid(guild_id: int, user_id: int, is_valid: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE profile_snapshots SET scan_valid = ? WHERE guild_id = ? AND user_id = ?",
+            (int(is_valid), guild_id, user_id),
+        )
+        await db.commit()
+
+
+async def delete_profile_snapshot(guild_id: int, user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM profile_snapshots WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+        await db.commit()
 
 
 async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
@@ -912,7 +957,7 @@ async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
             f'''
             SELECT user_id, player_name, {target} as value
             FROM profile_snapshots
-            WHERE guild_id = ? AND {target} IS NOT NULL
+            WHERE guild_id = ? AND {target} IS NOT NULL AND COALESCE(scan_valid, 1) = 1
             ORDER BY {target} DESC
             LIMIT ?
             ''',
@@ -939,7 +984,7 @@ async def top_global_profile_stat(column: str, limit: int = 10):
             f'''
             SELECT guild_id, user_id, player_name, server, {target} as value
             FROM profile_snapshots
-            WHERE {target} IS NOT NULL
+            WHERE {target} IS NOT NULL AND COALESCE(scan_valid, 1) = 1
             ORDER BY {target} DESC
             LIMIT ?
             ''',
@@ -1450,6 +1495,22 @@ async def get_rsvp_counts(guild_id: int, codename: str) -> dict[str, int]:
                 if status in counts:
                     counts[status] = total
             return counts
+
+
+async def get_rsvp_members(
+    guild_id: int, codename: str, *, status: str = "going"
+) -> list[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            '''
+            SELECT user_id
+            FROM mission_rsvps
+            WHERE guild_id = ? AND codename = ? AND status = ?
+            ''',
+            (guild_id, codename, status),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
 
 
 async def clear_rsvp_data(guild_id: int, codename: str) -> None:
