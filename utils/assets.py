@@ -165,6 +165,25 @@ MARCIA_SYSTEM_LINES = [
     "The mission starts on time. So should you.",
     "Nothing fancy. Just clear orders and clean execution.",
     "Show up prepared. Your alliance is watching.",
+    "We don’t drift. We execute.",
+    "Clarity wins fights. Confusion loses them.",
+    "You are either on time or a liability.",
+    "Keep your roster tight and your commitments tighter.",
+    "The grid rewards discipline. The wasteland punishes excuses.",
+    "If you raise your hand, don’t vanish when the signal hits.",
+    "I measure progress in follow-through, not promises.",
+    "Show up sharp. Leave nothing loose.",
+    "Stay steady. The clock doesn’t negotiate.",
+]
+
+# Brief “what I do” lines for /about and onboarding.
+MARCIA_CAPABILITIES = [
+    "📡 Event orchestration with @everyone alerts, join tracking, and DM reminders.",
+    "🧭 UTC-2 scheduling so the alliance moves on one clock.",
+    "🎒 Scavenge loops, streaks, and loot trading to keep crews fed.",
+    "📊 Leaderboards across XP + profile stats, with server tags for global reads.",
+    "🛰️ Profile scan OCR for CP/kills/VIP/likes with admin review controls.",
+    "🔒 Per-guild data isolation—no cross-sector bleed.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals

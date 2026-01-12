@@ -51,6 +51,8 @@ Marica/
 * **data/**: Auto-created at runtime for database and logs
 * **config/**: Static configuration templates
 
+For the full map and module list, see [docs/STRUCTURE.md](docs/STRUCTURE.md).
+
 ---
 
 ## System capabilities
