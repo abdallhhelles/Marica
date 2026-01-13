@@ -14,7 +14,7 @@ STAR_INGAME_EMOJI = "<:starig:1460422592610566328>"
 
 HEROES = {
     "marcia": {
-        "name": "Marcia :marcia:",
+        "name": "Marcia",
         "type": f"{STIER_EMOJI}{GOLDFRAGMENT_EMOJI}",
         "skills": [
             (
