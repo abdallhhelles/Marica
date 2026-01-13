@@ -37,7 +37,6 @@ from database import (
     top_global_profile_stat,
     top_global_xp,
     top_xp_leaderboard,
-    transfer_inventory,
     update_scavenge_time,
     update_user_xp,
     add_to_inventory,
@@ -130,7 +129,7 @@ class Leveling(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await self._safe_send(
                 ctx,
-                content="❌ Usage: `/trade_item @member <quantity> <item name>`.",
+                content="❌ Missing required info. Check `/commands` for the full syntax list.",
                 ephemeral=True,
             )
             error.handled = True
@@ -370,7 +369,8 @@ class Leveling(commands.Cog):
             )
 
         await increment_activity_metric(ctx.guild.id, "profile_views")
-        await self._safe_send(ctx, embed=embed)
+        view = TradeAccessView() if ctx.guild else None
+        await self._safe_send(ctx, embed=embed, view=view)
 
     @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
     async def profile(self, ctx, member: discord.Member = None):
@@ -545,7 +545,8 @@ class Leveling(commands.Cog):
 
         embed.set_footer(text="Drone recalibrating. Ready for redeployment in 60 minutes.")
 
-        await self._safe_send(ctx, embed=embed)
+        view = TradeAccessView() if ctx.guild else None
+        await self._safe_send(ctx, embed=embed, view=view)
         if levels_gained:
             await self.apply_role_rewards(ctx.author, new_level)
         await self.check_collector_prestige(ctx.author)
@@ -576,33 +577,6 @@ class Leveling(commands.Cog):
         )
         embed.set_footer(text="Items are local to this sector.")
         await self._safe_send(ctx, embed=embed)
-
-    @commands.hybrid_command(name="trade_item", description="Trade scavenged loot to another survivor.")
-    async def trade_item(self, ctx, member: discord.Member, quantity: int, *, item_name: str):
-        """Trade scavenged loot to another survivor."""
-        if member.bot:
-            return await ctx.send("❌ Bots don't need loot.")
-        if member.id == ctx.author.id:
-            return await ctx.send("❌ Trading with yourself? Even I won't sign that invoice.")
-        if quantity <= 0:
-            return await ctx.send("❌ Quantity must be positive.")
-
-        item_name = item_name.strip()
-        success = await transfer_inventory(ctx.guild.id, ctx.author.id, member.id, item_name, quantity)
-        if not success:
-            return await ctx.send(f"❌ You don't have {quantity}x **{item_name}** to trade.")
-
-        embed = discord.Embed(
-            title="🤝 Trade Logged",
-            description=(
-                f"{ctx.author.mention} sent **{quantity}x {item_name}** to {member.mention}.\n"
-                f"{random.choice(MARCIA_QUOTES)}"
-            ),
-            color=0x3498db,
-        )
-        await ctx.send(embed=embed)
-        await self.check_collector_prestige(ctx.author)
-        await self.check_collector_prestige(member)
 
     async def _build_leaderboard_embed(
         self,
@@ -942,6 +916,25 @@ class Leveling(commands.Cog):
                 )
             except discord.Forbidden:
                 pass
+
+
+class TradeAccessView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=90)
+
+    @discord.ui.button(label="Open Fish-Link", style=discord.ButtonStyle.primary, emoji="🎣")
+    async def open_trade(self, interaction: discord.Interaction, button: discord.ui.Button):
+        trading = interaction.client.get_cog("Trading")
+        if not trading:
+            return await interaction.response.send_message(
+                "📡 Trading systems are still booting. Try again in a moment.",
+                ephemeral=True,
+            )
+        await trading.re_anchor_menu(interaction.channel)
+        await interaction.response.send_message(
+            "🎣 Fish-Link terminal refreshed here.",
+            ephemeral=True,
+        )
 
 class LeaderboardScopeSelect(discord.ui.Select):
     def __init__(self, parent_view: "LeaderboardView"):

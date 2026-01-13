@@ -161,6 +161,8 @@ async def init_db():
                 trade_channel_id INTEGER,
                 rules_channel_id INTEGER,
                 verify_channel_id INTEGER,
+                feedback_channel_id INTEGER,
+                analytics_channel_id INTEGER,
                 auto_role_id INTEGER,
                 server_offset_hours INTEGER DEFAULT -2
             )
@@ -422,6 +424,8 @@ async def init_db():
         await _ensure_column(db, "profile_snapshots", "local_image_path", "TEXT")
         await _ensure_column(db, "profile_snapshots", "ownership_verified", "INTEGER")
         await _ensure_column(db, "profile_snapshots", "scan_valid", "INTEGER")
+        await _ensure_column(db, "settings", "feedback_channel_id", "INTEGER")
+        await _ensure_column(db, "settings", "analytics_channel_id", "INTEGER")
 
     print("📡 MARCIA OS | Database Core Synchronized (Trading, Missions & Config).")
 
@@ -801,6 +805,15 @@ async def set_profile_channel(guild_id: int, channel_id: int) -> None:
             ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id
             ''',
             (guild_id, channel_id),
+        )
+        await db.commit()
+
+
+async def clear_profile_channel(guild_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM profile_channels WHERE guild_id = ?",
+            (guild_id,),
         )
         await db.commit()
 

@@ -6,6 +6,7 @@ FEATURES: Flag-based translation, Polls, Reminders, and Marcia Manuals.
 import asyncio
 import logging
 import random
+from datetime import datetime, timezone
 from typing import Optional
 
 import discord
@@ -14,10 +15,7 @@ from discord.ext import commands
 import httpx
 
 from utils.assets import (
-    INTEL_DATABASE,
     MARCIA_CAPABILITIES,
-    MARCIA_LORE,
-    MARCIA_SLOGANS,
     MARCIA_TRAITS,
 )
 from database import (
@@ -28,6 +26,8 @@ from database import (
     top_commands,
     top_global_xp,
     top_guild_usage,
+    top_profile_stat,
+    top_xp_leaderboard,
 )
 
 # Expanded Language Library
@@ -38,7 +38,7 @@ FLAG_LANG = {
     "🇦🇪": "ar", "🇹🇷": "tr", "🇮🇳": "hi", "🇧🇷": "pt"
 }
 
-# Single source of truth for the in-bot showcase. Keep this list aligned with SHOWCASE.md
+# Single source of truth for the in-bot showcase. Keep this list aligned with docs/SHOWCASE.md
 # so Discord users see the same capabilities advertised in documentation/screenshots.
 SHOWCASE_SECTIONS = [
     {
@@ -53,16 +53,16 @@ SHOWCASE_SECTIONS = [
         {
             "name": "Core Systems",
             "lines": [
-                "📡 Operations (UTC-2 clock): `/event`, `/event_remove`, `/setup`, `/status`, `/analytics`.",
-                "🎣 Trading | Fish-Link: `/setup_trade`, `/trade_item`, `/trade`, `/find`, `/my listings`, `/who has my wanted`.",
-                "🛰️ Progression & Scavenging: hourly `/scavenge` with zones, streak + overclock + milestone XP, `/leaderboard` exports, `/profile`, `/inventory`.",
-                "🛰️ Profile Scan: `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads to disk and feeds `/leaderboard`.",
+                "📡 Operations (UTC-2 clock): `/event`, `/setup`, `/status`, `/analytics`.",
+                "🎣 Trading | Fish-Link: `/setup_trade` anchors the terminal; trade flows through buttons and profile/inventory views.",
+                "🛰️ Progression & Scavenging: `/scavenge` with streak + overclock XP, `/leaderboard` exports, `/profile`, `/inventory`.",
+                "🛰️ Profile Scan: `/scan_profile` intake configured via `/setup`; stats flow into `/profile` + `/leaderboard`.",
             ],
         },
     {
         "name": "Welcomes, Departures, & Automation",
         "lines": [
-            "`/setup` auto-wires welcome/verify/rules and reminder channels; use **Sector Audit** in `/setup` for a link check.",
+            "`/setup` links welcome/verify/rules and reminder channels; use `/setup` any time to review link status.",
             "Auto role: optional helper to assign a base role on join for visibility.",
             "Analytics dashboards summarize command usage so admins know what crews lean on most.",
         ],
@@ -71,20 +71,20 @@ SHOWCASE_SECTIONS = [
             "name": "Command Directory (quick view)",
             "lines": [
                 "Admin: `/setup`, `/setup_trade`, `/refresh_commands`, `/event`, `/analytics`, `/status`.",
-                "Members: `/event` (upcoming ops), `/scavenge`, `/profile`, `/profile_stats`, `/leaderboard`, `/inventory`, `/manual`, `/features`, `/commands`.",
-                "Profile scans: `/setup_profile_channel`, `/scan_profile`; `/leaderboard` export sends TSV to DM.",
-                "Trading: Fish-Link buttons + `/trade_item`.",
+                "Members: `/event` (upcoming ops), `/scavenge`, `/profile`, `/leaderboard`, `/inventory`, `/features`, `/commands`, `/heroes`.",
+                "Profile scans: `/scan_profile`; `/leaderboard` export sends TSV to DM.",
+                "Trading: Fish-Link buttons + trade access in `/profile` and `/inventory`.",
             ],
         },
     {
-        "name": "How to Deploy",
-        "lines": [
-            "1) With Mod permissions, run `/setup` to link channels and optional auto-role. Use **Sector Audit** to verify wiring.",
-            "2) Launch `/setup_trade` in a trade channel to pin the Fish-Link terminal (seeded in SQLite for persistence).",
-            "3) Run `/event` for mission planning; auto reminders are stored in SQLite with crash-safe WAL mode.",
-            "4) Add event timers to `/scavenge`, `/trade`, and `/trade_item` to keep grind and trades moving.",
-        ],
-    },
+            "name": "How to Deploy",
+            "lines": [
+                "1) With Mod permissions, run `/setup` to link channels and auto-role in minutes.",
+                "2) Launch `/setup_trade` in a trade channel to pin the Fish-Link terminal (seeded in SQLite for persistence).",
+                "3) Run `/event` for mission planning; auto reminders are stored in SQLite with crash-safe WAL mode.",
+                "4) Add event timers to `/scavenge` and trading to keep grind and swaps moving.",
+            ],
+        },
     {
         "name": "Data & Safety",
         "lines": [
@@ -95,9 +95,9 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Tips for Server Admins",
         "lines": [
-            "Use the `/setup` **Sector Audit** before events to highlight missing channel links or permissions.",
+            "Use `/setup` before events to highlight missing channel links or permissions.",
             "Use `/status` for a fast signal check; `/analytics` shows per-server command usage and trading depth.",
-            "Welcome, rules, and event channels can be kept minimal—Marcia formats reminders and intel automatically.",
+            "Welcome, rules, and event channels can be kept minimal—Marcia formats reminders and guidance automatically.",
         ],
     },
 ]
@@ -108,6 +108,7 @@ class Utility(commands.Cog):
         self.http = httpx.AsyncClient(timeout=10.0)
         self.log = logging.getLogger("MarciaOS.Utility")
         self._app_owner = None
+        self._feedback_owner = None
         self._share_link = "https://bit.ly/49z28IZ"
 
     async def cog_unload(self):
@@ -164,6 +165,36 @@ class Utility(commands.Cog):
             self.log.warning("Owner lookup failed: %s", exc)
             return None
 
+    async def _resolve_feedback_owner(self) -> Optional[discord.abc.User]:
+        """Resolve akrott for feedback relays."""
+        if self._feedback_owner:
+            return self._feedback_owner
+
+        target_name = "akrott"
+        cached_user = discord.utils.find(
+            lambda u: getattr(u, "name", "").lower() == target_name,
+            self.bot.users,
+        )
+        if cached_user:
+            self._feedback_owner = cached_user
+            return cached_user
+
+        for guild in self.bot.guilds:
+            member = discord.utils.find(
+                lambda m: getattr(m, "name", "").lower() == target_name,
+                guild.members,
+            )
+            if member:
+                self._feedback_owner = member
+                return member
+
+        owner = await self._resolve_owner_user()
+        if owner and getattr(owner, "name", "").lower() == target_name:
+            self._feedback_owner = owner
+            return owner
+
+        return owner
+
     def _build_about_embed(
         self,
         guild_name: Optional[str],
@@ -174,20 +205,20 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title="🛰️ About Marcia OS",
             description=(
-                "Shadow Weaver, drone wrangler, and calm-but-firm ops handler for Dark War: Survival."
+                "I’m Marcia. I keep alliances coordinated, loud chaos quiet, and mission intel on time."
             ),
             color=0x5865F2,
         )
         embed.add_field(
-            name="Mission Brief",
+            name="Why install me?",
             value=(
-                "Keep alliance ops coordinated, reminders on time, and progress visible—"
-                "without leaking data across servers."
+                "You get clean event scheduling, opt-in DM reminders, trading terminals, and readable stats—"
+                "all without data leaking across servers."
             ),
             inline=False,
         )
         embed.add_field(
-            name="What I Can Do",
+            name="What I bring to your crew",
             value=self._fit_embed_lines([f"• {line}" for line in MARCIA_CAPABILITIES]),
             inline=False,
         )
@@ -200,6 +231,7 @@ class Utility(commands.Cog):
             name="Signals & Support",
             value=(
                 f"Owner: {owner_label}\n"
+                f"Invite link: {self._share_link}\n"
                 "Support station: https://www.buymeacoffee.com/akrot\n"
                 "Official server: https://discord.gg/z9pdDMDgak"
             ),
@@ -233,7 +265,7 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Operations",
             value="\n".join([
-                "• `/event` (with upcoming ops) + `/event_remove` for UTC-2 planning",
+                "• `/event` (with upcoming ops + removal) for UTC-2 planning",
                 "• `/remind` with templates, schedule, and immediate blasts",
                 "• `/status` & `/analytics` for uptime, wiring, and usage",
             ]),
@@ -243,7 +275,7 @@ class Utility(commands.Cog):
             name="Community & Safety",
             value="\n".join([
                 "• Channel ignore keeps blacked-out rooms fully silent",
-                "• `/manual`, `/commands`, `/features`, `/about` to onboard crews",
+                "• `/commands`, `/features`, `/about` to onboard crews",
                 "• `/feedback` to ping my handler without leaking server data",
             ]),
             inline=False,
@@ -253,7 +285,7 @@ class Utility(commands.Cog):
             value="\n".join([
                 "• Trading terminal with persistent Fish-Link inventory",
                 "• `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
-                "• Profile scans: `/setup_profile_channel`, `/scan_profile`, `/profile_stats`; caches uploads",
+                "• Profile scans: `/scan_profile` (configure intake via `/setup`); caches uploads",
                 "• Analytics per guild; nothing crosses sectors",
             ]),
             inline=False,
@@ -270,13 +302,13 @@ class Utility(commands.Cog):
                     "`/scavenge` • deploy a drone",
                     "`/inventory` • check your stash",
                     "`/event` • see what's scheduled",
-                    "`/profile` | `/profile_stats` | `/leaderboard`",
+                    "`/profile` | `/leaderboard`",
                 ],
             ),
             (
                 "Events & ops",
                 [
-                    "`/event` • plan ops + upcoming list | `/event_remove`",
+                    "`/event` • plan ops + upcoming list + removal",
                     "`/remind` • channel reminder",
                     "`/remindme` • DM timer",
                     "`/status` • quick signal | `/analytics`",
@@ -287,24 +319,20 @@ class Utility(commands.Cog):
                 [
                     "`/setup_trade` • deploy Fish-Link",
                     "Buttons: Spares / Find listings",
-                    "`/trade_item` • text fallback",
                     "Per-server inventory; no cross-bleed",
                 ],
             ),
             (
                 "Profile scans",
                 [
-                    "`/setup_profile_channel` • pick intake",
                     "`/scan_profile` • scan a screenshot",
-                    "`/profile_stats` • last parsed snapshot",
                     "`/leaderboard` • XP + CP/Kills with export",
                 ],
             ),
             (
                 "Utility & safety",
                 [
-                    "`/intel <topic>` • lore + game tips",
-                    "`/manual` + `/features` + `/about`",
+                    "`/features` + `/about` + `/heroes`",
                     "`/feedback` • ping handler",
                     "`/clear` • purge",
                 ],
@@ -312,7 +340,7 @@ class Utility(commands.Cog):
             (
                 "Admin (UTC-2 clock)",
                 [
-                    "`/setup` • guided setup + audit buttons",
+                    "`/setup` • channel links + setup help",
                     "`/refresh_commands` • resync slash",
                 ],
             ),
@@ -336,63 +364,87 @@ class Utility(commands.Cog):
         sections = {
             "home": {
                 "title": "🧭 Marcia Command Center",
-                "description": "Short list, clear routes. Tap a menu button to navigate.",
+                "description": "Everything is here, categorized. Tap a menu button to jump around.",
                 "fields": [
-                    ("Start here", "Use **Quick Start** for daily ops or pick a module button."),
-                    ("Core idea", "One menu, fewer commands to remember."),
+                    ("How to use this", "Pick a category button. Each panel lists commands with a short, clear purpose."),
+                    ("Why it’s shorter now", "Fewer commands, same power. You only need to remember the menu."),
                 ],
             },
-            "quick start": {
-                "title": "⚡ Quick Start",
-                "description": "The essentials most crews run daily.",
+            "daily ops": {
+                "title": "⚡ Daily Ops",
+                "description": "Your core loop: loot, stash, progress, compare.",
                 "fields": [
-                    ("Daily loop", "`/scavenge` • loot + XP"),
-                    ("Ops queue", "`/event` • schedule + upcoming"),
-                    ("Progress", "`/profile` • XP + stash"),
+                    ("Command list", "\n".join([
+                        "`/scavenge` — run an hourly loot + XP mission",
+                        "`/inventory` — view your stash",
+                        "`/profile` — XP, stash, and scan summary",
+                        "`/leaderboard` — XP + scan stats menu",
+                    ])),
                 ],
             },
             "events": {
                 "title": "🛰️ Events & Reminders",
-                "description": "Plan ops and push alerts without clutter.",
+                "description": "Schedule ops, ping once, DM the rest.",
                 "fields": [
-                    ("Schedule", "`/event` • wizard + upcoming list"),
-                    ("Remove", "`/event_remove <codename>`"),
-                    ("Reminders", "`/remind` • channel alerts"),
+                    ("Command list", "\n".join([
+                        "`/event` — schedule, view, or remove upcoming ops",
+                        "`/remind` — send/schedule reminders + manage templates",
+                        "`/remindme` — personal DM timer",
+                    ])),
                 ],
             },
             "trading": {
                 "title": "🎣 Trading",
-                "description": "Fish-Link runs from one anchor, not a dozen commands.",
+                "description": "Fish-Link stays anchored in one channel.",
                 "fields": [
-                    ("Deploy terminal", "`/setup_trade` • pin the menu"),
-                    ("Buttons", "Spares • Find • Who Has My Wanted"),
-                    ("Fallback", "`/trade_item` • manual swap"),
+                    ("Command list", "\n".join([
+                        "`/setup_trade` — pin the Fish-Link terminal (admins)",
+                        "Fish-Link buttons — Add Spare / Find Fish / Who Has My Wanted",
+                        "Trade access — open from `/profile` or `/inventory`",
+                    ])),
                 ],
             },
             "profiles": {
-                "title": "🛰️ Profiles & Progression",
-                "description": "Track growth, scans, and inventory in one lane.",
+                "title": "🛰️ Profiles & Scans",
+                "description": "Capture scans and keep stats clean.",
                 "fields": [
-                    ("Progress", "`/profile` • XP + stash"),
-                    ("Scan", "`/scan_profile` • profile screenshot"),
-                    ("Rankings", "`/leaderboard` • XP + scan stats"),
+                    ("Command list", "\n".join([
+                        "`/scan_profile` — upload a profile screenshot",
+                        "`/profile_review` — admin review of scans",
+                        "`/ocr_status` — OCR diagnostics (admins)",
+                    ])),
                 ],
             },
             "admin": {
-                "title": "🛡️ Admin Core",
-                "description": "Keep setup and diagnostics centralized.",
+                "title": "🛡️ Setup & Admin",
+                "description": "Link channels, check health, and clean up chat.",
                 "fields": [
-                    ("Setup", "`/setup` • channel links + audit"),
-                    ("Profile intake", "`/setup_profile_channel`"),
-                    ("Signal", "`/status` • health check"),
+                    ("Command list", "\n".join([
+                        "`/setup` — select a feature and link its channel",
+                        "`/status` — system diagnostics",
+                        "`/analytics` — server stats for everyone",
+                        "`/refresh_commands` — resync slash commands",
+                        "`/clear` — purge messages (admins)",
+                        "`/import_old_levels` — legacy XP migration (text command)",
+                    ])),
                 ],
             },
             "support": {
-                "title": "📚 Support & Onboarding",
-                "description": "Onboard fast, ask questions once.",
+                "title": "📚 Support & Fun",
+                "description": "Onboarding, feedback, and global signals.",
                 "fields": [
-                    ("Manual", "`/manual` • quick primer"),
-                    ("Feedback", "`/feedback` • report issues"),
+                    ("Guides", "\n".join([
+                        "`/commands` — this directory",
+                        "`/features` — showcase",
+                        "`/heroes` — hero codex",
+                        "`/about` — why Marcia exists",
+                    ])),
+                    ("Extras", "\n".join([
+                        "`/feedback` — report ideas or bugs",
+                        "`/tips` — survival tips",
+                        "`/poll` — quick polls",
+                        "`/network` — global pulse",
+                    ])),
                 ],
             },
         }
@@ -420,38 +472,42 @@ class Utility(commands.Cog):
 
         await log_feedback_entry(guild_id, user_id, channel_id, packaged)
 
-        owner = await self._resolve_owner_user()
+        owner = await self._resolve_feedback_owner()
         if owner:
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
             embed = discord.Embed(
                 title="📮 New Feedback Packet",
                 description=feedback_text,
                 color=0x2ecc71,
             )
             embed.add_field(name="Category", value=category_label.title(), inline=True)
+            embed.add_field(name="Received", value=timestamp, inline=True)
             if ctx.guild:
                 embed.add_field(name="Guild", value=f"{ctx.guild.name} ({ctx.guild.id})", inline=True)
-            embed.add_field(name="Sender", value=f"{ctx.author} ({ctx.author.id})", inline=False)
+            embed.add_field(
+                name="Sender",
+                value=f"{ctx.author} ({ctx.author.id}) | Mention: {ctx.author.mention}",
+                inline=False,
+            )
             if channel_id:
-                embed.set_footer(text=f"Channel ID: {channel_id}")
+                channel_label = f"{getattr(ctx.channel, 'name', 'unknown')} ({channel_id})"
+                embed.add_field(name="Channel", value=channel_label, inline=True)
             try:
                 await owner.send(embed=embed)
             except Exception as exc:
                 self.log.warning("Feedback DM failed: %s", exc)
 
-        ack = "📡 Feedback transmitted. I'll ping my handler quietly."
-        if getattr(ctx, "interaction", None):
-            if not ctx.interaction.response.is_done():
-                await ctx.interaction.response.send_message(ack, ephemeral=True)
-            else:
-                await ctx.interaction.followup.send(ack, ephemeral=True)
-        else:
-            await ctx.reply(ack, mention_author=False)
+        ack = (
+            "💙 **Thanks for the feedback.** I logged it, tagged the handler, and routed it safely. "
+            "If it’s a good idea, it stays. If it’s a bug, it dies."
+        )
+        await self._safe_send(ctx, content=ack)
 
     def _build_showcase_embed(self, guild_name: Optional[str] = None) -> discord.Embed:
         """
         Return a consolidated showcase of Marcia's systems.
 
-        The copy mirrors SHOWCASE.md to keep Discord help embeds aligned with the
+        The copy mirrors docs/SHOWCASE.md to keep Discord help embeds aligned with the
         reference screenshot/documentation. Update SHOWCASE_SECTIONS if features
         are added/removed so both stay in sync.
         """
@@ -518,40 +574,13 @@ class Utility(commands.Cog):
         view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
         await self._safe_send(ctx, embed=embed, view=view)
 
-    @commands.hybrid_command(description="Open the command center menu.")
-    async def menu(self, ctx):
-        embed = self._build_command_center_embed("home", ctx.guild.name if ctx.guild else None)
-        view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
-        await self._safe_send(ctx, embed=embed, view=view)
-
     @commands.hybrid_command(description="Marcia's lore, values, and operating scope.")
     async def about(self, ctx):
         """Share Marcia's lore and promise to the guild."""
-        owner = await self._resolve_owner_user()
-        owner_label = owner.mention if owner else "Unknown handler"
+        owner_label = "akrott"
         embed = self._build_about_embed(ctx.guild.name if ctx.guild else None, owner_label)
         await self._safe_send(ctx, embed=embed)
 
-    @commands.hybrid_command(description="Marcia's quick-start operations manual.")
-    async def manual(self, ctx):
-        """A quick-start guide for new users and admins."""
-        embed = discord.Embed(title="📖 Marcia OS | Operations Manual", color=0xf1c40f)
-        embed.add_field(
-            name="🛰️ For Admins",
-            value="1. Use `/setup` to link channels.\n2. Use `/event` to schedule missions.\n3. Use `/setup_trade` to open the market.",
-            inline=False
-        )
-        embed.add_field(
-            name="🎣 For Traders", 
-            value="Interact with the buttons in the Trading Terminal to add fish you have (Spares) or fish you need (Find).", 
-            inline=False
-        )
-        embed.add_field(
-            name="🌍 For Everyone", 
-            value="React to any message with a 🇺🇸 or 🇪🇸 (and more) flag to translate it instantly!", 
-            inline=False
-        )
-        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Send feedback, ideas, or bug reports to my handler.")
     @app_commands.describe(message="What do you want to report?", category="bug, idea, praise, or anything else")
@@ -565,7 +594,7 @@ class Utility(commands.Cog):
             "You can use `/remindme 60 Prepare for War` and I will DM you in one hour.",
             "Mission timers use the Dark War Survival clock (UTC-2) across every server.",
             "The Trading Terminal is server-specific. You won't see fish from other servers here!",
-            "Use `/intel [topic]` to search the survival database for game-specific info."
+            "Try `/heroes` for the hero codex and `/features` for the full showcase."
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
 
@@ -619,18 +648,26 @@ class Utility(commands.Cog):
             value="UTC-2 (Dark War Survival global time)",
             inline=False,
         )
-        embed.set_footer(text="Need a deeper check? Open /setup and tap Sector Audit.")
+        embed.set_footer(text="Need a deeper check? Open /setup to review linked channels.")
         await self._safe_send(ctx, embed=embed)
 
-    @commands.hybrid_command(description="Per-server analytics (admins).")
-    @commands.has_permissions(manage_guild=True)
+    @commands.hybrid_command(description="Per-server analytics and fun stats.")
     async def analytics(self, ctx):
-        """Detailed per-server analytics for admins."""
+        """Detailed per-server analytics for the current server."""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="Analytics are only available inside servers.",
+                ephemeral=True,
+            )
         snapshot = await guild_analytics_snapshot(ctx.guild.id)
+        xp_rows = await top_xp_leaderboard(ctx.guild.id, limit=5)
+        cp_rows = await top_profile_stat(ctx.guild.id, "cp", limit=5)
+        kill_rows = await top_profile_stat(ctx.guild.id, "kills", limit=5)
 
         embed = discord.Embed(
             title="📊 Sector Analytics",
-            description="Live stats are scoped to this server only. Other sectors stay isolated.",
+            description="Fun stats, live counts, and leaderboard slices for this server only.",
             color=0x9b59b6,
         )
         embed.add_field(name="🎣 Trading Listings", value=str(snapshot["trade_listings"]), inline=True)
@@ -639,6 +676,31 @@ class Utility(commands.Cog):
         embed.add_field(name="📂 Templates Saved", value=str(snapshot["templates"]), inline=True)
         embed.add_field(name="🧭 Survivors Tracked", value=str(snapshot["survivors_tracked"]), inline=True)
         embed.add_field(name="🎒 Items Logged", value=str(snapshot["items"]), inline=True)
+
+        if xp_rows:
+            lines = []
+            for idx, row in enumerate(xp_rows, start=1):
+                member = ctx.guild.get_member(row["user_id"])
+                name = member.display_name if member else f"User {row['user_id']}"
+                lines.append(f"**{idx}. {name}** — L{row['level']} | {row['xp']:,} XP")
+            embed.add_field(name="🏆 Top XP", value="\n".join(lines), inline=False)
+
+        if cp_rows:
+            lines = []
+            for idx, row in enumerate(cp_rows, start=1):
+                member = ctx.guild.get_member(row["user_id"])
+                name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
+                lines.append(f"**{idx}. {name}** — {row['value']:,} CP")
+            embed.add_field(name="⚔️ Top Combat Power", value="\n".join(lines), inline=False)
+
+        if kill_rows:
+            lines = []
+            for idx, row in enumerate(kill_rows, start=1):
+                member = ctx.guild.get_member(row["user_id"])
+                name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
+                lines.append(f"**{idx}. {name}** — {row['value']:,} Kills")
+            embed.add_field(name="☠️ Top Kills", value="\n".join(lines), inline=False)
+
         embed.set_footer(text="Clock: UTC-2 | Data never crosses sectors.")
 
         await self._safe_send(ctx, embed=embed)
@@ -690,22 +752,6 @@ class Utility(commands.Cog):
 
         embed.set_footer(text=f"Invite link: {self._share_link} | Commanders don't remind. Systems do.")
         await self._safe_send(ctx, embed=embed)
-
-    @commands.hybrid_command(description="Query survival intel topics (e.g., /intel trucks).")
-    async def intel(self, ctx, topic: str = None):
-        """Query survival topics (e.g., /intel trucks)."""
-        if not topic: 
-            return await self._safe_send(
-                ctx,
-                content=f"Available Intel Topics: `{', '.join(INTEL_DATABASE.keys())}`",
-            )
-        
-        info = INTEL_DATABASE.get(topic.lower())
-        if info: 
-            embed = discord.Embed(title=f"📥 INTEL: {topic.upper()}", description=info, color=0x3498db)
-            await self._safe_send(ctx, embed=embed)
-        else:
-            await self._safe_send(ctx, content="❌ Topic not found in the archives.")
 
     @commands.command(description="Create a poll. /poll 'Title' option1 option2 ...")
     async def poll(self, ctx, question: str, *options):
@@ -786,9 +832,9 @@ class CommandCenterView(discord.ui.View):
     async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "home")
 
-    @discord.ui.button(label="Quick Start", style=discord.ButtonStyle.primary, emoji="⚡")
+    @discord.ui.button(label="Daily Ops", style=discord.ButtonStyle.primary, emoji="⚡")
     async def quick_start(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "quick start")
+        await self._switch(interaction, "daily ops")
 
     @discord.ui.button(label="Events", style=discord.ButtonStyle.secondary, emoji="🛰️")
     async def events(self, interaction: discord.Interaction, button: discord.ui.Button):

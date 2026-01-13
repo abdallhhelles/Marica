@@ -17,7 +17,7 @@ This document covers how the bot is organized, how to run it locally, and how au
   - `time_utils.py`: shared datetime helpers for reminders and schedule formatting.
   - `patch_notes.py`: persistence + formatting helpers for release notes.
 - `data/`: JSON backing data (patch notes queue, templates, configs).
-- `TEST_SERVER_PLAYBOOK.md`: canonical channel/category layout for the testing guild.
+- `docs/TEST_SERVER_PLAYBOOK.md`: canonical channel/category layout for the testing guild.
 
 ## Patch notes workflow
 - Pending notes live in `data/patch_notes.json` as a list of objects: `{ "note": "message", "author": "optional", "added_at": "ISO timestamp" }`.
@@ -26,7 +26,7 @@ This document covers how the bot is organized, how to run it locally, and how au
 - Add or edit notes before deploying to control what ships in the next announcement. Keep changes small and scoped to the current release.
 
 ## Test guild layout automation (ID: 1454704176662843525)
-- Categories/channels from `TEST_SERVER_PLAYBOOK.md` are created if missing and moved into the right category when the playbook changes.
+- Categories/channels from `docs/TEST_SERVER_PLAYBOOK.md` are created if missing and moved into the right category when the playbook changes.
 - Channels with onboarding text (`#readme`, `#usage-guide`, `#changelog`, etc.) are seeded once per marker so the bot will not spam duplicates. Each seeded message ends with a marker like ``seed:readme:v1`` so you can bump the marker to force a reseed.
 - Update the strings in `cogs/devhub.py` under `TEST_LAYOUT` when the playbook changes; bump the related marker to reseed.
 

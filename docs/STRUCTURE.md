@@ -22,6 +22,8 @@ Marica/
 - **Progression & leaderboards:** `cogs/leveling.py`
 - **Profile scanning:** `cogs/profile_scanner.py` + `ocr/`
 - **Utilities & about:** `cogs/utility.py`
+- **Hero codex:** `cogs/heroes.py`
+- **Marcia Server automation:** `cogs/marcia_server.py`
 
 ## Data flow notes
 - **Guild isolation:** Data is always scoped by guild ID in `database.py`.

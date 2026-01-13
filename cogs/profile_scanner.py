@@ -24,10 +24,8 @@ from database import (
     get_profile_channel,
     get_profile_snapshot,
     get_profile_snapshots,
-    increment_activity_metric,
     delete_profile_snapshot,
     set_profile_scan_valid,
-    set_profile_channel,
     upsert_profile_snapshot,
 )
 from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
@@ -187,24 +185,6 @@ class ProfileScanner(commands.Cog):
     # Commands
     # --------------------
     @commands.hybrid_command(
-        name="setup_profile_channel",
-        description="Choose the channel where Marcia will read profile screenshots.",
-    )
-    @commands.has_permissions(manage_guild=True)
-    async def setup_profile_channel(self, ctx, channel: discord.TextChannel):
-        await set_profile_channel(ctx.guild.id, channel.id)
-        embed = discord.Embed(
-            title="📡 Profile Scanner Armed",
-            description=(
-                "I'll watch this channel for profile screenshots and log stats to the "
-                "uploader."
-            ),
-            color=0x5865F2,
-        )
-        embed.add_field(name="Channel", value=channel.mention, inline=False)
-        await self._safe_send(ctx, embed=embed)
-
-    @commands.hybrid_command(
         name="scan_profile",
         description="Scan a profile screenshot and save the stats for this server.",
     )
@@ -251,66 +231,6 @@ class ProfileScanner(commands.Cog):
         await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
         embed = self._build_confirmation_embed(payload, ocr_note)
-        await self._safe_send(ctx, embed=embed)
-
-    @commands.hybrid_command(
-        name="profile_stats",
-        description="Show the parsed profile stats for you or another survivor.",
-    )
-    async def profile_stats(self, ctx, member: discord.Member | None = None):
-        leveling = self.bot.get_cog("Leveling")
-        if leveling and hasattr(leveling, "_send_profile_overview"):
-            return await leveling._send_profile_overview(ctx, member)
-
-        if not ctx.guild:
-            return await self._safe_send(
-                ctx,
-                content="Profiles only work inside servers.",
-                ephemeral=True,
-            )
-
-        target = member or ctx.author
-        data = await get_profile_snapshot(ctx.guild.id, target.id)
-        if not data or data.get("scan_valid") == 0:
-            return await self._safe_send(
-                ctx,
-                content=(
-                    "No valid profile stored yet. Drop a screenshot in the configured channel first."
-                ),
-                ephemeral=True,
-            )
-
-        name = data["player_name"] or target.display_name
-        embed = discord.Embed(
-            title=f"📡 Sector dossier | {name}",
-            description=(
-                "Latest profile scan stats saved for this survivor. Use `/leaderboard` to compare "
-                "against the rest of the sector."
-            ),
-            color=0x2ecc71,
-        )
-        embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
-        ingame = [
-            f"🪪 Name: {data.get('player_name') or target.display_name}",
-            f"🏰 Alliance: {data.get('alliance') or '—'}",
-            f"🌐 Server: {data.get('server') or '—'}",
-            f"🎖️ VIP: {_format_metric(data.get('vip_level'))} | 👍 Likes: {_format_metric(data.get('likes'))}",
-            f"⚔️ CP: {_format_metric(data['cp'])} | ☠️ Kills: {_format_metric(data['kills'])}",
-        ]
-        if data.get("ownership_verified") is not None:
-            status = "✅ Self-view detected" if data["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
-            ingame.append(status)
-        if data.get("last_image_url"):
-            ingame.append(f"🖼️ [Latest scan]({data['last_image_url']})")
-
-        embed.add_field(name="In-game Profile Scan", value="\n".join(ingame), inline=False)
-        embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
-
-        if data.get("last_updated"):
-            dt = datetime.fromtimestamp(data["last_updated"], tz=timezone.utc)
-            embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
-
-        await increment_activity_metric(ctx.guild.id, "profile_views")
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
@@ -853,7 +773,7 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/profile_stats` shows your dossier; `/leaderboard` compares XP and scan stats side by side."
+                "`/profile` shows your dossier; `/leaderboard` compares XP and scan stats side by side."
             ),
             color=0x3498db,
         )
