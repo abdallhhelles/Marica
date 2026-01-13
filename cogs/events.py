@@ -10,14 +10,13 @@ import random
 import logging
 from datetime import datetime, timezone, timedelta
 from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_SYSTEM_LINES
-from utils.time_utils import now_game, game_to_utc, format_game, utc_to_game
+from utils.time_utils import now_game, game_to_utc, format_game
 from database import (
     add_mission,
     add_template,
     can_run_daily_task,
     delete_mission,
     get_all_active_missions,
-    get_rsvp_counts,
     get_rsvp_members,
     get_settings,
     get_templates,
@@ -417,6 +416,105 @@ class EventMenuView(discord.ui.View):
         embed = self.cog._build_upcoming_events_embed(it.guild, missions)
         await it.response.send_message(embed=embed, ephemeral=True)
 
+    @discord.ui.button(label="Remove Event", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def remove_event(self, it, btn):
+        if not await self._require_manage_events(it):
+            return
+        missions = await get_upcoming_missions(it.guild.id, limit=25)
+        if not missions:
+            return await it.response.send_message(
+                "📡 *No upcoming events to remove in this sector.*",
+                ephemeral=True,
+            )
+        view = EventRemovalView(self.cog, self.ctx, missions)
+        await it.response.send_message(
+            content="Select the event you want to remove.",
+            view=view,
+            ephemeral=True,
+        )
+
+
+class EventRemovalView(discord.ui.View):
+    def __init__(self, cog, ctx, missions):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.ctx = ctx
+        self.missions = missions
+        self.add_item(EventRemovalSelect(cog, ctx, missions))
+
+
+class EventRemovalSelect(discord.ui.Select):
+    def __init__(self, cog, ctx, missions):
+        options = []
+        self.mission_map = {}
+        for mission in missions[:25]:
+            target = datetime.fromisoformat(mission["target_utc"]).astimezone(timezone.utc)
+            time_label = format_game(target)
+            label = f"{mission['codename']} • {time_label}"
+            if len(label) > 100:
+                label = label[:97] + "…"
+            description = _template_summary(mission)
+            options.append(
+                discord.SelectOption(
+                    label=label,
+                    value=mission["codename"],
+                    description=description,
+                    emoji="🗑️",
+                )
+            )
+            self.mission_map[mission["codename"]] = mission
+        super().__init__(placeholder="Choose an event to remove...", options=options)
+        self.cog = cog
+        self.ctx = ctx
+
+    async def callback(self, interaction: discord.Interaction):
+        codename = self.values[0]
+        mission = self.mission_map.get(codename)
+        if not mission:
+            return await interaction.response.edit_message(
+                content="❌ Event not found. Run `/event` again.",
+                view=None,
+                embed=None,
+            )
+        embed = self.cog._build_event_removal_embed(interaction.guild, mission)
+        await interaction.response.edit_message(
+            content="Confirm removal below.",
+            embed=embed,
+            view=EventRemovalConfirmView(self.cog, self.ctx, mission),
+        )
+
+
+class EventRemovalConfirmView(discord.ui.View):
+    def __init__(self, cog, ctx, mission):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.ctx = ctx
+        self.mission = mission
+
+    @discord.ui.button(label="Confirm removal", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.manage_guild:
+            return await interaction.response.send_message(
+                "🔒 You need Manage Server permissions to remove events.",
+                ephemeral=True,
+            )
+        codename = self.mission["codename"]
+        await delete_mission(interaction.guild.id, codename)
+        self.cog.cancel_mission_task(interaction.guild.id, codename)
+        await interaction.response.edit_message(
+            content=f"🗑️ Event **{codename}** removed.",
+            embed=None,
+            view=None,
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="📡 Removal cancelled.",
+            embed=None,
+            view=None,
+        )
+
 # --- COG MAIN ---
 
 class Events(commands.Cog):
@@ -551,25 +649,13 @@ class Events(commands.Cog):
                 "Pick how you want me to broadcast your operation.\n"
                 "`Custom Event` opens a DM interview, `Use Template` pulls from your archive.\n"
                 "`Upcoming Events` previews the next ops list for this sector.\n"
+                "`Remove Event` lets you delete a scheduled op without leaving this menu.\n"
                 "I track everything in UTC-2 (Dark War Survival)."
             ),
             color=0x2b2d31
         )
         embed.set_footer(text="Marcia drones on standby. Keep it sharp.")
         await self._safe_send(ctx, embed=embed, view=EventMenuView(self, ctx))
-
-    @commands.hybrid_command(name="event_remove", description="Delete a scheduled operation.")
-    @commands.has_permissions(manage_guild=True)
-    async def event_remove(self, ctx, *, codename: str):
-        """Remove a scheduled event."""
-        if not ctx.guild:
-            return await self._safe_send(
-                ctx,
-                content="Events can only be removed inside servers.",
-                ephemeral=True,
-            )
-        await delete_mission(ctx.guild.id, codename)
-        await self._safe_send(ctx, content=f"🗑️ Event **{codename}** scrubbed from the docket.")
 
     async def create_template_flow(self, ctx):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
@@ -690,6 +776,26 @@ class Events(commands.Cog):
         embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
         return embed
 
+    def _build_event_removal_embed(self, guild, mission):
+        target = datetime.fromisoformat(mission["target_utc"]).astimezone(timezone.utc)
+        embed = discord.Embed(
+            title="🗑️ Remove Operation",
+            description="Confirm the event you want to scrub from the docket.",
+            color=0xe74c3c,
+        )
+        embed.add_field(name="Codename", value=mission["codename"], inline=False)
+        embed.add_field(name="Scheduled", value=format_game(target), inline=True)
+        if mission.get("description"):
+            embed.add_field(name="Briefing", value=mission["description"], inline=False)
+        embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
+        return embed
+
+    def cancel_mission_task(self, guild_id: int, codename: str) -> None:
+        task_key = f"{guild_id}_{codename}"
+        task = self.running_tasks.pop(task_key, None)
+        if task:
+            task.cancel()
+
     async def finalize_mission(self, ctx, name, desc, t_str, location, ping_target):
         try:
             target_dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M")
@@ -737,64 +843,37 @@ class Events(commands.Cog):
                 return
 
             settings = await get_settings(guild_id)
-            if not (settings and settings['event_channel_id']):
-                continue
-
-            chan = self.bot.get_channel(settings['event_channel_id'])
-            if not chan or await is_channel_ignored(guild_id, chan.id):
-                continue
-
-            drone = random.choice(DRONE_NAMES)
-            guild = chan.guild
-            role = guild.get_role(ping_role_id) if isinstance(ping_role_id, int) and ping_role_id >= 0 else None
-            mention = ""
-            allowed_mentions = discord.AllowedMentions(everyone=False, roles=False)
             if mins == 60:
-                mention = "@everyone"
-                allowed_mentions = discord.AllowedMentions(everyone=True, roles=False)
-            elif ping_role_id == -1:
-                mention = "@everyone"
-                allowed_mentions = discord.AllowedMentions(everyone=True, roles=False)
-            elif role:
-                mention = role.mention
-                allowed_mentions = discord.AllowedMentions(everyone=False, roles=True)
-            
-            # Add natural greeting variations for mentions
-            greetings = ["Dear", "Hello", "Attention", "Listen up,", "Heads up,"]
-            natural_mention = f"{random.choice(greetings)} {mention}" if mention else ""
-            
-            location_line = f"\n📍 {location}" if location else ""
-            title, body = random.choice(TIMED_REMINDERS.get(mins, [("", "`{name}` is coming up.")]))
-            body = body.format(name=name, drone=drone)
-            quote = random.choice(MARCIA_SYSTEM_LINES)
-            counts = await get_rsvp_counts(guild_id, name)
-            participant_count = counts.get("going", 0)
-            rsvp_line = f"Join Event {JOIN_EVENT_EMOJI}: {participant_count} joined"
+                if not (settings and settings['event_channel_id']):
+                    continue
 
-            if mins == 60:
-                # Build the message with natural mention integration
-                if natural_mention:
-                    msg = (
-                        f"{natural_mention},\n\n"
-                        f"{quote}\n\n"
-                        f"{body}\n\n"
-                        f"{desc}{location_line}\n\n"
-                        f"{rsvp_line}\n\n"
-                        f"React with {JOIN_EVENT_EMOJI} to join this event and receive DM reminders."
-                        f"\n\n*Drone: {drone}*"
-                    )
-                else:
-                    msg = (
-                        f"{quote}\n\n"
-                        f"{body}\n\n"
-                        f"{desc}{location_line}\n\n"
-                        f"{rsvp_line}\n\n"
-                        f"React with {JOIN_EVENT_EMOJI} to join this event and receive DM reminders."
-                        f"\n\n*Drone: {drone}*"
-                    )
+                chan = self.bot.get_channel(settings['event_channel_id'])
+                if not chan or await is_channel_ignored(guild_id, chan.id):
+                    continue
+
+                drone = random.choice(DRONE_NAMES)
+                guild = chan.guild
+                role = guild.get_role(ping_role_id) if isinstance(ping_role_id, int) and ping_role_id >= 0 else None
+                location_line = f"\n📍 {location}" if location else ""
+                title, body = random.choice(TIMED_REMINDERS.get(mins, [("", "`{name}` is coming up.")]))
+                body = body.format(name=name, drone=drone)
+                quote = random.choice(MARCIA_SYSTEM_LINES)
+
+                greetings = ["Dear", "Hello", "Attention", "Listen up,", "Heads up,"]
+                role_line = f" {role.mention}" if role else ""
+                natural_mention = f"{random.choice(greetings)} @everyone{role_line}"
+
+                msg = (
+                    f"{natural_mention},\n\n"
+                    f"{quote}\n\n"
+                    f"{body}\n\n"
+                    f"{desc}{location_line}\n\n"
+                    f"React with {JOIN_EVENT_EMOJI} to join this event and receive DM reminders."
+                    f"\n\n*Drone: {drone}*"
+                )
                 sent = await chan.send(
                     msg,
-                    allowed_mentions=allowed_mentions,
+                    allowed_mentions=discord.AllowedMentions(everyone=True, roles=bool(role)),
                 )
 
                 try:
@@ -803,28 +882,6 @@ class Events(commands.Cog):
                     logger.warning("Could not add join reaction for %s", name)
                 await upsert_rsvp_prompt(guild_id, name, sent.id)
             else:
-                # Build the message with natural mention integration
-                if natural_mention:
-                    msg = (
-                        f"{natural_mention},\n\n"
-                        f"{quote}\n\n"
-                        f"{body}\n\n"
-                        f"{desc}{location_line}\n\n"
-                        f"{rsvp_line}\n\n"
-                        f"*Drone: {drone}*"
-                    )
-                else:
-                    msg = (
-                        f"{quote}\n\n"
-                        f"{body}\n\n"
-                        f"{desc}{location_line}\n\n"
-                        f"{rsvp_line}\n\n"
-                        f"*Drone: {drone}*"
-                    )
-                await chan.send(
-                    msg,
-                    allowed_mentions=allowed_mentions,
-                )
                 await self._notify_dm_participants(guild_id, name, mins, desc, location)
 
         await delete_mission(guild_id, name)

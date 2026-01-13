@@ -29,10 +29,10 @@
 - [x] Clear directory hierarchy established
 
 ### Documentation
-- [x] CHANGELOG.md created
-- [x] CONTRIBUTING.md created
-- [x] REFACTORING_SUMMARY.md created
-- [x] README.md enhanced
+- [x] docs/CHANGELOG.md created
+- [x] docs/CONTRIBUTING.md created
+- [x] docs/REFACTORING_SUMMARY.md created
+- [x] docs/README.md enhanced
 - [x] Directory READMEs added (utils/, config/, legacy/)
 
 ### Backward Compatibility
@@ -184,7 +184,7 @@ legacy/ directory: 1 JSON file + README
    - Check for any missed references
 
 2. **Update Development Documentation**
-   - Share CONTRIBUTING.md with team
+   - Share docs/CONTRIBUTING.md with team
    - Review new structure in onboarding docs
 
 3. **Future Improvements**
@@ -194,7 +194,7 @@ legacy/ directory: 1 JSON file + README
 
 4. **Maintenance**
    - Follow new directory structure for all future changes
-   - Update CHANGELOG.md with each release
+   - Update docs/CHANGELOG.md with each release
    - Maintain README files in each directory
 
 ---

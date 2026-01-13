@@ -40,8 +40,9 @@ Marica/
 Marcia/
 ├── main.py
 ├── database.py
-├── CHANGELOG.md          # ✅ New
-├── CONTRIBUTING.md       # ✅ New
+├── docs/
+│   ├── CHANGELOG.md      # ✅ New
+│   ├── CONTRIBUTING.md   # ✅ New
 ├── utils/                # ✅ New - Organized utilities
 │   ├── __init__.py
 │   ├── assets.py
@@ -74,9 +75,9 @@ Marcia/
 - **Zero vulnerabilities** detected by CodeQL
 
 ### 3. Documentation 📚
-- **CHANGELOG.md** - Comprehensive change documentation
-- **CONTRIBUTING.md** - Developer guidelines (180 lines)
-- **Enhanced README** - Project structure section added
+- **docs/CHANGELOG.md** - Comprehensive change documentation
+- **docs/CONTRIBUTING.md** - Developer guidelines (180 lines)
+- **docs/README.md** - Project structure section added
 - **Directory READMEs** - Explain utils/, config/, legacy/
 
 ### 4. Developer Experience 🚀
@@ -97,9 +98,9 @@ Marcia/
 - ✅ All JSON configs moved to `config/`
 
 ### Documentation (8 files)
-- ✅ `README.md` - Added project structure section
-- ✅ `CHANGELOG.md` - Created comprehensive changelog
-- ✅ `CONTRIBUTING.md` - Created contribution guide
+- ✅ `docs/README.md` - Added project structure section
+- ✅ `docs/CHANGELOG.md` - Created comprehensive changelog
+- ✅ `docs/CONTRIBUTING.md` - Created contribution guide
 - ✅ `utils/__init__.py` - Enhanced docstrings
 - ✅ `config/README.md` - New
 - ✅ `legacy/README.md` - New
@@ -136,8 +137,8 @@ from utils.bug_logging import log_command_exception
 ### For Developers
 - **Follow new import structure** when writing code
 - **Use utils/ for shared code** going forward
-- **Read CONTRIBUTING.md** before making changes
-- **Check CHANGELOG.md** for recent changes
+- **Read docs/CONTRIBUTING.md** before making changes
+- **Check docs/CHANGELOG.md** for recent changes
 
 ## Benefits
 
@@ -151,8 +152,8 @@ from utils.bug_logging import log_command_exception
 
 1. **Continue adding type hints** to remaining functions
 2. **Keep utils/ clean** - only shared code belongs there
-3. **Update CHANGELOG.md** with each significant change
-4. **Follow CONTRIBUTING.md** guidelines for consistency
+3. **Update docs/CHANGELOG.md** with each significant change
+4. **Follow docs/CONTRIBUTING.md** guidelines for consistency
 5. **Document new features** in appropriate READMEs
 
 ## Conclusion
