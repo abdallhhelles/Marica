@@ -8,21 +8,25 @@ import discord
 from discord.ext import commands
 
 
+STIER_EMOJI = "<:stier:1460422509366214869>"
+GOLDFRAGMENT_EMOJI = "<:goldfragment:1460422570271576137>"
+STAR_INGAME_EMOJI = "<:starig:1460422592610566328>"
+
 HEROES = {
     "marcia": {
         "name": "Marcia :marcia:",
-        "type": ":stier::goldfragment:",
+        "type": f"{STIER_EMOJI}{GOLDFRAGMENT_EMOJI}",
         "skills": [
             (
                 "Cluster - Annihilation",
                 "\n".join([
                     "Base: Deals damage equal to **600% attack** to enemies.",
                     "Star scaling:",
-                    "⭐ +180%",
-                    "⭐⭐ +360%",
-                    "⭐⭐⭐ +540%",
-                    "⭐⭐⭐⭐ +780%",
-                    "⭐⭐⭐⭐⭐ +1200%",
+                    f"{STAR_INGAME_EMOJI} +180%",
+                    f"{STAR_INGAME_EMOJI * 2} +360%",
+                    f"{STAR_INGAME_EMOJI * 3} +540%",
+                    f"{STAR_INGAME_EMOJI * 4} +780%",
+                    f"{STAR_INGAME_EMOJI * 5} +1200%",
                 ]),
             ),
             (
@@ -30,11 +34,11 @@ HEROES = {
                 "\n".join([
                     "Base: Deals damage equal to **140% attack** to enemies.",
                     "Star scaling:",
-                    "⭐ +18%",
-                    "⭐⭐ +36%",
-                    "⭐⭐⭐ +54%",
-                    "⭐⭐⭐⭐ +78%",
-                    "⭐⭐⭐⭐⭐ +120%",
+                    f"{STAR_INGAME_EMOJI} +18%",
+                    f"{STAR_INGAME_EMOJI * 2} +36%",
+                    f"{STAR_INGAME_EMOJI * 3} +54%",
+                    f"{STAR_INGAME_EMOJI * 4} +78%",
+                    f"{STAR_INGAME_EMOJI * 5} +120%",
                 ]),
             ),
             (
@@ -42,11 +46,11 @@ HEROES = {
                 "\n".join([
                     "Base: Increases Riders’ HP by **5%**.",
                     "Star scaling (Rider Battle Damage):",
-                    "⭐ +5%",
-                    "⭐⭐ +8%",
-                    "⭐⭐⭐ +12%",
-                    "⭐⭐⭐⭐ +18%",
-                    "⭐⭐⭐⭐⭐ +25%",
+                    f"{STAR_INGAME_EMOJI} +5%",
+                    f"{STAR_INGAME_EMOJI * 2} +8%",
+                    f"{STAR_INGAME_EMOJI * 3} +12%",
+                    f"{STAR_INGAME_EMOJI * 4} +18%",
+                    f"{STAR_INGAME_EMOJI * 5} +25%",
                 ]),
             ),
             (

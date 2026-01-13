@@ -95,9 +95,7 @@ class MarciaServer(commands.Cog):
                 await self._apply_read_only_permissions(channel)
             return channel
 
-        overwrites = None
-        if read_only:
-            overwrites = self._read_only_overwrites(guild)
+        overwrites = self._read_only_overwrites(guild) if read_only else {}
 
         channel = await guild.create_text_channel(
             name=name,

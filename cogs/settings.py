@@ -100,24 +100,27 @@ class SetupFeatureSelect(discord.ui.Select):
                 emoji="🛰️",
             ),
             discord.SelectOption(
-                label="Feedback & suggestions",
-                description="Where community ideas go",
-                value="feedback_channel_id",
-                emoji="💡",
-            ),
-            discord.SelectOption(
-                label="Global analytics",
-                description="Hourly fun stats channel",
-                value="analytics_channel_id",
-                emoji="📊",
-            ),
-            discord.SelectOption(
                 label="Auto-role",
                 description="Role granted to new members",
                 value="auto_role_id",
                 emoji="🔏",
             ),
         ]
+        if cog.is_marcia_server:
+            options.extend([
+                discord.SelectOption(
+                    label="Feedback & suggestions",
+                    description="Where community ideas go",
+                    value="feedback_channel_id",
+                    emoji="💡",
+                ),
+                discord.SelectOption(
+                    label="Global analytics",
+                    description="Hourly fun stats channel",
+                    value="analytics_channel_id",
+                    emoji="📊",
+                ),
+            ])
         super().__init__(
             placeholder="Select a feature to edit…",
             options=options,
@@ -153,6 +156,7 @@ class SetupWizardView(discord.ui.View):
 class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.is_marcia_server = False
 
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         interaction = getattr(ctx, "interaction", None)
@@ -337,6 +341,8 @@ class Settings(commands.Cog):
         data = await get_settings(ctx.guild.id)
         ignored_channels = await get_ignored_channels(ctx.guild.id)
         profile_channel_id = await get_profile_channel(ctx.guild.id)
+        is_marcia_server = ctx.guild.id == 1454704176662843525
+        self.is_marcia_server = is_marcia_server
 
         embed = discord.Embed(
             title="📡 MARCIA OS | System Diagnostics",
@@ -354,8 +360,17 @@ class Settings(commands.Cog):
             embed.add_field(name="📜 Rules Sector", value=self._channel_status(ctx.guild, data['rules_channel_id'])[0], inline=True)
             embed.add_field(name="🛂 Verify Sector", value=self._channel_status(ctx.guild, data['verify_channel_id'])[0], inline=True)
             embed.add_field(name="🛰️ Profile Intake", value=self._channel_status(ctx.guild, profile_channel_id)[0], inline=True)
-            embed.add_field(name="💡 Feedback Sector", value=self._channel_status(ctx.guild, data.get('feedback_channel_id'))[0], inline=True)
-            embed.add_field(name="📊 Analytics Sector", value=self._channel_status(ctx.guild, data.get('analytics_channel_id'))[0], inline=True)
+            if is_marcia_server:
+                embed.add_field(
+                    name="💡 Feedback Sector",
+                    value=self._channel_status(ctx.guild, data.get('feedback_channel_id'))[0],
+                    inline=True,
+                )
+                embed.add_field(
+                    name="📊 Analytics Sector",
+                    value=self._channel_status(ctx.guild, data.get('analytics_channel_id'))[0],
+                    inline=True,
+                )
             embed.add_field(name="🔏 Auto-Role", value=self._role_status(ctx.guild, data['auto_role_id'])[0], inline=True)
             
             embed.set_footer(text="System Clock: UTC-2 (Dark War Survival global time)")
@@ -492,10 +507,11 @@ class Settings(commands.Cog):
             "Rules": self._channel_status(guild, data.get("rules_channel_id")),
             "Verify": self._channel_status(guild, data.get("verify_channel_id")),
             "Profile Intake": self._channel_status(guild, profile_channel_id),
-            "Feedback": self._channel_status(guild, data.get("feedback_channel_id")),
-            "Analytics": self._channel_status(guild, data.get("analytics_channel_id")),
             "Auto-Role": self._role_status(guild, data.get("auto_role_id")),
         }
+        if guild and guild.id == 1454704176662843525:
+            checks["Feedback"] = self._channel_status(guild, data.get("feedback_channel_id"))
+            checks["Analytics"] = self._channel_status(guild, data.get("analytics_channel_id"))
 
         warnings = [name for name, (_, flag) in checks.items() if flag != "ok"]
         status_lines = [f"**{name}:** {value}" for name, (value, _) in checks.items()]
@@ -548,16 +564,17 @@ class Settings(commands.Cog):
             value="Where `/scan_profile` screenshots are read and logged.",
             inline=False,
         )
-        embed.add_field(
-            name="💡 Feedback & suggestions",
-            value="Community ideas live here. Marcia still DMs akrott privately.",
-            inline=False,
-        )
-        embed.add_field(
-            name="📊 Global analytics",
-            value="Hourly fun stats channel (auto-created in the Marcia Server).",
-            inline=False,
-        )
+        if self.is_marcia_server:
+            embed.add_field(
+                name="💡 Feedback & suggestions",
+                value="Community ideas live here. Marcia still DMs akrott privately.",
+                inline=False,
+            )
+            embed.add_field(
+                name="📊 Global analytics",
+                value="Hourly fun stats channel (auto-created in the Marcia Server).",
+                inline=False,
+            )
         embed.add_field(
             name="🔏 Auto-role",
             value="Role granted to new arrivals. Keep Marcia’s role **above** it.",
