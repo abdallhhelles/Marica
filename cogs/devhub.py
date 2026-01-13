@@ -35,12 +35,12 @@ TEST_LAYOUT = [
                     "marker": "seed:readme:v2-min",
                     "content": textwrap.dedent(
                         """
-                        **Welcome:** Keep it concise. `/setup` to map events/welcome/verify/rules + auto-role. Re-run the **Sector Audit** in `/setup` after permission tweaks.
+                        **Welcome:** Keep it concise. `/setup` to map events/welcome/verify/rules + auto-role. Re-check links in `/setup` after permission tweaks.
 
                         **Core Flows:**
-                        - `/event` for ops (UTC-2). Reminders at 60/30/15/3/0.
-                        - `/scavenge` hourly, chat for XP (60s), `/trade_item` to barter.
-                        - `/commands` + `/manual` for quick discovery.
+                        - `/event` for ops (UTC-2). Channel ping at 60, DMs after.
+                        - `/scavenge` hourly, chat for XP (60s), trade via Fish-Link + profile/inventory.
+                        - `/commands` + `/features` for quick discovery.
 
                         **QA Etiquette:** One issue per thread, include command, timestamp, expected vs actual, and a log or screenshot.
                         """
@@ -68,7 +68,7 @@ TEST_LAYOUT = [
                         - Error count last 24h (auto-fed from bug logger).
                         - XP/level milestones posted to `#level-up`.
 
-                        Use `/manual` for feature overviews and `/intel <topic>` for deep dives.
+                        Use `/commands` for the full directory and `/features` for the showcase.
                         """
                     ),
                 },

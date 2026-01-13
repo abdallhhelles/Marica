@@ -154,7 +154,7 @@ class MarciaBot(commands.Bot):
         logger.info("-" * 30)
         
         await self.change_presence(
-            activity=discord.Game(name="Dark War: Survival | /manual"),
+            activity=discord.Game(name="Dark War: Survival | /commands"),
         )
 
     async def _is_reply_to_bot(self, message: discord.Message) -> bool:

@@ -53,7 +53,6 @@ Marica/
 │   ├── akrott.py      # Translation and internationalization
 │   ├── archives.py    # Message archiving system
 │   ├── automation.py  # Welcome/farewell automation
-│   ├── config.py      # Legacy configuration shortcuts
 │   ├── devhub.py      # Developer tools and analytics
 │   ├── events.py      # Mission scheduling and reminders
 │   ├── leveling.py    # XP system and scavenging

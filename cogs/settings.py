@@ -12,8 +12,11 @@ from utils.assets import MARCIA_QUOTES
 from database import (
     add_ignored_channel,
     get_ignored_channels,
+    get_profile_channel,
     get_settings,
     remove_ignored_channel,
+    set_profile_channel,
+    clear_profile_channel,
     update_setting,
 )
 
@@ -57,28 +60,82 @@ def _role_from_message(msg: discord.Message, guild: discord.Guild) -> discord.Ro
     return discord.utils.get(guild.roles, name=lowered)
 
 
+class SetupFeatureSelect(discord.ui.Select):
+    def __init__(self, cog):
+        options = [
+            discord.SelectOption(
+                label="Events channel",
+                description="Where mission announcements post",
+                value="event_channel_id",
+                emoji="📡",
+            ),
+            discord.SelectOption(
+                label="Chat channel",
+                description="Where level-up chatter lands",
+                value="chat_channel_id",
+                emoji="💬",
+            ),
+            discord.SelectOption(
+                label="Welcome channel",
+                description="Join/leave messages live here",
+                value="welcome_channel_id",
+                emoji="👋",
+            ),
+            discord.SelectOption(
+                label="Rules channel",
+                description="Rules + onboarding posts",
+                value="rules_channel_id",
+                emoji="📜",
+            ),
+            discord.SelectOption(
+                label="Verify channel",
+                description="Verification checkpoint",
+                value="verify_channel_id",
+                emoji="🛂",
+            ),
+            discord.SelectOption(
+                label="Profile scan intake",
+                description="Where screenshots are scanned",
+                value="profile_channel_id",
+                emoji="🛰️",
+            ),
+            discord.SelectOption(
+                label="Feedback & suggestions",
+                description="Where community ideas go",
+                value="feedback_channel_id",
+                emoji="💡",
+            ),
+            discord.SelectOption(
+                label="Global analytics",
+                description="Hourly fun stats channel",
+                value="analytics_channel_id",
+                emoji="📊",
+            ),
+            discord.SelectOption(
+                label="Auto-role",
+                description="Role granted to new members",
+                value="auto_role_id",
+                emoji="🔏",
+            ),
+        ]
+        super().__init__(
+            placeholder="Select a feature to edit…",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.cog._prompt_feature_update(interaction, self.values[0])
+
+
 class SetupWizardView(discord.ui.View):
     def __init__(self, cog, setup_channel: discord.abc.Messageable | None):
         super().__init__(timeout=90)
         self.cog = cog
         self.setup_channel = setup_channel
-
-    @discord.ui.button(label="Start Guided Setup", style=discord.ButtonStyle.primary, emoji="🛰️")
-    async def start(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "📡 Spinning up Marcia's console here. Answer the prompts in this channel.",
-            ephemeral=True,
-        )
-        await self.cog.run_setup_wizard(
-            interaction.user,
-            interaction.guild,
-            self.setup_channel or interaction.channel,
-        )
-
-    @discord.ui.button(label="Sector Audit", style=discord.ButtonStyle.secondary, emoji="🛰️")
-    async def audit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = await self.cog._build_audit_embed(interaction.guild)
-        await self.cog._safe_interaction_reply(interaction, embed=embed, ephemeral=True)
+        self.add_item(SetupFeatureSelect(cog))
 
     @discord.ui.button(label="Setup Help", style=discord.ButtonStyle.secondary, emoji="📘")
     async def help(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -174,6 +231,80 @@ class Settings(commands.Cog):
             await remove_ignored_channel(interaction.guild.id, channel.id)
         await msg.reply("✅ Removed from the ignore list.")
 
+    async def _prompt_feature_update(self, interaction: discord.Interaction, feature_key: str) -> None:
+        if not interaction.guild:
+            return
+
+        if not interaction.user.guild_permissions.manage_guild:
+            return await interaction.response.send_message(
+                "🔒 You need Manage Server permissions to update setup.",
+                ephemeral=True,
+            )
+
+        feature_labels = {
+            "event_channel_id": "Events channel",
+            "chat_channel_id": "Chat channel",
+            "welcome_channel_id": "Welcome channel",
+            "rules_channel_id": "Rules channel",
+            "verify_channel_id": "Verify channel",
+            "profile_channel_id": "Profile scan intake",
+            "feedback_channel_id": "Feedback & suggestions channel",
+            "analytics_channel_id": "Global analytics channel",
+            "auto_role_id": "Auto-role",
+        }
+        label = feature_labels.get(feature_key, "Feature")
+
+        await interaction.response.send_message(
+            f"📡 **{label}** — mention it here, paste an ID, or type `clear` to unset.",
+            ephemeral=True,
+        )
+
+        def check(msg: discord.Message):
+            return msg.author.id == interaction.user.id and msg.channel == interaction.channel
+
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=120)
+        except asyncio.TimeoutError:
+            return await self._safe_interaction_reply(
+                interaction,
+                content="⌛ Timed out. Open `/setup` again when ready.",
+                ephemeral=True,
+            )
+
+        content = msg.content.strip().lower()
+        if content == "cancel":
+            return await msg.reply(_marcia_line("Abort confirmed."))
+
+        if feature_key == "auto_role_id":
+            if content == "clear":
+                await update_setting(interaction.guild.id, "auto_role_id", None, interaction.guild.name)
+                return await msg.reply("✅ Auto-role cleared.")
+            role = _role_from_message(msg, interaction.guild)
+            if not role:
+                return await msg.reply("❌ Couldn't find that role. Try `/setup` again.")
+            await update_setting(interaction.guild.id, "auto_role_id", role.id, interaction.guild.name)
+            return await msg.reply(f"✅ Auto-role set to **{role.name}**.")
+
+        if feature_key == "profile_channel_id":
+            if content == "clear":
+                await clear_profile_channel(interaction.guild.id)
+                return await msg.reply("✅ Profile scan intake cleared.")
+            channel = _channel_from_message(msg, interaction.guild)
+            if not channel:
+                return await msg.reply("❌ Couldn't read that channel. Try again.")
+            await set_profile_channel(interaction.guild.id, channel.id)
+            return await msg.reply(f"✅ Profile scans now ingest in {channel.mention}.")
+
+        if content == "clear":
+            await update_setting(interaction.guild.id, feature_key, None, interaction.guild.name)
+            return await msg.reply(f"✅ {label} cleared.")
+
+        channel = _channel_from_message(msg, interaction.guild)
+        if not channel:
+            return await msg.reply("❌ Couldn't read that channel. Try again.")
+        await update_setting(interaction.guild.id, feature_key, channel.id, interaction.guild.name)
+        await msg.reply(f"✅ {label} linked to {channel.mention}.")
+
     def _channel_status(self, guild: discord.Guild, channel_id: int | None) -> tuple[str, str]:
         """Return a human-friendly status string plus a short warning slug."""
         if not channel_id:
@@ -205,12 +336,13 @@ class Settings(commands.Cog):
         """Displays the current server configuration and setup status."""
         data = await get_settings(ctx.guild.id)
         ignored_channels = await get_ignored_channels(ctx.guild.id)
+        profile_channel_id = await get_profile_channel(ctx.guild.id)
 
         embed = discord.Embed(
             title="📡 MARCIA OS | System Diagnostics",
             description=(
-                "Checking sector infrastructure... All links must be active for "
-                "optimal drone deployment and mission synchronization."
+                "Pick a feature from the dropdown to edit one channel at a time. "
+                "All links should be active for clean ops and reminders."
             ),
             color=0x2b2d31
         )
@@ -221,6 +353,9 @@ class Settings(commands.Cog):
             embed.add_field(name="👋 Welcome Sector", value=self._channel_status(ctx.guild, data['welcome_channel_id'])[0], inline=True)
             embed.add_field(name="📜 Rules Sector", value=self._channel_status(ctx.guild, data['rules_channel_id'])[0], inline=True)
             embed.add_field(name="🛂 Verify Sector", value=self._channel_status(ctx.guild, data['verify_channel_id'])[0], inline=True)
+            embed.add_field(name="🛰️ Profile Intake", value=self._channel_status(ctx.guild, profile_channel_id)[0], inline=True)
+            embed.add_field(name="💡 Feedback Sector", value=self._channel_status(ctx.guild, data.get('feedback_channel_id'))[0], inline=True)
+            embed.add_field(name="📊 Analytics Sector", value=self._channel_status(ctx.guild, data.get('analytics_channel_id'))[0], inline=True)
             embed.add_field(name="🔏 Auto-Role", value=self._role_status(ctx.guild, data['auto_role_id'])[0], inline=True)
             
             embed.set_footer(text="System Clock: UTC-2 (Dark War Survival global time)")
@@ -230,8 +365,8 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🛠️ Maintenance Commands",
             value=(
-                "Use **Start Guided Setup** to configure channels and auto-role in this channel.\n"
-                "Run **Sector Audit** to review links and permissions.\n"
+                "Use the **feature dropdown** to update a single channel or role.\n"
+                "Use **Setup Help** for definitions and notes.\n"
                 "Use **Ignore Channels** or **Unignore Channels** to manage event exclusions."
             ),
             inline=False
@@ -342,6 +477,7 @@ class Settings(commands.Cog):
 
     async def _build_audit_embed(self, guild: discord.Guild | None) -> discord.Embed:
         data = await get_settings(guild.id) if guild else {}
+        profile_channel_id = await get_profile_channel(guild.id) if guild else None
 
         embed = discord.Embed(
             title="🛰️ Marcia OS | Sector Audit",
@@ -355,6 +491,9 @@ class Settings(commands.Cog):
             "Welcome": self._channel_status(guild, data.get("welcome_channel_id")),
             "Rules": self._channel_status(guild, data.get("rules_channel_id")),
             "Verify": self._channel_status(guild, data.get("verify_channel_id")),
+            "Profile Intake": self._channel_status(guild, profile_channel_id),
+            "Feedback": self._channel_status(guild, data.get("feedback_channel_id")),
+            "Analytics": self._channel_status(guild, data.get("analytics_channel_id")),
             "Auto-Role": self._role_status(guild, data.get("auto_role_id")),
         }
 
@@ -376,22 +515,57 @@ class Settings(commands.Cog):
     def _build_help_embed(self) -> discord.Embed:
         embed = discord.Embed(
             title="🛠️ Marcia OS | Setup Intelligence",
-            description="Follow these steps to ensure Marcia is fully operational in your server.",
+            description="Each feature below can be configured from the `/setup` dropdown.",
             color=0x3498db,
         )
         embed.add_field(
-            name="1️⃣ The Event Sector",
-            value="Linking the **Events** channel is vital. This is where Marcia will announce new Missions and Trading updates.",
+            name="📡 Events channel",
+            value="Where mission announcements and scheduled ops are posted.",
             inline=False,
         )
         embed.add_field(
-            name="2️⃣ Auto-Role Logic",
-            value="Make sure Marcia's role is **higher** than the role you are trying to assign in the Discord Role Hierarchy, or she won't be able to give it to members.",
+            name="💬 Chat channel",
+            value="Optional stream for level-up chatter and daily noise.",
             inline=False,
         )
         embed.add_field(
-            name="3️⃣ Time Sync",
-            value="All missions and reminders run on the game's **UTC-2** clock. No local offset needed.",
+            name="👋 Welcome channel",
+            value="Join/leave messages and arrival guidance.",
+            inline=False,
+        )
+        embed.add_field(
+            name="📜 Rules channel",
+            value="Your rules codex. Marcia can post here during setup for the Marcia Server.",
+            inline=False,
+        )
+        embed.add_field(
+            name="🛂 Verify channel",
+            value="Checkpoint for verification instructions.",
+            inline=False,
+        )
+        embed.add_field(
+            name="🛰️ Profile scan intake",
+            value="Where `/scan_profile` screenshots are read and logged.",
+            inline=False,
+        )
+        embed.add_field(
+            name="💡 Feedback & suggestions",
+            value="Community ideas live here. Marcia still DMs akrott privately.",
+            inline=False,
+        )
+        embed.add_field(
+            name="📊 Global analytics",
+            value="Hourly fun stats channel (auto-created in the Marcia Server).",
+            inline=False,
+        )
+        embed.add_field(
+            name="🔏 Auto-role",
+            value="Role granted to new arrivals. Keep Marcia’s role **above** it.",
+            inline=False,
+        )
+        embed.add_field(
+            name="🎣 Trading terminal",
+            value="Run `/setup_trade` in the channel you want the Fish-Link menu pinned.",
             inline=False,
         )
         return embed
