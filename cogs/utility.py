@@ -205,20 +205,21 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title="🛰️ About Marcia OS",
             description=(
-                "I’m Marcia. I keep alliances coordinated, loud chaos quiet, and mission intel on time."
+                "Marcia is a tactical operations bot built to keep alliances coordinated, loud chaos quiet, "
+                "and mission intel on time."
             ),
             color=0x5865F2,
         )
         embed.add_field(
-            name="Why install me?",
+            name="Why I exist",
             value=(
-                "You get clean event scheduling, opt-in DM reminders, trading terminals, and readable stats—"
-                "all without data leaking across servers."
+                "I was created to give crews a reliable command center: clean scheduling, opt-in reminders, "
+                "inventory tracking, and readable stats—without leaking data across servers."
             ),
             inline=False,
         )
         embed.add_field(
-            name="What I bring to your crew",
+            name="Feature snapshot",
             value=self._fit_embed_lines([f"• {line}" for line in MARCIA_CAPABILITIES]),
             inline=False,
         )
@@ -232,7 +233,7 @@ class Utility(commands.Cog):
             value=(
                 f"Owner: {owner_label}\n"
                 f"Invite link: {self._share_link}\n"
-                "Support station: https://www.buymeacoffee.com/akrot\n"
+                "Support station (keeps the uptime running): https://www.buymeacoffee.com/akrot\n"
                 "Official server: https://discord.gg/z9pdDMDgak"
             ),
             inline=False,
