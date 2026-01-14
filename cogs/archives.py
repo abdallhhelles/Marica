@@ -109,6 +109,27 @@ class Archives(commands.Cog):
         with open(os.path.join(path, log_name), "a", encoding="utf-8") as f:
             f.write(f"[{stamp}] {line}\n")
 
+    def _dm_log_path(self, user: discord.User | discord.Member) -> str:
+        safe_name = str(user).replace(" ", "_") or "user"
+        path = os.path.join(self.root_dir, "dms", f"{safe_name}_{user.id}")
+        os.makedirs(path, exist_ok=True)
+        return os.path.join(path, "dm.log")
+
+    def _write_dm_log(
+        self,
+        user: discord.User | discord.Member,
+        line: str,
+        *,
+        timestamp: datetime.datetime | None = None,
+    ) -> None:
+        stamp = (timestamp or datetime.datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+        with open(self._dm_log_path(user), "a", encoding="utf-8") as f:
+            f.write(f"[{stamp}] {line}\n")
+
+    def _dm_log_user(self, message: discord.Message) -> discord.User | discord.Member:
+        recipient = getattr(message.channel, "recipient", None)
+        return recipient or message.author
+
     def _format_attachments(self, message: discord.Message) -> str:
         if not message.attachments:
             return ""
@@ -182,11 +203,22 @@ class Archives(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if (
-            not message.guild
-            or not self._should_log_message(message.guild)
-            or await is_channel_ignored(message.guild.id, message.channel.id)
-        ):
+        if not message.guild:
+            log_user = self._dm_log_user(message)
+            channel_info = f"DM ({message.channel.id})"
+            content = message.content or "[No content]"
+            line = (
+                f"DM MESSAGE {message.id} | {channel_info} | "
+                f"{message.author} ({message.author.id}): {content}"
+            )
+            line += self._format_attachments(message)
+            self._write_dm_log(log_user, line)
+            return
+
+        if not self._should_log_message(message.guild):
+            return
+
+        if await is_channel_ignored(message.guild.id, message.channel.id):
             return
 
         channel_info = f"#{message.channel.name} ({message.channel.id})"
@@ -200,11 +232,24 @@ class Archives(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if (
-            not before.guild
-            or not self._should_log_message(before.guild)
-            or await is_channel_ignored(before.guild.id, before.channel.id)
-        ):
+        if not before.guild:
+            log_user = self._dm_log_user(before)
+            channel_info = f"DM ({before.channel.id})"
+            before_content = before.content or "[No content]"
+            after_content = after.content or "[No content]"
+            line = (
+                f"DM EDIT {before.id} | {channel_info} | "
+                f"{before.author} ({before.author.id}) | "
+                f"Before: {before_content} | After: {after_content}"
+            )
+            line += self._format_attachments(after)
+            self._write_dm_log(log_user, line)
+            return
+
+        if not self._should_log_message(before.guild):
+            return
+
+        if await is_channel_ignored(before.guild.id, before.channel.id):
             return
 
         channel_info = f"#{before.channel.name} ({before.channel.id})"
@@ -220,11 +265,22 @@ class Archives(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        if (
-            not message.guild
-            or not self._should_log_message(message.guild)
-            or await is_channel_ignored(message.guild.id, message.channel.id)
-        ):
+        if not message.guild:
+            log_user = self._dm_log_user(message)
+            channel_info = f"DM ({message.channel.id})"
+            content = message.content or "[No content]"
+            line = (
+                f"DM DELETE {message.id} | {channel_info} | "
+                f"{message.author} ({message.author.id}): {content}"
+            )
+            line += self._format_attachments(message)
+            self._write_dm_log(log_user, line)
+            return
+
+        if not self._should_log_message(message.guild):
+            return
+
+        if await is_channel_ignored(message.guild.id, message.channel.id):
             return
 
         channel_info = f"#{message.channel.name} ({message.channel.id})"

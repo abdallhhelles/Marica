@@ -1,7 +1,7 @@
 """
 FILE: cogs/profile_scanner.py
-USE: Capture profile screenshots, OCR key stats, and surface stat leaderboards.
-FEATURES: Channel-scoped intake, OCR parsing, profile views, and leaderboard queries.
+USE: Capture profile screenshots, scan key stats, and surface stat leaderboards.
+FEATURES: Channel-scoped intake, scan parsing, profile views, and leaderboard queries.
 """
 
 import asyncio
@@ -10,21 +10,25 @@ import io
 import json
 import logging
 import re
+import os
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 
 import discord
-from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
+import httpx
 
 from database import (
     get_profile_channel,
     get_profile_snapshot,
-    set_profile_channel,
-    top_profile_stat,
+    get_profile_snapshots,
+    delete_profile_snapshot,
+    set_profile_scan_valid,
     upsert_profile_snapshot,
 )
+from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
 from ocr.diagnostics import collect_ocr_diagnostics
 
 _PIL_SPEC = importlib.util.find_spec("PIL")
@@ -54,10 +58,12 @@ else:  # pragma: no cover - optional dependency guard
 
 NUMBER_RE = re.compile(r"(?P<value>[\d.,]+)\s*(?P<suffix>[kmbKMB]?)")
 LABEL_HINTS = {
-    "cp": ("cp", "power"),
-    "kills": ("kills",),
+    "cp": ("cp", "power", "battle power", "total power", "combat power"),
+    "kills": ("kills", "defeats", "defeated", "eliminations", "total kills"),
+    "likes": ("likes", "like", "likes received"),
+    "vip_level": ("vip", "vip level", "vip lvl", "vip lv"),
     "alliance": ("alliance", "all", "guild"),
-    "server": ("server", "state"),
+    "server": ("server", "state", "world"),
 }
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
@@ -65,11 +71,17 @@ EASYOCR_LANGS = ["en"]
 EASYOCR_MIN_CONF = 0.45
 EASYOCR_FIELDS = {
     "name": "player_name",
-    "power_cp": "cp",
+    "cp": "cp",
     "kills": "kills",
     "alliance": "alliance",
-    "state": "server",
+    "server": "server",
+    "likes": "likes",
+    "vip": "vip_level",
 }
+VERIFY_FIELDS = {"account_btn", "settings_btn"}
+VERIFY_MIN_CONF = 0.25
+OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
+OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
 
 
 def _extract_number(chunk: str) -> int | None:
@@ -131,6 +143,9 @@ class ProfileScanner(commands.Cog):
         self._easyocr_failure_reason: str | None = None
         self._easyocr_lock = asyncio.Lock()
         self._pytesseract_missing = False
+        self._scan_semaphore = asyncio.Semaphore(
+            int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
+        )
 
     async def cog_unload(self):
         pass
@@ -145,27 +160,30 @@ class ProfileScanner(commands.Cog):
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
 
+    async def _safe_defer(self, ctx, *, ephemeral: bool = False):
+        interaction = getattr(ctx, "interaction", None)
+        if not interaction:
+            return await ctx.defer()
+
+        try:
+            if interaction.response.is_done() or getattr(interaction, "is_expired", lambda: False)():
+                return None
+            return await interaction.response.defer(ephemeral=ephemeral)
+        except HTTPException as exc:
+            if exc.code == 40060:
+                self.log.debug(
+                    "Skipped duplicate defer for %s",
+                    getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+                )
+                return None
+            self.log.exception("Failed to defer interaction")
+        except Exception:
+            self.log.exception("Failed to defer interaction")
+        return None
+
     # --------------------
     # Commands
     # --------------------
-    @commands.hybrid_command(
-        name="setup_profile_channel",
-        description="Choose the channel where Marcia will read profile screenshots.",
-    )
-    @commands.has_permissions(manage_guild=True)
-    async def setup_profile_channel(self, ctx, channel: discord.TextChannel):
-        await set_profile_channel(ctx.guild.id, channel.id)
-        embed = discord.Embed(
-            title="📡 Profile Scanner Armed",
-            description=(
-                "I'll watch this channel for profile screenshots and log stats to the "
-                "uploader."
-            ),
-            color=0x5865F2,
-        )
-        embed.add_field(name="Channel", value=channel.mention, inline=False)
-        await self._safe_send(ctx, embed=embed)
-
     @commands.hybrid_command(
         name="scan_profile",
         description="Scan a profile screenshot and save the stats for this server.",
@@ -185,7 +203,7 @@ class ProfileScanner(commands.Cog):
                 ephemeral=True,
             )
 
-        await ctx.defer(ephemeral=True)
+        await self._safe_defer(ctx, ephemeral=True)
 
         try:
             image_bytes = await image.read()
@@ -193,96 +211,58 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
-            image_bytes, filename=image.filename
+        cached_path = self._persist_profile_image(
+            ctx.guild.id, ctx.author.id, image_bytes, image.filename
         )
-        payload = self._build_payload(ctx.author, image.url, parsed, raw_text)
-        await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
-
-        embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
-        await self._safe_send(ctx, embed=embed)
-
-    @commands.hybrid_command(
-        name="profile_stats",
-        description="Show the parsed profile stats for you or another survivor.",
-    )
-    async def profile_stats(self, ctx, member: discord.Member | None = None):
-        leveling = self.bot.get_cog("Leveling")
-        if leveling and hasattr(leveling, "_send_profile_overview"):
-            return await leveling._send_profile_overview(ctx, member)
-
-        if not ctx.guild:
-            return await self._safe_send(
-                ctx,
-                content="Profiles only work inside servers.",
-                ephemeral=True,
-            )
-
-        target = member or ctx.author
-        data = await get_profile_snapshot(ctx.guild.id, target.id)
-        if not data:
+        parsed, raw_text, ocr_note = await self._perform_ocr(
+            image_bytes, filename=image.filename, persisted_path=cached_path
+        )
+        payload = self._build_payload(
+            ctx.author, image.url, parsed, raw_text, cached_path
+        )
+        if payload.get("ownership_verified") is False:
             return await self._safe_send(
                 ctx,
                 content=(
-                    "No profile stored yet. Drop a screenshot in the configured channel first."
+                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
                 ),
                 ephemeral=True,
             )
+        await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
 
-        embed = discord.Embed(
-            title=f"📄 Profile: {data['player_name'] or target.display_name}",
-            color=0x2ecc71,
-        )
-        embed.set_thumbnail(url=data["avatar_url"] or target.display_avatar.url)
-        embed.add_field(name="CP", value=_format_metric(data["cp"]), inline=True)
-        embed.add_field(name="Kills", value=_format_metric(data["kills"]), inline=True)
-        embed.add_field(name="Alliance", value=data.get("alliance") or "—", inline=True)
-        embed.add_field(name="Server", value=data.get("server") or "—", inline=True)
-        if data.get("last_updated"):
-            dt = datetime.fromtimestamp(data["last_updated"], tz=timezone.utc)
-            embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
+        embed = self._build_confirmation_embed(payload, ocr_note)
         await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
-        name="profile_leaderboard",
-        description="Show the top survivors for a scanned profile stat.",
+        name="profile_review",
+        description="Review, invalidate, or delete recent profile scans.",
     )
-    @app_commands.choices(
-        stat=[
-            app_commands.Choice(name="Combat Power", value="cp"),
-            app_commands.Choice(name="Kills", value="kills"),
-        ]
-    )
-    async def profile_leaderboard(self, ctx, stat: app_commands.Choice[str]):
+    @commands.has_permissions(manage_guild=True)
+    async def profile_review(self, ctx):
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
-                content="Leaderboards only work inside servers.",
+                content="Profile reviews only work inside servers.",
                 ephemeral=True,
             )
 
-        rows = await top_profile_stat(ctx.guild.id, stat.value)
-        if not rows:
+        snapshots = await get_profile_snapshots(ctx.guild.id, limit=25, include_invalid=True)
+        if not snapshots:
             return await self._safe_send(
-                ctx, content="No scanned profiles yet.", ephemeral=True
+                ctx,
+                content="No profile scans found yet.",
+                ephemeral=True,
             )
 
-        lines = []
-        for idx, row in enumerate(rows, start=1):
-            user = ctx.guild.get_member(row["user_id"])
-            name = row["player_name"] or (user.display_name if user else f"User {row['user_id']}")
-            lines.append(f"**{idx}.** {name} — {_format_metric(row['value'])}")
-
-        embed = discord.Embed(
-            title=f"🏅 {stat.name} Leaderboard",
-            description="\n".join(lines),
-            color=0xf1c40f,
-        )
-        await self._safe_send(ctx, embed=embed)
+        view = ProfileReviewView(self, ctx.guild.id, snapshots)
+        embed = view.build_embed()
+        message = await self._safe_send(ctx, embed=embed, view=view, ephemeral=True)
+        if isinstance(message, discord.Message):
+            view.bind_message(message)
 
     @commands.hybrid_command(
         name="ocr_status",
-        description="Check whether OCR dependencies and templates are ready.",
+        description="Check whether profile scan dependencies and templates are ready.",
     )
     @commands.has_permissions(manage_guild=True)
     async def ocr_status(self, ctx):
@@ -312,13 +292,13 @@ class ProfileScanner(commands.Cog):
         elif diag.tesseract_binary is False:
             pytess_label += " (install the Tesseract CLI)"
 
-        embed = discord.Embed(title="🛰️ OCR Status", color=0x3498db)
+        embed = discord.Embed(title="🛰️ Profile Scan Status", color=0x3498db)
         if diag.install_tips:
             embed.description = (
                 "⚠️ Profile scans will stay blank until you finish the fixes below."
             )
         elif diag.easyocr_ready:
-            embed.description = "✅ OCR dependencies and templates look ready for scans."
+            embed.description = "✅ Profile scan dependencies and templates look ready."
         embed.add_field(name="EasyOCR", value=easyocr_label, inline=False)
         embed.add_field(name="Templates", value=f"{box_status}\n{box_details}", inline=False)
         embed.add_field(name="Pillow", value="Installed" if diag.pillow else "Missing", inline=True)
@@ -339,6 +319,12 @@ class ProfileScanner(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
+            return
+
+        if getattr(message, "interaction_metadata", None):
+            return
+
+        if message.type is not discord.MessageType.default:
             return
 
         # Ignore messages that are already being handled as bot commands to avoid
@@ -370,62 +356,133 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return
 
-        parsed, raw_text, ocr_note, debug_note = await self._perform_ocr(
-            image_bytes, filename=attachment.filename
+        cached_path = self._persist_profile_image(
+            message.guild.id, message.author.id, image_bytes, attachment.filename
         )
-        payload = self._build_payload(message.author, attachment.url, parsed, raw_text)
+        parsed, raw_text, ocr_note = await self._perform_ocr(
+            image_bytes, filename=attachment.filename, persisted_path=cached_path
+        )
+        payload = self._build_payload(
+            message.author, attachment.url, parsed, raw_text, cached_path
+        )
+
+        if payload.get("ownership_verified") is False:
+            await message.reply(
+                content=(
+                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
+                ),
+                mention_author=False,
+            )
+            return
 
         await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
-        await self._post_confirmation(message, payload, ocr_note, debug_note)
+        await self._post_confirmation(message, payload, ocr_note)
 
     async def _perform_ocr(
-        self, image_bytes: bytes, *, filename: str | None = None
-    ) -> tuple[dict, str, str | None, str | None]:
+        self,
+        image_bytes: bytes,
+        *,
+        filename: str | None = None,
+        persisted_path: Path | None = None,
+    ) -> tuple[dict, str, str | None]:
         parsed: dict[str, str | int | None] = {}
         raw_text = ""
         ocr_note: str | None = None
-        debug_note: str | None = None
 
-        temp_path = self._stash_temp_image(image_bytes, filename)
+        async with self._scan_semaphore:
+            temp_path = persisted_path or self._stash_temp_image(image_bytes, filename)
 
-        try:
-            easyocr_results = await self._run_easyocr(image_bytes, temp_path)
-            if easyocr_results:
-                parsed.update(easyocr_results["parsed"])
-                raw_text = easyocr_results["raw"]
-            elif self._easyocr_ready is False and self._easyocr_failure_reason:
-                ocr_note = self._easyocr_failure_reason
-
-            if not parsed:
-                pytesseract_text = await self._run_pytesseract(image_bytes)
-                raw_text = pytesseract_text or raw_text
-                if pytesseract_text:
-                    parsed.update(_parse_profile_text(pytesseract_text))
-                elif ocr_note is None:
-                    if self._pytesseract_missing:
-                        ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
-                    elif not (pytesseract and Image):
-                        ocr_note = (
-                            "OCR dependencies are missing; install them from requirements.txt."
+            try:
+                easyocr_results = await self._run_easyocr(image_bytes, temp_path)
+                if easyocr_results:
+                    parsed.update(easyocr_results["parsed"])
+                    raw_text = easyocr_results["raw"]
+                    if not self._has_profile_metrics(parsed):
+                        easyocr_full = await self._run_easyocr_full_text(
+                            image_bytes, temp_path=temp_path
                         )
-                    else:
-                        ocr_note = "OCR could not read this image."
-        finally:
-            if temp_path:
-                try:
-                    temp_path.unlink(missing_ok=True)
-                except Exception:  # pragma: no cover - best-effort cleanup
-                    self.log.debug("Temp profile image cleanup failed for %s", temp_path)
+                        if easyocr_full:
+                            raw_text = raw_text or easyocr_full
+                            parsed.update(_parse_profile_text(easyocr_full))
+                elif self._easyocr_ready is False and self._easyocr_failure_reason:
+                    ocr_note = self._easyocr_failure_reason
 
-        debug_note = self._compose_debug_note(parsed, raw_text, ocr_note)
+                if not parsed:
+                    pytesseract_text = await self._run_pytesseract(image_bytes)
+                    raw_text = pytesseract_text or raw_text
+                    if pytesseract_text:
+                        parsed.update(_parse_profile_text(pytesseract_text))
+                    elif ocr_note is None:
+                        if self._pytesseract_missing:
+                            ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
+                        elif not (pytesseract and Image):
+                            ocr_note = (
+                                "Profile scan dependencies are missing; install them from requirements.txt."
+                            )
+                        else:
+                            ocr_note = "Profile scan could not read this image."
+
+                if not parsed and OCR_SPACE_API_KEY:
+                    api_text, api_note = await self._run_ocr_space(image_bytes, filename)
+                    raw_text = raw_text or api_text
+                    if api_text:
+                        parsed.update(_parse_profile_text(api_text))
+                    if ocr_note is None and api_note:
+                        ocr_note = api_note
+            finally:
+                if temp_path and temp_path != persisted_path:
+                    try:
+                        temp_path.unlink(missing_ok=True)
+                    except Exception:  # pragma: no cover - best-effort cleanup
+                        self.log.debug("Temp profile image cleanup failed for %s", temp_path)
+
         self.log.info(
             "Profile OCR summary | fields=%s | raw_lines=%s | note=%s",
             {k: v for k, v in parsed.items() if v is not None},
             self._raw_line_count(raw_text),
-            debug_note,
+            ocr_note,
         )
 
-        return parsed, raw_text, ocr_note, debug_note
+        return parsed, raw_text, ocr_note
+
+    async def _run_ocr_space(
+        self, image_bytes: bytes, filename: str | None = None
+    ) -> tuple[str, str | None]:
+        """Fallback to the OCR.space API when local OCR dependencies are unavailable."""
+
+        headers = {"apikey": OCR_SPACE_API_KEY}
+        data = {"language": "eng", "isOverlayRequired": False}
+        files = {"file": (filename or "profile.png", image_bytes, "application/octet-stream")}
+
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(
+                    OCR_SPACE_ENDPOINT, headers=headers, data=data, files=files
+                )
+            resp.raise_for_status()
+        except Exception as exc:  # pragma: no cover - network edge
+            self.log.warning("OCR.space request failed: %s", exc)
+            return "", "External OCR request failed."
+
+        try:
+            payload = resp.json()
+        except ValueError:
+            self.log.warning("OCR.space returned non-JSON response")
+            return "", "External OCR response was malformed."
+
+        if payload.get("IsErroredOnProcessing"):
+            msg = payload.get("ErrorMessage") or payload.get("ErrorMessageText")
+            note = msg if isinstance(msg, str) else "External OCR service reported an error."
+            return "", note
+
+        results = payload.get("ParsedResults") or []
+        text_blocks = [item.get("ParsedText", "") for item in results if item]
+        combined = "\n".join(filter(None, text_blocks)).strip()
+
+        if not combined:
+            return "", "External OCR did not return any text."
+
+        return combined, None
 
     async def _run_pytesseract(self, image_bytes: bytes) -> str:
         if not (pytesseract and Image):
@@ -468,6 +525,34 @@ class ProfileScanner(commands.Cog):
             return None
 
         return temp_path
+
+    def _persist_profile_image(
+        self, guild_id: int, user_id: int, image_bytes: bytes, filename: str | None = None
+    ) -> Path | None:
+        """Save the raw upload so rescans avoid refetching from Discord CDN."""
+
+        base = Path(__file__).resolve().parent.parent / "shots" / "profiles" / str(guild_id)
+        base.mkdir(parents=True, exist_ok=True)
+
+        suffix = Path(filename).suffix if filename else ".png"
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        path = base / f"{user_id}_{timestamp}{suffix}"
+
+        try:
+            path.write_bytes(image_bytes)
+        except Exception:
+            self.log.exception("Failed to persist profile image to %s", path)
+            return None
+
+        # Keep a short history per user to avoid filling disk.
+        user_stash = sorted(base.glob(f"{user_id}_*"))
+        for old in user_stash[:-5]:
+            try:
+                old.unlink(missing_ok=True)
+            except Exception:  # pragma: no cover - best-effort cleanup
+                self.log.debug("Could not trim cached profile image %s", old)
+
+        return path
 
     async def _ensure_easyocr(self) -> bool:
         if self._easyocr_ready is not None:
@@ -528,6 +613,8 @@ class ProfileScanner(commands.Cog):
             results: dict[str, str | int | None] = {}
             raw_lines: list[str] = []
 
+            verification_hits: set[str] = set()
+
             for field, ratios in self._easyocr_boxes.items():
                 crop = self._crop_by_ratio(img, ratios)
                 if crop is None:
@@ -543,6 +630,11 @@ class ProfileScanner(commands.Cog):
                 best_conf = float(detections[0][2])
                 raw_lines.append(f"{field}: {best_text} ({best_conf:.2f})")
 
+                if field in VERIFY_FIELDS:
+                    if best_conf >= VERIFY_MIN_CONF:
+                        verification_hits.add(field)
+                    continue
+
                 if best_conf < EASYOCR_MIN_CONF:
                     continue
 
@@ -550,7 +642,7 @@ class ProfileScanner(commands.Cog):
                 if not mapped:
                     continue
 
-                if mapped in {"cp", "kills"}:
+                if mapped in {"cp", "kills", "likes", "vip_level"}:
                     cleaned = re.sub(r"[^\d]", "", best_text)
                     if cleaned:
                         results[mapped] = int(cleaned)
@@ -559,10 +651,47 @@ class ProfileScanner(commands.Cog):
                 else:
                     results[mapped] = best_text
 
+            if verification_hits:
+                results["ownership_verified"] = len(verification_hits) == len(VERIFY_FIELDS)
+            else:
+                results["ownership_verified"] = None
+
             raw = "\n".join(raw_lines)
             return {"parsed": results, "raw": raw}
 
         return await loop.run_in_executor(None, _scan)
+
+    async def _run_easyocr_full_text(
+        self, image_bytes: bytes, temp_path: Path | None = None
+    ) -> str:
+        ready = await self._ensure_easyocr()
+        if not ready or not self._easyocr_reader:
+            return ""
+
+        loop = asyncio.get_running_loop()
+
+        def _scan() -> str:
+            if temp_path and temp_path.exists():
+                img = cv2.imread(str(temp_path))
+            else:
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                return ""
+
+            detections = self._easyocr_reader.readtext(img)
+            if not detections:
+                return ""
+            return "\n".join(item[1].strip() for item in detections if item[1].strip())
+
+        return await loop.run_in_executor(None, _scan)
+
+    @staticmethod
+    def _has_profile_metrics(parsed: dict[str, str | int | None]) -> bool:
+        return any(
+            parsed.get(field)
+            for field in ("player_name", "cp", "kills", "likes", "vip_level", "alliance", "server")
+        )
 
     def _crop_by_ratio(self, img, box):
         h, w = img.shape[:2]
@@ -593,15 +722,23 @@ class ProfileScanner(commands.Cog):
         image_url: str,
         parsed: dict[str, str | int | None],
         raw_text: str,
+        cached_path: Path | None = None,
     ) -> dict:
+        ownership_verified = parsed.get("ownership_verified")
+
         return {
             "player_name": parsed.get("player_name") or member.display_name,
             "alliance": parsed.get("alliance"),
             "server": parsed.get("server"),
             "cp": parsed.get("cp"),
             "kills": parsed.get("kills"),
+            "likes": parsed.get("likes"),
+            "vip_level": parsed.get("vip_level"),
+            "level": parsed.get("level"),
+            "ownership_verified": bool(ownership_verified) if ownership_verified is not None else None,
             "avatar_url": str(member.display_avatar.url),
             "last_image_url": image_url,
+            "local_image_path": str(cached_path) if cached_path else None,
             "raw_ocr": raw_text,
         }
 
@@ -621,9 +758,8 @@ class ProfileScanner(commands.Cog):
         message: discord.Message,
         payload: dict,
         ocr_note: str | None,
-        debug_note: str | None,
     ) -> None:
-        embed = self._build_confirmation_embed(payload, ocr_note, debug_note)
+        embed = self._build_confirmation_embed(payload, ocr_note)
 
         try:
             await message.reply(embed=embed, mention_author=False)
@@ -631,84 +767,37 @@ class ProfileScanner(commands.Cog):
             self.log.exception("Failed to reply with profile confirmation")
 
     def _build_confirmation_embed(
-        self, payload: dict, ocr_note: str | None = None, debug_note: str | None = None
+        self, payload: dict, ocr_note: str | None = None
     ) -> discord.Embed:
         embed = discord.Embed(
             title="🛰️ Profile logged",
             description=(
-                "Snapshot captured. Use `/profile_stats` to review or `/profile_leaderboard` "
-                "to compare stats."
+                f"{random.choice(PROFILE_TAGLINES)}\n\n"
+                "`/profile` shows your dossier; `/leaderboard` compares XP and scan stats side by side."
             ),
             color=0x3498db,
         )
 
-        embed.add_field(name="CP", value=_format_metric(payload.get("cp")), inline=True)
-        embed.add_field(name="Kills", value=_format_metric(payload.get("kills")), inline=True)
-        embed.add_field(name="Alliance", value=payload.get("alliance") or "—", inline=True)
-        embed.add_field(name="Server", value=payload.get("server") or "—", inline=True)
+        ingame = [
+            f"🎖️ VIP: {_format_metric(payload.get('vip_level'))} | 👍 Likes: {_format_metric(payload.get('likes'))}",
+            f"⚔️ CP: {_format_metric(payload.get('cp'))} | ☠️ Kills: {_format_metric(payload.get('kills'))}",
+            f"🏰 Alliance: {payload.get('alliance') or '—'}",
+            f"🌐 Server: {payload.get('server') or '—'}",
+        ]
+        if payload.get("ownership_verified") is not None:
+            status = "✅ Self-view detected" if payload["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
+            ingame.append(status)
 
-        if debug_note:
-            embed.add_field(name="Debug", value=debug_note, inline=False)
+        embed.add_field(name="In-game Profile", value="\n".join(ingame), inline=False)
+        embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if not payload.get("raw_ocr"):
             footer = ocr_note or (
-                "OCR unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
+                "Profile scan unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
                 " auto-parsing."
             )
             embed.set_footer(text=footer)
         return embed
-
-    def _compose_debug_note(
-        self, parsed: dict[str, str | int | None], raw_text: str, ocr_note: str | None
-    ) -> str | None:
-        """Return a short debug string to help understand why fields may be blank."""
-
-        parsed_fields = [name for name, value in parsed.items() if value not in (None, "")]
-        if parsed_fields:
-            field_list = ", ".join(parsed_fields)
-            raw_hint = f"raw lines={self._raw_line_count(raw_text)}"
-            return self._truncate_debug(f"Captured fields: {field_list} ({raw_hint}).")
-
-        notes: list[str] = []
-
-        if ocr_note:
-            self._append_unique(notes, ocr_note)
-
-        if raw_text:
-            preview = raw_text.replace("\n", " | ")
-            self._append_unique(notes, f"OCR text seen but no fields matched: {preview}")
-        else:
-            self._append_unique(notes, "OCR returned no text for this image.")
-
-        if self._easyocr_ready is False:
-            easyocr_hint = (
-                self._easyocr_failure_reason
-                or "EasyOCR unavailable or templates missing."
-            )
-            self._append_unique(notes, easyocr_hint)
-        elif self._easyocr_ready and not parsed_fields:
-            self._append_unique(
-                "EasyOCR ran but bounding boxes may not match this screenshot style."
-            )
-
-        if self._pytesseract_missing:
-            self._append_unique(notes, "Install the Tesseract binary so pytesseract can run.")
-
-        # Surface setup instructions directly on the confirmation embed so server owners
-        # know how to enable OCR when dependencies are missing.
-        diag = collect_ocr_diagnostics()
-        for tip in diag.install_tips:
-            self._append_unique(notes, tip)
-
-        if notes:
-            self._append_unique(notes, "Run `/ocr_status` for a full setup checklist.")
-
-        combined = "\n".join(f"• {note}" for note in notes)
-        return self._truncate_debug(combined)
-
-    @staticmethod
-    def _truncate_debug(text: str, limit: int = 950) -> str:
-        return text if len(text) <= limit else text[: limit - 3] + "..."
 
     @staticmethod
     def _append_unique(notes: list[str], text: str) -> None:
@@ -721,6 +810,166 @@ class ProfileScanner(commands.Cog):
         return raw_text.count("\n") + (1 if raw_text else 0)
 
 
+class ProfileReviewSelect(discord.ui.Select):
+    def __init__(self, review_view: "ProfileReviewView"):
+        self.review_view = review_view
+        super().__init__(
+            placeholder="Select a scanned profile...",
+            options=review_view.build_options(),
+            min_values=1,
+            max_values=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not await self.review_view.authorize(interaction):
+            return
+        self.review_view.selected_user_id = int(self.values[0])
+        await interaction.response.edit_message(
+            embed=self.review_view.build_embed(), view=self.review_view
+        )
+
+
+class ProfileReviewView(discord.ui.View):
+    def __init__(self, cog: ProfileScanner, guild_id: int, snapshots: list[dict]):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.snapshots = {row["user_id"]: row for row in snapshots}
+        self.selected_user_id = next(iter(self.snapshots), None)
+        self.message: discord.Message | None = None
+        self.select = ProfileReviewSelect(self)
+        self.add_item(self.select)
+
+    def bind_message(self, message: discord.Message) -> None:
+        self.message = message
+
+    async def authorize(self, interaction: discord.Interaction) -> bool:
+        if not interaction.guild:
+            return False
+        perms = interaction.user.guild_permissions
+        if not perms.manage_guild:
+            await interaction.response.send_message(
+                "🔒 Manage Server permission required.", ephemeral=True
+            )
+            return False
+        return True
+
+    def build_options(self) -> list[discord.SelectOption]:
+        options: list[discord.SelectOption] = []
+        guild = self.cog.bot.get_guild(self.guild_id)
+        for user_id, row in list(self.snapshots.items())[:25]:
+            member = guild.get_member(user_id) if guild else None
+            name = row.get("player_name") or (member.display_name if member else f"User {user_id}")
+            status = "✅" if row.get("scan_valid", 1) else "⚠️"
+            details = f"{status} CP {row.get('cp') or '—'} • Kills {row.get('kills') or '—'}"
+            options.append(
+                discord.SelectOption(
+                    label=name[:100],
+                    description=details[:100],
+                    value=str(user_id),
+                )
+            )
+        if not options:
+            options.append(
+                discord.SelectOption(label="No scans available", value="0", default=True)
+            )
+        return options
+
+    def _selected_snapshot(self) -> dict | None:
+        if self.selected_user_id is None:
+            return None
+        return self.snapshots.get(self.selected_user_id)
+
+    def build_embed(self) -> discord.Embed:
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return discord.Embed(
+                title="🛰️ Profile Review",
+                description="No scans available.",
+                color=0xe67e22,
+            )
+
+        guild = self.cog.bot.get_guild(self.guild_id)
+        member = guild.get_member(snapshot["user_id"]) if guild else None
+        name = snapshot.get("player_name") or (member.display_name if member else f"User {snapshot['user_id']}")
+        status = "✅ Active" if snapshot.get("scan_valid", 1) else "⚠️ Invalidated"
+        embed = discord.Embed(
+            title=f"🛰️ Profile Review | {name}",
+            description=f"Scan status: **{status}**",
+            color=0x3498db if snapshot.get("scan_valid", 1) else 0xe74c3c,
+        )
+        embed.add_field(name="🏰 Alliance", value=snapshot.get("alliance") or "—", inline=True)
+        embed.add_field(name="🌐 Server", value=snapshot.get("server") or "—", inline=True)
+        embed.add_field(
+            name="🎖️ VIP / Likes",
+            value=f"{_format_metric(snapshot.get('vip_level'))} / {_format_metric(snapshot.get('likes'))}",
+            inline=True,
+        )
+        embed.add_field(
+            name="⚔️ CP / ☠️ Kills",
+            value=f"{_format_metric(snapshot.get('cp'))} / {_format_metric(snapshot.get('kills'))}",
+            inline=True,
+        )
+        if snapshot.get("ownership_verified") is not None:
+            status_line = (
+                "✅ Self-view detected" if snapshot["ownership_verified"] else "⚠️ Ownership unverified"
+            )
+            embed.add_field(name="Ownership", value=status_line, inline=False)
+        if snapshot.get("last_image_url"):
+            embed.add_field(name="Latest scan", value=f"[View image]({snapshot['last_image_url']})", inline=False)
+        if snapshot.get("last_updated"):
+            dt = datetime.fromtimestamp(snapshot["last_updated"], tz=timezone.utc)
+            embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
+        return embed
+
+    def _refresh_options(self) -> None:
+        self.select.options = self.build_options()
+        if self.selected_user_id not in self.snapshots:
+            self.selected_user_id = next(iter(self.snapshots), None)
+
+    @discord.ui.button(label="Invalidate", style=discord.ButtonStyle.danger)
+    async def invalidate_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.authorize(interaction):
+            return
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return await interaction.response.send_message(
+                "No scan selected.", ephemeral=True
+            )
+        await set_profile_scan_valid(self.guild_id, snapshot["user_id"], False)
+        snapshot["scan_valid"] = 0
+        self._refresh_options()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="Restore", style=discord.ButtonStyle.success)
+    async def restore_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.authorize(interaction):
+            return
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return await interaction.response.send_message(
+                "No scan selected.", ephemeral=True
+            )
+        await set_profile_scan_valid(self.guild_id, snapshot["user_id"], True)
+        snapshot["scan_valid"] = 1
+        self._refresh_options()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.secondary)
+    async def delete_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.authorize(interaction):
+            return
+        snapshot = self._selected_snapshot()
+        if not snapshot:
+            return await interaction.response.send_message(
+                "No scan selected.", ephemeral=True
+            )
+        await delete_profile_snapshot(self.guild_id, snapshot["user_id"])
+        self.snapshots.pop(snapshot["user_id"], None)
+        self._refresh_options()
+        embed = self.build_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
 async def setup(bot):
     await bot.add_cog(ProfileScanner(bot))
-

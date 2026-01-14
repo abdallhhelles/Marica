@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 import random
+import time
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -30,8 +31,8 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from assets import MARICA_QUOTES
-from bug_logging import log_command_exception
+from utils.assets import MARCIA_QUOTES
+from utils.bug_logging import log_command_exception
 from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
 
@@ -68,6 +69,19 @@ class MarciaBot(commands.Bot):
             case_insensitive=True,
             allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True),
         )
+        self._recent_interactions: dict[int, float] = {}
+        self._interaction_dedupe_window = 120.0
+
+    def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
+        now = time.monotonic()
+        cutoff = now - self._interaction_dedupe_window
+        stale = [key for key, ts in self._recent_interactions.items() if ts < cutoff]
+        for key in stale:
+            self._recent_interactions.pop(key, None)
+        if interaction.id in self._recent_interactions:
+            return False
+        self._recent_interactions[interaction.id] = now
+        return True
 
     async def setup_hook(self):
         """Pre-connection setup: Initializing DB, Loading Cogs, and Persistence."""
@@ -140,12 +154,35 @@ class MarciaBot(commands.Bot):
         logger.info("-" * 30)
         
         await self.change_presence(
-            activity=discord.Game(name="Dark War: Survival | /manual"),
+            activity=discord.Game(name="Dark War: Survival | /commands"),
         )
+
+    async def _is_reply_to_bot(self, message: discord.Message) -> bool:
+        """Return True when a message replies to the bot, even if uncached."""
+        reference = message.reference
+        if not reference or not reference.message_id:
+            return False
+        if reference.resolved and reference.resolved.author.id == self.user.id:
+            return True
+        if reference.channel_id and reference.channel_id != message.channel.id:
+            channel = message.guild.get_channel(reference.channel_id)
+        else:
+            channel = message.channel
+        if not channel:
+            return False
+        try:
+            referenced = await channel.fetch_message(reference.message_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return False
+        return referenced.author.id == self.user.id
 
     async def on_message(self, message):
         """Centralized message handling and personality logic."""
         if message.author.bot or not message.guild:
+            return
+
+        # Ignore interaction-backed system messages (e.g., slash command notices)
+        if getattr(message, "interaction_metadata", None):
             return
 
         if message.type is not discord.MessageType.default:
@@ -154,16 +191,32 @@ class MarciaBot(commands.Bot):
         if await is_channel_ignored(message.guild.id, message.channel.id):
             return
 
+        ctx = await self.get_context(message)
+        if ctx.valid:
+            await self.process_commands(message)
+            if message.content.startswith("/"):
+                await asyncio.sleep(2)
+                try:
+                    await message.delete()
+                except (discord.Forbidden, discord.NotFound):
+                    pass
+            return
+
         # 1. Personality Logic: Replies to mentions or direct replies
         is_bot_mentioned = self.user.mentioned_in(message) and not message.mention_everyone
-        is_reply = (message.reference and 
-                    message.reference.resolved and 
-                    message.reference.resolved.author.id == self.user.id)
+        is_reply = await self._is_reply_to_bot(message)
         
         if is_bot_mentioned or is_reply:
             async with message.channel.typing():
                 await asyncio.sleep(1)
-                await message.reply(random.choice(MARICA_QUOTES))
+                await message.reply(random.choice(MARCIA_QUOTES))
+
+        # Avoid double-firing hybrid commands when slash commands also emit a
+        # visible message in chat.
+        if message.content.startswith("/"):
+            command_name = message.content[1:].split()[0]
+            if self.tree.get_command(command_name):
+                return
 
         # 2. Process Commands
         await self.process_commands(message)
@@ -192,14 +245,35 @@ class MarciaBot(commands.Bot):
         if isinstance(error, commands.CommandNotFound):
             return
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
+            if ctx.interaction:
+                await self._safe_interaction_reply(
+                    ctx.interaction,
+                    content="❌ **Access Denied:** Insufficient clearance.",
+                    ephemeral=True,
+                )
+            else:
+                await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
             return
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
+            if ctx.interaction:
+                await self._safe_interaction_reply(
+                    ctx.interaction,
+                    content=f"❌ Missing argument: `{error.param.name}`.",
+                    ephemeral=True,
+                )
+            else:
+                await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
             return
         if isinstance(error, commands.CommandOnCooldown):
             retry = self._format_cooldown(error.retry_after)
-            await ctx.send(f"⌛ Drones cooling down. Try again in {retry}.")
+            if ctx.interaction:
+                await self._safe_interaction_reply(
+                    ctx.interaction,
+                    content=f"⌛ Drones cooling down. Try again in {retry}.",
+                    ephemeral=True,
+                )
+            else:
+                await ctx.send(f"⌛ Drones cooling down. Try again in {retry}.")
             return
 
         await log_command_exception(self, error, ctx=ctx, source="message-command")
@@ -232,16 +306,22 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.autocomplete,
             discord.InteractionType.modal_submit,
         ):
+            if not self._should_process_interaction(interaction):
+                return
             try:
                 await self.process_application_commands(interaction)
             except Exception:
                 logger.exception("Failed to process application interaction")
             return
 
-        await super().on_interaction(interaction)
+        return
 
     async def process_application_commands(self, interaction: discord.Interaction):
         """Compatibility shim so app commands route even on discord.py builds without it."""
+        if interaction.type != discord.InteractionType.application_command:
+            return
+        if not interaction.data or "name" not in interaction.data:
+            return
         try:
             await self.tree._call(interaction)
         except Exception:
@@ -250,6 +330,19 @@ class MarciaBot(commands.Bot):
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""
         if getattr(error, "handled", False):
+            return
+
+        already_replied = interaction.response.is_done() or getattr(
+            interaction, "is_expired", lambda: False
+        )()
+        if already_replied:
+            logger.debug(
+                "Skipping duplicate app error reply for %s (already responded)",
+                getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
+            )
+            await log_command_exception(
+                self, error, interaction=interaction, source="app-command"
+            )
             return
 
         if isinstance(error, app_commands.CheckFailure):

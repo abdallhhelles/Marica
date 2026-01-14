@@ -127,6 +127,15 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.local/
+
+# Data directories (tracked separately)
+data/*.db
+data/backups/
+data/logs/
+
+# Legacy and temporary files
+legacy/*.json
 
 # Spyder project settings
 .spyderproject

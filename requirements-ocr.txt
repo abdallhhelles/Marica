@@ -1,0 +1,12 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core OCR deps
+pillow
+pytesseract
+opencv-python-headless
+numpy
+
+# EasyOCR + PyTorch stack (CPU wheels, no NVIDIA CUDA blobs)
+easyocr
+torch==2.3.1+cpu
+torchvision==0.18.1+cpu
