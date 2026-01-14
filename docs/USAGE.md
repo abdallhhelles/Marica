@@ -87,13 +87,11 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 - **Trade loot:** Use the Fish-Link terminal or the trade button inside `/profile` and `/inventory`.
 
 ## Profile screenshot scanner
-- **Set the intake channel:** `/setup` → **Profile scan intake** scopes where Marcia watches for profile screenshots.
-- **Auto-capture stats:** screenshots in that channel log CP, kills, server, and alliance to the uploader.
-- **Extended More tab:** scans from the in-game **More** profile tab are supported via full-text OCR parsing.
-- **Review scans:** `/profile [@member]` shows the last parsed snapshot with VIP, likes, and a self-view check.
-- **Admin review:** `/profile_review` opens a management view to invalidate or delete scans when needed.
-- **Compare stats:** `/leaderboard` opens a menu for XP plus CP/kills/likes/VIP from scanned profiles, with row counts (10/25/50/100) and an export-to-DM option for spreadsheet copy/paste.
-- **OCR dependencies:** Tesseract+pytesseract cover basic scans. For higher accuracy, install the OCR extras bundled in `requirements.txt` (easyocr, opencv, numpy) unless memory is constrained; on tiny hosts you can skip them with `requirements-lite.txt` (scanning stays disabled).
+- **Set the intake channel:** `/setup_profile_channel #channel` scopes where Marica watches for profile screenshots.
+- **Auto-capture stats:** screenshots in that channel log CP, kills, likes, VIP, level, server, and alliance to the uploader.
+- **Review scans:** `/profile_stats [@member]` shows the last parsed snapshot for you or another survivor.
+- **Compare stats:** `/profile_leaderboard <stat>` lists the top CP/kills/likes/VIP/level from scanned profiles.
+- **OCR dependencies:** Keep the base install lean with `requirements.txt`. Add local scanning when resources allow via `requirements-ocr.txt` (CPU-only EasyOCR/torch/opencv via the PyTorch CPU index, no NVIDIA downloads). On tiny panels, skip the OCR file and optionally set `OCR_SPACE_API_KEY` to offload scans to OCR.space.
 
 ### Quick testing routine (profile scanning)
 1. **Dependencies:** Ensure `tesseract` is installed and Python deps are synced (`pip install -r requirements.txt`).
