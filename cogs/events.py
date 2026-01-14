@@ -378,7 +378,7 @@ class EventMenuView(discord.ui.View):
         )
         return False
 
-    @discord.ui.button(label="Custom Event", style=discord.ButtonStyle.primary, emoji="✍️")
+    @discord.ui.button(label="New Event", style=discord.ButtonStyle.primary, emoji="✍️")
     async def custom_event(self, it, btn):
         if not await self._require_manage_events(it):
             return
@@ -668,7 +668,8 @@ class Events(commands.Cog):
             title="📡 Mission Control // Marcia",
             description=(
                 "Pick how you want me to broadcast your operation.\n"
-                "`Custom Event` opens a DM interview, `Use Template` pulls from your archive.\n"
+                "`New Event` opens a DM interview, `Use Template` pulls from your archive.\n"
+                "`Archive Template` saves a new template for reuse.\n"
                 "`Upcoming Events` previews the next ops list for this sector.\n"
                 "`Remove Event` lets you delete a scheduled op without leaving this menu.\n"
                 "I track everything in UTC-2 (Dark War Survival)."

@@ -373,12 +373,16 @@ class Leveling(commands.Cog):
         view = TradeAccessView() if ctx.guild else None
         await self._safe_send(ctx, embed=embed, view=view)
 
-    @commands.hybrid_command(name="profile", aliases=["p", "rank"], description="Display your Marcia profile, level, and XP.")
+    @commands.hybrid_command(
+        name="profile",
+        aliases=["p", "rank"],
+        description="Show detailed Discord + in-game stats for you or another survivor.",
+    )
     async def profile(self, ctx, member: discord.Member = None):
         """Displays user level, XP, inventory, and scanned stats."""
         await self._send_profile_overview(ctx, member)
 
-    @commands.hybrid_command(description="Deploy a drone to find loot and XP (1h cooldown).")
+    @commands.hybrid_command(description="Scavenge in the Discord mini game (1h cooldown).")
     async def scavenge(self, ctx):
         """Deploy a drone to find loot and XP. (1 Hour Cooldown)"""
         drone_name = random.choice(DRONE_NAMES)
@@ -552,7 +556,10 @@ class Leveling(commands.Cog):
             await self.apply_role_rewards(ctx.author, new_level)
         await self.check_collector_prestige(ctx.author)
 
-    @commands.hybrid_command(aliases=["inv", "stash"], description="Show your current sector stash.")
+    @commands.hybrid_command(
+        aliases=["inv", "stash"],
+        description="Show scavenging inventory and send an item to another user.",
+    )
     async def inventory(self, ctx):
         """Displays your current server-specific item stash."""
         rows = await get_inventory(ctx.guild.id, ctx.author.id)
@@ -912,7 +919,11 @@ class InventoryTransferModal(discord.ui.Modal):
         buffer.seek(0)
         return buffer, filename, note
 
-    @commands.hybrid_command(description="Browse XP and profile scan leaderboards from one menu.")
+    @commands.hybrid_command(
+        description=(
+            "Leaderboards menu with Sector/Network scope, XP/CP/Kills/Likes/VIP, plus Excel export."
+        )
+    )
     async def leaderboard(self, ctx):
         if not ctx.guild:
             return await self._safe_send(
