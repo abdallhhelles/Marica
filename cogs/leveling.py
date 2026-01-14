@@ -276,7 +276,10 @@ class Leveling(commands.Cog):
 
     def _tier_title_for_level(self, level: int) -> str:
         tier = max(ROLE_STEP, (level // ROLE_STEP) * ROLE_STEP)
-        return self._tier_role_name(tier)
+        role_name = getattr(self, "_tier_role_name", None)
+        if callable(role_name):
+            return role_name(tier)
+        return f"{ROLE_PREFIX} {tier:03d}"
 
     async def _send_profile_overview(self, ctx, member: discord.Member | None = None):
         """Send the combined profile view with XP and scanned stats."""

@@ -618,12 +618,13 @@ class Utility(commands.Cog):
         try:
             synced = await self.bot.tree.sync()
         except Exception as e:
-            await ctx.reply(f"❌ Sync failed: `{e}`", mention_author=False)
+            await self._safe_send(ctx, content=f"❌ Sync failed: `{e}`", ephemeral=True)
             return
 
-        await ctx.reply(
-            f"📡 Command uplink refreshed. Registered `{len(synced)}` slash commands.",
-            mention_author=False,
+        await self._safe_send(
+            ctx,
+            content=f"📡 Command uplink refreshed. Registered `{len(synced)}` slash commands.",
+            ephemeral=True,
         )
 
     @commands.hybrid_command(
