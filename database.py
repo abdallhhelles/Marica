@@ -209,6 +209,17 @@ async def init_db():
         ''')
 
         await db.execute('''
+            CREATE TABLE IF NOT EXISTS scheduled_reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER,
+                channel_id INTEGER,
+                creator_id INTEGER,
+                body TEXT,
+                send_at_utc TEXT
+            )
+        ''')
+
+        await db.execute('''
             CREATE TABLE IF NOT EXISTS profile_channels (
                 guild_id INTEGER PRIMARY KEY,
                 channel_id INTEGER
@@ -1294,6 +1305,49 @@ async def delete_reminder_template(guild_id: int, name: str) -> None:
         await db.execute(
             "DELETE FROM reminder_templates WHERE guild_id = ? AND template_name = ?",
             (guild_id, name),
+        )
+        await db.commit()
+
+
+async def add_scheduled_reminder(
+    guild_id: int,
+    channel_id: int,
+    creator_id: int,
+    body: str,
+    send_at_utc: str,
+) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            INSERT INTO scheduled_reminders (guild_id, channel_id, creator_id, body, send_at_utc)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (guild_id, channel_id, creator_id, body, send_at_utc),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_scheduled_reminders(guild_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT id, channel_id, creator_id, body, send_at_utc
+            FROM scheduled_reminders
+            WHERE guild_id = ?
+            ORDER BY send_at_utc ASC
+            """,
+            (guild_id,),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def delete_scheduled_reminder(guild_id: int, reminder_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM scheduled_reminders WHERE guild_id = ? AND id = ?",
+            (guild_id, reminder_id),
         )
         await db.commit()
 

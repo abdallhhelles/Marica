@@ -40,6 +40,7 @@ from database import (
     update_scavenge_time,
     update_user_xp,
     add_to_inventory,
+    transfer_inventory,
 )
 
 XP_PER_MESSAGE = 12
@@ -576,7 +577,100 @@ class Leveling(commands.Cog):
             color=0x95a5a6
         )
         embed.set_footer(text="Items are local to this sector.")
-        await self._safe_send(ctx, embed=embed)
+        view = InventoryTransferView(ctx, sorted_items)
+        await self._safe_send(ctx, embed=embed, view=view)
+
+
+class InventoryTransferView(discord.ui.View):
+    def __init__(self, ctx: commands.Context, items: list[dict]):
+        super().__init__(timeout=120)
+        self.ctx = ctx
+        self.add_item(InventoryTransferSelect(ctx, items))
+
+
+class InventoryTransferSelect(discord.ui.Select):
+    def __init__(self, ctx: commands.Context, items: list[dict]):
+        options = []
+        for item in items[:25]:
+            label = item["item_id"]
+            description = f"x{item['quantity']} • {item['rarity']}"
+            options.append(
+                discord.SelectOption(label=label, description=description, value=label)
+            )
+        super().__init__(
+            placeholder="Send an item to a fellow survivor…",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
+        self.ctx = ctx
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message(
+                "Only the stash owner can send items.", ephemeral=True
+            )
+        await interaction.response.send_modal(
+            InventoryTransferModal(self.ctx, self.values[0])
+        )
+
+
+class InventoryTransferModal(discord.ui.Modal):
+    def __init__(self, ctx: commands.Context, item_name: str):
+        super().__init__(title="Send item to survivor")
+        self.ctx = ctx
+        self.item_name = item_name
+        self.recipient = discord.ui.TextInput(
+            label="Recipient (mention or user ID)",
+            placeholder="@survivor or 1234567890",
+            max_length=64,
+        )
+        self.quantity = discord.ui.TextInput(
+            label="Quantity",
+            placeholder="1",
+            max_length=6,
+        )
+        self.add_item(self.recipient)
+        self.add_item(self.quantity)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        raw_recipient = str(self.recipient.value).strip()
+        member = None
+        if raw_recipient.startswith("<@") and raw_recipient.endswith(">"):
+            raw_recipient = raw_recipient.strip("<@!>")
+        if raw_recipient.isdigit():
+            member = self.ctx.guild.get_member(int(raw_recipient))
+        if not member:
+            await interaction.followup.send("❌ Could not find that survivor.", ephemeral=True)
+            return
+        if member.id == self.ctx.author.id:
+            await interaction.followup.send("❌ You cannot send items to yourself.", ephemeral=True)
+            return
+        try:
+            quantity = int(str(self.quantity.value))
+        except ValueError:
+            await interaction.followup.send("❌ Quantity must be a number.", ephemeral=True)
+            return
+        if quantity <= 0:
+            await interaction.followup.send("❌ Quantity must be greater than zero.", ephemeral=True)
+            return
+
+        success = await transfer_inventory(
+            self.ctx.guild.id,
+            self.ctx.author.id,
+            member.id,
+            self.item_name,
+            quantity,
+        )
+        if not success:
+            await interaction.followup.send("❌ Not enough of that item to send.", ephemeral=True)
+            return
+
+        await interaction.followup.send(
+            f"✅ Sent **{self.item_name}** x{quantity} to {member.mention}.",
+            ephemeral=True,
+        )
 
     async def _build_leaderboard_embed(
         self,
