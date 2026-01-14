@@ -1,6 +1,6 @@
 # OCR setup and troubleshooting
 
-This guide keeps `/scan_profile` predictable across laptops, dedicated servers, and container panels.
+This guide keeps `/scan_profile` predictable across the owner-managed environment. It is not intended for public distribution or third-party hosting.
 
 ## Provisioning checklist
 1. Install Python packages:

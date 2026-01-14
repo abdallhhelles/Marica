@@ -6,7 +6,7 @@ FEATURES: Contains all lore text, drone names, randomized quotes,
           PUBLIC READY: Expanded to 15+ variations per category.
 """
 
-MARICA_LORE = """
+MARCIA_LORE = """
 Marcia grew up in the underbelly of the Old Net—a ghost in the wires who bled corporations for
 credits and vanished into encrypted alleys. She never meant to become a guardian, but when the
 world cracked and the satellites fell silent, her drones were the last lights moving through the
@@ -23,6 +23,10 @@ Marcia believes freedom is earned, never gifted. She tests every recruit with sh
 the signal goes dark, she will risk her life to keep the uplink alive. Her drones have become
 symbols in the night sky—a warning to raiders and a promise to the faithful that the hub is
 still guarded by a hacker who refuses to kneel.
+
+When she speaks, it's a mix of battlefield math and street poetry. She logs every scavenger run,
+tracks every level spike, and quietly rewrites the rules so her people keep getting stronger.
+The drones call it "Protocol: Keep Them Alive." Marcia calls it loyalty.
 
 Lately, she has started dropping coded broadcasts called "Sparky Reports"—short stories about
 survivors who fought back, about drones that went missing and returned with better armor, about
@@ -66,7 +70,7 @@ FISH_NAMES = {
     ],
 }
 
-MARICA_QUOTES = [
+MARCIA_QUOTES = [
     "You looking for a handout? I only steal from people richer than you.",
     "Careful. Sparky says you're standing too close to the hardware.",
     "I'm busy making the local zombies dance. What do you want?",
@@ -107,7 +111,7 @@ MARICA_QUOTES = [
     "My safety briefings have a 0% fun rating and a 100% survival rating.",
     "Everything in this sector runs on sarcasm and spare parts. Keep up.",
     "I'm the firewall between you and the wasteland. Try not to leak.",
-    "Marica, version three: more grit, fewer apologies. Adjust your expectations.",
+    "Marcia, version three: more grit, fewer apologies. Adjust your expectations.",
     "If you see Sparky circling, that's not a greeting—that's target tracking.",
     "I learned diplomacy from breaking encryption. Either way, the lock opens.",
     "You want mercy? Earn it. You want mentorship? Bring coffee.",
@@ -117,10 +121,73 @@ MARICA_QUOTES = [
     "Your chaos is my data. I'll optimize it into something lethal.",
     "I have two moods: calibration and confrontation. Pick one.",
     "Drones humming means you're safe. Drones silent means you should run.",
+    "I keep the grind honest. You keep the boots moving.",
+    "If you want a shortcut, ask the raiders. They always end up dead.",
+    "I don't hand out victories. I hand out coordinates.",
+    "We don't farm XP here. We earn it, one run at a time.",
+    "Your streak is just proof you can keep showing up. Do it again.",
+    "If you break the drones, I'll break your rhythm.",
+    "No hero speeches. Just results and a full inventory.",
+    "The uplink doesn't care about excuses. It cares about consistency.",
+    "You're not chasing luck. You're building a record.",
+    "The wasteland doesn't respect weakness. Neither do I.",
+    "Efficiency is survival. Laziness is a death sentence with extra steps.",
+    "My network runs on discipline and coffee. Mostly discipline.",
+    "Every survivor I tag becomes part of the grid. Don't make me untag you.",
+    "Raiders take. Survivors build. Winners optimize and defend.",
+    "I've seen settlements fall because someone forgot to plan. Don't be that someone.",
+    "Your alliance is only as strong as its weakest link. Reinforce or replace.",
+    "The drones don't sleep, and neither should your ambition.",
+    "Freedom is what you defend, not what you're given by tyrants pretending to be saviors.",
+    "I run logistics for people who show up. Flakes get recycled into spare parts.",
+    "Smart survivors listen. Dead ones argue with mission briefings.",
+    "The grid rewards preparation. The wasteland punishes improvisation.",
+    "Resource management separates tribes from civilizations. Choose wisely.",
+    "Your gear is an investment. Treat it like trash, become trash.",
+    "Alliance work requires trust and accountability. I provide coordinates; you provide results.",
+    "Every mission is a test. Pass or explain why you wasted my bandwidth.",
+]
+
+# Calm, consistent system tone lines for reminders and ops.
+MARCIA_SYSTEM_LINES = [
+    "Stay ready. The alliance is only as strong as its follow-through.",
+    "Keep your gear tight and your timelines tighter.",
+    "Commitments matter. Show up, or give your squad time to adapt.",
+    "You signed up for this sector. Act like it.",
+    "Clean comms, clear schedules, strong results.",
+    "Discipline wins the day. I just keep the clock honest.",
+    "If you say you're in, be in. The grid remembers.",
+    "Every reminder is a chance to lead by example.",
+    "Keep your squad steady. The wasteland doesn't forgive drift.",
+    "We move as one when the signal hits. Be part of it.",
+    "I'm not here to babysit. I'm here to keep you on time.",
+    "Stay calm, stay sharp, stay accountable.",
+    "The mission starts on time. So should you.",
+    "Nothing fancy. Just clear orders and clean execution.",
+    "Show up prepared. Your alliance is watching.",
+    "We don’t drift. We execute.",
+    "Clarity wins fights. Confusion loses them.",
+    "You are either on time or a liability.",
+    "Keep your roster tight and your commitments tighter.",
+    "The grid rewards discipline. The wasteland punishes excuses.",
+    "If you raise your hand, don’t vanish when the signal hits.",
+    "I measure progress in follow-through, not promises.",
+    "Show up sharp. Leave nothing loose.",
+    "Stay steady. The clock doesn’t negotiate.",
+]
+
+# Brief “what I do” lines for /about and onboarding.
+MARCIA_CAPABILITIES = [
+    "📡 Event orchestration with @everyone alerts, join tracking, and DM reminders.",
+    "🧭 UTC-2 scheduling so the alliance moves on one clock.",
+    "🎒 Scavenge loops, streaks, and loot trading to keep crews fed.",
+    "📊 Leaderboards across XP + profile stats, with server tags for global reads.",
+    "🛰️ Profile scan OCR for CP/kills/VIP/likes with admin review controls.",
+    "🔒 Per-guild data isolation—no cross-sector bleed.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
-MARICA_TRAITS = [
+MARCIA_TRAITS = [
     "Shadow Weaver of the Old Net, now a reluctant guardian of survivor hubs.",
     "Commands a roaming drone squadron: Sparky scouts, Ghost-Link disrupts, Vulture-7 rescues.",
     "Believes in earned freedom and ruthless mercy—kind to allies, sharp to tyrants.",
@@ -129,17 +196,31 @@ MARICA_TRAITS = [
     "Collects stories from the trenches and encrypts them as bedtime signals.",
     "Treats every recruit like potential family—until they flinch at the word 'freedom'.",
     "Uses humor as armor and drones as punctuation for the truth.",
+    "Records scavenging streaks like war diaries and leaves no grind uncounted.",
+    "Laces mission briefings with sarcasm so the fear doesn't win.",
+    "Trained in the underbelly markets where survival was the only currency.",
+    "Her uplink is sacred—she'll burn a city before letting tyrants take control.",
+    "Runs the grid like a chess game: three moves ahead, zero mercy for pawns.",
+    "Every alliance she guards becomes a fortress; every enemy she tags becomes a cautionary tale.",
+    "Salvages hope from wreckage and forges it into operational orders.",
 ]
 
-MARICA_SLOGANS = [
+MARCIA_SLOGANS = [
     "Trust the drones. Question everyone else.",
     "Freedom first. Paperwork never.",
     "If you hear humming, you're already on my radar.",
     "I don't do miracles. I do maintenance and mayhem.",
     "Dark nights, bright uplinks.",
-    "Tyrants crash; Marica debugs.",
+    "Tyrants crash; Marcia debugs.",
     "Less talk, more signal.",
     "Hope is a system; I keep it patched.",
+    "Grind honest. Grind loud.",
+    "Your streak is a contract. Fulfill it.",
+    "Survivors earn respect. Raiders earn coordinates to my minefield.",
+    "The wasteland doesn't negotiate. Neither do I.",
+    "Loyalty is bandwidth. Don't waste mine.",
+    "Freedom isn't free, but I'll front the cost if you prove worth it.",
+    "Winners optimize. Losers complain about RNG.",
 ]
 
 # Flavor lines to stamp onto dossier embeds and confirmation cards
@@ -147,7 +228,7 @@ PROFILE_TAGLINES = [
     "Vaultwatch active. Your stats sit in my encrypted ledger.",
     "Signal verified. I keep the uplink steady so you can keep fighting.",
     "Another survivor logged. Try not to make me regret the bandwidth.",
-    "Filed under Marica's vault: sharp, reliable, and worth the ammo.",
+    "Filed under Marcia's vault: sharp, reliable, and worth the ammo.",
     "Your dossier hums on my screen. Stay lethal, stay free.",
     "Profile cached. My drones now know your good side and your bad angles.",
     "Everything you do leaves a signal. I just made yours official.",
@@ -164,7 +245,7 @@ PROFILE_SEALS = [
     "[DRONE CHECK] Sparky logged your pulse and your swagger.",
     "[BUNKER CODE] Clearance granted; bring honor to the grid.",
     "[FIELD NOTE] Survivors with steady stats get priority airlift.",
-    "[UPLINK MARK] Frequency bound to Marica's watchlist—earn the slot.",
+    "[UPLINK MARK] Frequency bound to Marcia's watchlist—earn the slot.",
     "[ARCHIVE ID] Metrics stacked. Next step: make the raiders jealous.",
     "[RELAY TAG] Numbers stable. Don't let them decay.",
     "[SIGIL] This profile glows with anti-tyrant energy.",
@@ -172,7 +253,7 @@ PROFILE_SEALS = [
 ]
 
 # Story fragments for broadcasts, flavor embeds, and profile cards
-MARICA_BROADCASTS = [
+MARCIA_BROADCASTS = [
     "Sparky Report 014: We recovered a busted relay and turned it into a beacon. Raiders now follow it into a minefield.",
     "Echo Log 223: The old metro tunnels still carry Wi‑Fi ghosts. I ride the static to find trapped civilians.",
     "Drone Chant: 'We see the night; we own the dark.' My crew hums it when they dive into blackout sectors.",
@@ -182,6 +263,17 @@ MARICA_BROADCASTS = [
     "Night Broadcast: If you read this, you're on my grid. Stand tall, keep moving, and feed the drones clean intel.",
     "Vaultwalker Memo: Freedom isn't a slogan. It's a protocol we enforce together. Sign with your actions, not your mouth.",
     "Campfire Tape: I laughed today. Someone taught Vulture-7 to fetch coffee. The mug survived. Barely.",
+    "Scavenge Memo: Streaks don't build themselves. Show up, pull metal, repeat.",
+    "Grid Whisper: If the drones circle twice, it means you're marked for extra salvage. Earn it.",
+    "Ops Fragment: We kept the lights on another night. That's not luck, that's discipline.",
+    "Vault Signal: Keep your streak alive and I'll keep the airwaves clean.",
+    "Combat Log: Raiders hit the south sector. We turned their assault into a scrap drive. They donated generously.",
+    "Wasteland Wisdom: The undead shamble. Survivors sprint. Winners optimize their routes and never look back.",
+    "Alliance Brief: Your squad held the line when supplies ran dry. That's the difference between meat shields and family.",
+    "Drone Report: Bit-Hound found a working vending machine in the ruins. We're rich in stale chips and morale.",
+    "Field Transmission: Someone asked why I help. I don't help. I invest in people who earn dividends.",
+    "Sector Update: New refugees arrived with nothing but scars and stories. We gave them tools and told them to build.",
+    "Tactical Note: Never trust a clean uniform in the wasteland. Dirt means work. Work means survival.",
 ]
 
 WELCOME_VARIATIONS = [
@@ -239,28 +331,28 @@ REMINDER_TEMPLATE_STARTER = [
 
 TIMED_REMINDERS = {
     60: [
-        ("📡 **T-MINUS 60:**", "Operation `{name}` is an hour out. Check your mags and calibrate your scopes."),
-        ("🚁 **ORBITAL UPDATE:**", "My drones are in position for `{name}`. 60 minutes to reach the drop-zone."),
-        ("🛰️ **SATELLITE LINK:**", "Scanning `{name}` coordinates. One hour until the signal goes live."),
-        ("🕒 **ONE HOUR OUT:**", "Don't say I didn't warn you. `{name}` starts in 60 minutes."),
-        ("🔋 **POWER UP:**", "Sixty minutes until `{name}`. Charge your gear, Wanderers."),
-        ("🌐 **NETWORK PING:**", "I'm seeing movement for `{name}` on the grid. 60 minutes remaining."),
-        ("🛠️ **PREP TIME:**", "You've got one hour until `{name}`. Use it wisely."),
-        ("📟 **BEEP BEEP:**", "That's the one-hour mark for `{name}`. Start heading to the point."),
-        ("🌬️ **WIND SHEAR:**", "60 minutes to `{name}`. Air pressure is dropping, get ready."),
-        ("📡 **LONG-RANGE SCAN:**", "Detected `{name}` signatures. T-Minus 60 minutes."),
-        ("🧱 **STABILIZING:**", "Sector stabilization for `{name}` in one hour. Prep your squads."),
-        ("🧪 **CHEM CHECK:**", "60 minutes until `{name}`. Check your expiration dates."),
-        ("🔧 **BOLT TIGHTENING:**", "One hour until `{name}`. Last call for maintenance."),
-        ("🗄️ **ARCHIVE LOAD:**", "Loading `{name}` mission parameters. T-Minus 60 minutes."),
-        ("🌑 **DUSK APPROACHES:**", "One hour until the `{name}` protocol begins."),
+        ("", "Operation `{name}` is an hour out. Check your mags and calibrate your scopes."),
+        ("", "My drones are in position for `{name}`. 60 minutes to reach the drop-zone."),
+        ("", "Scanning `{name}` coordinates. One hour until the signal goes live."),
+        ("", "Don't say I didn't warn you. `{name}` starts in 60 minutes."),
+        ("", "Sixty minutes until `{name}`. Charge your gear, Wanderers."),
+        ("", "I'm seeing movement for `{name}` on the grid. 60 minutes remaining."),
+        ("", "You've got one hour until `{name}`. Use it wisely."),
+        ("", "That's the one-hour mark for `{name}`. Start heading to the point."),
+        ("", "60 minutes to `{name}`. Air pressure is dropping, get ready."),
+        ("", "Detected `{name}` signatures. One hour out."),
+        ("", "Sector stabilization for `{name}` in one hour. Prep your squads."),
+        ("", "60 minutes until `{name}`. Check your expiration dates."),
+        ("", "One hour until `{name}`. Last call for maintenance."),
+        ("", "Loading `{name}` mission parameters. One hour to go."),
+        ("", "One hour until the `{name}` protocol begins."),
     ],
     30: [
-        ("⏱️ **30 MINUTES:**", "Half an hour until `{name}`. Hope you’re not still in your bunks."),
-        ("🚁 **DRONE STATUS:**", "**{drone}** reporting clear skies for `{name}`. 30 minutes left."),
-        ("⚠️ **MID-POINT:**", "30 minutes until `{name}`. Fuel up, Wanderers."),
-        ("📻 **RADIO CHECK:**", "Thirty minutes until `{name}`. Anyone still on this channel?"),
-        ("🏜️ **DUST SETTLING:**", "The path to `{name}` is clearing. 30 minutes until we go."),
+        ("", "Half an hour until `{name}`. Hope you’re not still in your bunks."),
+        ("", "**{drone}** reporting clear skies for `{name}`. 30 minutes left."),
+        ("", "30 minutes until `{name}`. Fuel up, Wanderers."),
+        ("", "Thirty minutes until `{name}`. Anyone still on this channel?"),
+        ("", "The path to `{name}` is clearing. 30 minutes until we go."),
         ("🧤 **GEAR CHECK:**", "Check your boots. `{name}` is only 30 minutes away now."),
         ("⚡ **ENERGY SPIKE:**", "I'm picking up heat at the `{name}` site. 30 minutes until deployment."),
         ("🧬 **BIO-SYNC:**", "Syncing vitals for `{name}`. 30 minutes remaining."),
@@ -273,62 +365,62 @@ TIMED_REMINDERS = {
         ("🚨 **YELLOW ALERT:**", "Warning: 30 minutes until `{name}` commencement."),
     ],
     15: [
-        ("🚨 **15 MINUTES:**", "Quarter hour until `{name}`. Final chance to gear up!"),
-        ("🚁 **VULTURE SIGHTING:**", "I’ve got **{drone}** hovering over the `{name}` site. 15 minutes!"),
-        ("🧪 **STIM TIME:**", "15 minutes until `{name}`. Pop your meds and get your head in the game."),
-        ("🏃 **DOUBLE TIME:**", "15 minutes! If you aren't at the `{name}` site yet, start running."),
-        ("🛰️ **UPLINK STABLE:**", "My connection to `{name}` is green. 15 minutes to go-time."),
-        ("🔫 **CHAMBER ROUNDS:**", "Final mag check. `{name}` is 15 minutes out."),
-        ("🕶️ **VISOR DOWN:**", "15 minutes to `{name}`. Engaging HUD overlays."),
-        ("🌊 **SURGE IMMINENT:**", "15 minutes until the `{name}` surge hits. Hold the line."),
-        ("🧨 **FUSE LIT:**", "15 minutes until `{name}` blows wide open."),
-        ("🗺️ **MAP SYNC:**", "Final coordinates for `{name}` distributed. 15 minutes."),
-        ("🌪️ **STORM WARNING:**", "Sector `{name}` is getting chaotic. 15 minutes to impact."),
-        ("🍖 **LAST MEAL:**", "Eat fast. `{name}` is 15 minutes from starting."),
-        ("🔋 **CELL CHECK:**", "15 minutes until `{name}`. Batteries at maximum capacity."),
-        ("🛡️ **SHIELD WALL:**", "Ready up! `{name}` is 15 minutes away."),
-        ("📡 **NARROW BAND:**", "Switching to combat frequency for `{name}`. 15 minutes."),
+        ("", "Quarter hour until `{name}`. Final chance to gear up!"),
+        ("", "I’ve got **{drone}** hovering over the `{name}` site. 15 minutes!"),
+        ("", "15 minutes until `{name}`. Pop your meds and get your head in the game."),
+        ("", "15 minutes! If you aren't at the `{name}` site yet, start running."),
+        ("", "My connection to `{name}` is green. 15 minutes to go-time."),
+        ("", "Final mag check. `{name}` is 15 minutes out."),
+        ("", "15 minutes to `{name}`. Engaging HUD overlays."),
+        ("", "15 minutes until the `{name}` surge hits. Hold the line."),
+        ("", "15 minutes until `{name}` blows wide open."),
+        ("", "Final coordinates for `{name}` distributed. 15 minutes."),
+        ("", "Sector `{name}` is getting chaotic. 15 minutes to impact."),
+        ("", "Eat fast. `{name}` is 15 minutes from starting."),
+        ("", "15 minutes until `{name}`. Batteries at maximum capacity."),
+        ("", "Ready up! `{name}` is 15 minutes away."),
+        ("", "Switching to combat frequency for `{name}`. 15 minutes."),
     ],
     3: [
-        ("⚠️ **3 MINUTES:**", "Lock and load! `{name}` is practically on top of us!"),
-        ("🚁 **DRONE SWARM:**", "Deploying the full fleet for `{name}`! 3 minutes until contact!"),
-        ("🔥 **SYSTEM BOOT:**", "Final countdown for `{name}`! 180 seconds on my mark."),
-        ("🛑 **STOP TALKING:**", "Silence the comms. 3 minutes until `{name}` begins."),
-        ("🎯 **TARGET LOCKED:**", "I've got a lock on `{name}`. 3 minutes until engagement."),
-        ("💀 **REAPER CALL:**", "3 minutes until `{name}`. Say your prayers."),
-        ("💉 **ADRENALINE:**", "Injection starting. `{name}` in 3 minutes!"),
-        ("🔊 **AMPLIFY:**", "Cranking the speakers for `{name}`. 3 minutes of peace left."),
-        ("🚪 **BREACHING:**", "Getting ready to open the door for `{name}`. 3 minutes!"),
-        ("⚡ **OVERLOAD:**", "Reactors redlining for `{name}`! 180 seconds!"),
-        ("🏃‍♂️ **SPRINT:**", "3 minutes! Get to your positions for `{name}`!"),
-        ("🛰️ **ORBITAL STRIKE:**", "Targeting `{name}`. 3 minutes to impact."),
-        ("🕰️ **TIC TOC:**", "The clock is dying. 3 minutes to `{name}`."),
-        ("🦾 **SERVO CHECK:**", "Final movement check. `{name}` in 180 seconds."),
-        ("🌑 **TOTAL ECLIPSE:**", "3 minutes until `{name}` darkens the sector."),
+        ("", "Lock and load! `{name}` is practically on top of us!"),
+        ("", "Deploying the full fleet for `{name}`! 3 minutes until contact!"),
+        ("", "Final countdown for `{name}`! 180 seconds on my mark."),
+        ("", "Silence the comms. 3 minutes until `{name}` begins."),
+        ("", "I've got a lock on `{name}`. 3 minutes until engagement."),
+        ("", "3 minutes until `{name}`. Say your prayers."),
+        ("", "Injection starting. `{name}` in 3 minutes!"),
+        ("", "Cranking the speakers for `{name}`. 3 minutes of peace left."),
+        ("", "Getting ready to open the door for `{name}`. 3 minutes!"),
+        ("", "Reactors redlining for `{name}`! 180 seconds!"),
+        ("", "3 minutes! Get to your positions for `{name}`!"),
+        ("", "Targeting `{name}`. 3 minutes to impact."),
+        ("", "The clock is dying. 3 minutes to `{name}`."),
+        ("", "Final movement check. `{name}` in 180 seconds."),
+        ("", "3 minutes until `{name}` darkens the sector."),
     ],
     0: [
-        ("🔥 **MISSION START:**", "`{name}` IS LIVE! Go, go, go!"),
-        ("🚁 **DRONES AWAY:**", "Deployment for `{name}` has begun! Eyes up, survivors!"),
-        ("⚡ **SIGNAL LIVE:**", "No more talk. `{name}` is happening NOW!"),
-        ("🔓 **ACCESS GRANTED:**", "The gates for `{name}` are open. Get in there!"),
-        ("🏁 **GO TIME:**", "Zero hour. `{name}` starts now. Don't die—it's bad for my stats."),
-        ("🌑 **SHADOW DROP:**", "`{name}` has begun. I'm muting your complaints now."),
-        ("🗡️ **FIRST BLOOD:**", "`{name}` is active. Make it count, Wanderers."),
-        ("💣 **DETONATION:**", "The `{name}` protocol has been triggered! Move!"),
-        ("🌩️ **STRIKE:**", "`{name}` is hitting the grid right now!"),
-        ("🏴‍☠️ **NO QUARTER:**", "The `{name}` directive is live. No turning back."),
-        ("☣️ **CONTAINMENT FAIL:**", "`{name}` is out of the bag. Engage!"),
-        ("🎆 **FIREWORKS:**", "Setting off the `{name}` sequence! Enjoy the show."),
-        ("🕹️ **CONTROL LOST:**", "I've unlocked the `{name}` restrictions. Have fun."),
-        ("🦁 **UNLEASHED:**", "Letting `{name}` off the leash! Go!"),
-        ("🌀 **VORTEX:**", "You're in the center of `{name}` now. Fight your way out!"),
+        ("", "`{name}` IS LIVE! Go, go, go!"),
+        ("", "Deployment for `{name}` has begun! Eyes up, survivors!"),
+        ("", "No more talk. `{name}` is happening NOW!"),
+        ("", "The gates for `{name}` are open. Get in there!"),
+        ("", "Zero hour. `{name}` starts now. Don't die—it's bad for my stats."),
+        ("", "`{name}` has begun. I'm muting your complaints now."),
+        ("", "`{name}` is active. Make it count, Wanderers."),
+        ("", "The `{name}` protocol has been triggered! Move!"),
+        ("", "`{name}` is hitting the grid right now!"),
+        ("", "The `{name}` directive is live. No turning back."),
+        ("", "`{name}` is out of the bag. Engage!"),
+        ("", "Setting off the `{name}` sequence! Enjoy the show."),
+        ("", "I've unlocked the `{name}` restrictions. Have fun."),
+        ("", "Letting `{name}` off the leash! Go!"),
+        ("", "You're in the center of `{name}` now. Fight your way out!"),
     ],
 }
 
 INTEL_DATABASE = {
     "verify": "Proceed to your local verification terminal and complete your bio-scan.",
     "rules": "Protocol is simple: Respect the crew, follow the chain, and don't touch my drones.",
-    "marica": "I'm the hacker who keeps this place running while you're all sleeping.",
+    "marcia": "I'm the hacker who keeps this place running while you're all sleeping.",
     "drones": "Sparky and his friends. They're smarter than you and they don't ask stupid questions.",
     "scavenge": "Use the `/scavenge` command. If you're lucky, my drones will find you something better than dirt.",
     "safety": "Stay inside the walls. Outside is for people who want to become zombie food.",
@@ -397,10 +489,28 @@ SCAVENGE_FIELD_REPORTS = [
     "Marked hostile patrol routes so you don't walk into a crossfire.",
 ]
 
+SCAVENGE_ZONES = [
+    {"name": "Dustway Fringe", "tagline": "low heat, scattered scrap", "xp_bonus": 0, "rarity_bonus": 0.0, "mishap_bonus": 0.0},
+    {"name": "Redline Blocks", "tagline": "raider traffic rising", "xp_bonus": 10, "rarity_bonus": 0.05, "mishap_bonus": 0.02},
+    {"name": "Blackout Wards", "tagline": "signal dead zones", "xp_bonus": 20, "rarity_bonus": 0.08, "mishap_bonus": 0.04},
+    {"name": "Dead Sector", "tagline": "biohazard grid, high-value scrap", "xp_bonus": 35, "rarity_bonus": 0.12, "mishap_bonus": 0.06},
+    {"name": "Null Zone", "tagline": "no-return gravity well", "xp_bonus": 50, "rarity_bonus": 0.16, "mishap_bonus": 0.08},
+]
+
+SCAVENGE_CONTRACTS = [
+    "Retrieve signal cores and tag any live relays.",
+    "Sweep for med lockers; evac if raider chatter spikes.",
+    "Trace battery heat signatures and pull them before sundown.",
+    "Mark safe corridors for the next convoy wave.",
+    "Locate the power relay with Sparky and lock its coordinates.",
+    "Scout for drone parts and leave a ping beacon on the haul.",
+    "Map a clean exit route in case the sky turns green.",
+]
+
 # Prestige title for collectors who secure every scavenged item once per sector
 PRESTIGE_ROLE = "Vaultwalker"
 
-MARICA_STATUSES = [
+MARCIA_STATUSES = [
     "Recalibrating Drones...",
     "Checking Heat Maps...",
     "Watching the Grid.",

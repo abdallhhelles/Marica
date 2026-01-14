@@ -13,8 +13,8 @@ import aiosqlite
 from datetime import datetime, timezone
 import logging
 
-from time_utils import GAME_TZ
-from assets import REMINDER_TEMPLATE_STARTER
+from utils.time_utils import GAME_TZ
+from utils.assets import REMINDER_TEMPLATE_STARTER
 
 logger = logging.getLogger('MarciaOS.DB')
 
@@ -129,7 +129,17 @@ DB_PATH = str(DB_PATH_OBJ)
 
 # Seed fish trade listings captured before data loss so we can repopulate wiped hosts.
 _SEED_FILE = _BASE_DIR / "data" / "trade_seed.json"
-_SEED_DEFAULT_GUILD = int(os.getenv("MARCIA_SEED_GUILD_ID", "0"))
+_SEED_DEFAULT_GUILD: int | None = None
+_seed_env = os.getenv("MARCIA_SEED_GUILD_ID")
+if _seed_env:
+    try:
+        parsed_seed = int(_seed_env)
+        if parsed_seed > 0:
+            _SEED_DEFAULT_GUILD = parsed_seed
+        else:
+            logger.warning("MARCIA_SEED_GUILD_ID must be positive; got %s", _seed_env)
+    except ValueError:
+        logger.warning("Invalid MARCIA_SEED_GUILD_ID value %r; seed restore disabled", _seed_env)
 _TRADE_SEED_CACHE: dict | None = None
 
 async def init_db():
@@ -151,6 +161,8 @@ async def init_db():
                 trade_channel_id INTEGER,
                 rules_channel_id INTEGER,
                 verify_channel_id INTEGER,
+                feedback_channel_id INTEGER,
+                analytics_channel_id INTEGER,
                 auto_role_id INTEGER,
                 server_offset_hours INTEGER DEFAULT -2
             )
@@ -197,6 +209,17 @@ async def init_db():
         ''')
 
         await db.execute('''
+            CREATE TABLE IF NOT EXISTS scheduled_reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER,
+                channel_id INTEGER,
+                creator_id INTEGER,
+                body TEXT,
+                send_at_utc TEXT
+            )
+        ''')
+
+        await db.execute('''
             CREATE TABLE IF NOT EXISTS profile_channels (
                 guild_id INTEGER PRIMARY KEY,
                 channel_id INTEGER
@@ -215,8 +238,11 @@ async def init_db():
                 likes INTEGER,
                 vip_level INTEGER,
                 level INTEGER,
+                ownership_verified INTEGER,
+                scan_valid INTEGER DEFAULT 1,
                 avatar_url TEXT,
                 last_image_url TEXT,
+                local_image_path TEXT,
                 raw_ocr TEXT,
                 last_updated INTEGER,
                 PRIMARY KEY (guild_id, user_id)
@@ -262,6 +288,24 @@ async def init_db():
             )
         ''')
 
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS mission_rsvp_prompts (
+                guild_id INTEGER,
+                codename TEXT,
+                message_id INTEGER PRIMARY KEY
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS mission_rsvps (
+                guild_id INTEGER,
+                codename TEXT,
+                user_id INTEGER,
+                status TEXT,
+                PRIMARY KEY (guild_id, codename, user_id)
+            )
+        ''')
+
         # 5. System Tracking
         await db.execute('''
             CREATE TABLE IF NOT EXISTS system_logs (
@@ -279,6 +323,7 @@ async def init_db():
                 level INTEGER DEFAULT 1,
                 last_msg_ts REAL DEFAULT 0,
                 last_scavenge_ts REAL DEFAULT 0,
+                scavenge_streak INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             )
         ''')
@@ -301,6 +346,15 @@ async def init_db():
                 command_name TEXT,
                 uses INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, command_name)
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS activity_metrics (
+                guild_id INTEGER,
+                metric_name TEXT,
+                count INTEGER DEFAULT 0,
+                PRIMARY KEY (guild_id, metric_name)
             )
         ''')
 
@@ -347,11 +401,25 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
+
+        async with db.execute("PRAGMA table_info(user_stats)") as cursor:
+            existing_columns = {row[1] async for row in cursor}
+        if "scavenge_streak" not in existing_columns:
+            await db.execute(
+                "ALTER TABLE user_stats ADD COLUMN scavenge_streak INTEGER DEFAULT 0"
+            )
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_metrics_guild ON activity_metrics(guild_id)")
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mission_prompt_guild ON mission_dm_prompts(guild_id)"
         )
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mission_optins_guild ON mission_dm_opt_ins(guild_id)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mission_rsvp_guild ON mission_rsvps(guild_id)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mission_rsvp_prompt_guild ON mission_rsvp_prompts(guild_id)"
         )
         await db.commit()
 
@@ -364,6 +432,11 @@ async def init_db():
         await _ensure_column(db, "server_missions", "ping_role_id", "INTEGER")
         await _ensure_column(db, "server_missions", "tag", "TEXT")
         await _ensure_column(db, "server_missions", "notes", "TEXT")
+        await _ensure_column(db, "profile_snapshots", "local_image_path", "TEXT")
+        await _ensure_column(db, "profile_snapshots", "ownership_verified", "INTEGER")
+        await _ensure_column(db, "profile_snapshots", "scan_valid", "INTEGER")
+        await _ensure_column(db, "settings", "feedback_channel_id", "INTEGER")
+        await _ensure_column(db, "settings", "analytics_channel_id", "INTEGER")
 
     print("📡 MARCIA OS | Database Core Synchronized (Trading, Missions & Config).")
 
@@ -559,6 +632,53 @@ async def top_guild_usage(limit: int = 10) -> list[aiosqlite.Row]:
             return await cursor.fetchall()
 
 
+async def increment_activity_metric(guild_id: int | None, metric_name: str, amount: int = 1) -> None:
+    """Track custom activity counters per guild."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO activity_metrics (guild_id, metric_name, count)
+            VALUES (?, ?, ?)
+            ON CONFLICT(guild_id, metric_name) DO UPDATE SET count = count + excluded.count
+            ''',
+            (guild_id or 0, metric_name, amount),
+        )
+        await db.commit()
+
+
+async def activity_metric_totals(metric_names: list[str]) -> dict[str, int]:
+    """Return summed totals for requested metrics across all guilds."""
+    if not metric_names:
+        return {}
+
+    placeholders = ", ".join("?" for _ in metric_names)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f"""
+            SELECT metric_name, COALESCE(SUM(count), 0) AS total
+            FROM activity_metrics
+            WHERE metric_name IN ({placeholders})
+            GROUP BY metric_name
+            """,
+            tuple(metric_names),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+    totals = {name: 0 for name in metric_names}
+    for row in rows:
+        totals[row["metric_name"]] = row["total"]
+    return totals
+
+
+async def total_active_missions() -> int:
+    """Return the total number of active missions across all guilds."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM server_missions") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+
 async def top_global_xp(limit: int = 10) -> list[aiosqlite.Row]:
     """Return highest XP survivors across all guilds."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -567,7 +687,7 @@ async def top_global_xp(limit: int = 10) -> list[aiosqlite.Row]:
             """
             SELECT guild_id, user_id, xp, level
             FROM user_stats
-            ORDER BY xp DESC
+            ORDER BY level DESC, xp DESC
             LIMIT ?
             """,
             (limit,),
@@ -607,7 +727,7 @@ async def log_feedback_entry(
 
 # --- TRADING HELPERS ---
 
-async def add_fish_to_inventory(guild_id, user_id, rarity, index, trade_type):
+async def add_fish_to_inventory(guild_id: int, user_id: int, rarity: str, index: int, trade_type: str) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
             INSERT OR IGNORE INTO trade_pool (guild_id, user_id, fish_rarity, fish_index, type)
@@ -615,7 +735,7 @@ async def add_fish_to_inventory(guild_id, user_id, rarity, index, trade_type):
         ''', (guild_id, user_id, rarity, index, trade_type))
         await db.commit()
 
-async def get_fish_inventory(guild_id, user_id):
+async def get_fish_inventory(guild_id: int, user_id: int) -> list[aiosqlite.Row]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute('''
@@ -626,14 +746,14 @@ async def get_fish_inventory(guild_id, user_id):
 
 # --- SERVER SETTINGS HELPERS ---
 
-async def get_settings(guild_id):
+async def get_settings(guild_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM settings WHERE guild_id = ?", (guild_id,)) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
-async def update_setting(guild_id, column, value, server_name=None):
+async def update_setting(guild_id: int, column: str, value: int | str | None, server_name: str | None = None) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(f'''
             INSERT INTO settings (guild_id, server_name, {column}) 
@@ -700,6 +820,15 @@ async def set_profile_channel(guild_id: int, channel_id: int) -> None:
         await db.commit()
 
 
+async def clear_profile_channel(guild_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM profile_channels WHERE guild_id = ?",
+            (guild_id,),
+        )
+        await db.commit()
+
+
 async def get_profile_channel(guild_id: int) -> int | None:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
@@ -722,8 +851,11 @@ async def upsert_profile_snapshot(
     likes: int | None = None,
     vip_level: int | None = None,
     level: int | None = None,
+    ownership_verified: bool | None = None,
+    scan_valid: bool | None = True,
     avatar_url: str | None = None,
     last_image_url: str | None = None,
+    local_image_path: str | None = None,
     raw_ocr: str | None = None,
 ) -> None:
     now_ts = int(time.time())
@@ -732,9 +864,9 @@ async def upsert_profile_snapshot(
             '''
             INSERT INTO profile_snapshots (
                 guild_id, user_id, player_name, alliance, server, cp, kills, likes,
-                vip_level, level, avatar_url, last_image_url, raw_ocr, last_updated
+                vip_level, level, ownership_verified, scan_valid, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(guild_id, user_id) DO UPDATE SET
                 player_name = COALESCE(excluded.player_name, profile_snapshots.player_name),
                 alliance = COALESCE(excluded.alliance, profile_snapshots.alliance),
@@ -744,8 +876,11 @@ async def upsert_profile_snapshot(
                 likes = COALESCE(excluded.likes, profile_snapshots.likes),
                 vip_level = COALESCE(excluded.vip_level, profile_snapshots.vip_level),
                 level = COALESCE(excluded.level, profile_snapshots.level),
+                ownership_verified = COALESCE(excluded.ownership_verified, profile_snapshots.ownership_verified),
+                scan_valid = excluded.scan_valid,
                 avatar_url = COALESCE(excluded.avatar_url, profile_snapshots.avatar_url),
                 last_image_url = COALESCE(excluded.last_image_url, profile_snapshots.last_image_url),
+                local_image_path = COALESCE(excluded.local_image_path, profile_snapshots.local_image_path),
                 raw_ocr = COALESCE(excluded.raw_ocr, profile_snapshots.raw_ocr),
                 last_updated = excluded.last_updated
             ''',
@@ -760,8 +895,11 @@ async def upsert_profile_snapshot(
                 likes,
                 vip_level,
                 level,
+                int(ownership_verified) if ownership_verified is not None else None,
+                int(scan_valid) if scan_valid is not None else None,
                 avatar_url,
                 last_image_url,
+                local_image_path,
                 raw_ocr,
                 now_ts,
             ),
@@ -775,7 +913,7 @@ async def get_profile_snapshot(guild_id: int, user_id: int):
         async with db.execute(
             """
             SELECT guild_id, user_id, player_name, alliance, server, cp, kills, likes,
-                   vip_level, level, avatar_url, last_image_url, raw_ocr, last_updated
+                   vip_level, level, ownership_verified, scan_valid, avatar_url, last_image_url, local_image_path, raw_ocr, last_updated
             FROM profile_snapshots
             WHERE guild_id = ? AND user_id = ?
             """,
@@ -783,6 +921,46 @@ async def get_profile_snapshot(guild_id: int, user_id: int):
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
+
+
+async def get_profile_snapshots(
+    guild_id: int, limit: int = 25, *, include_invalid: bool = True
+) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        where_clause = "" if include_invalid else "AND COALESCE(scan_valid, 1) = 1"
+        async with db.execute(
+            f"""
+            SELECT guild_id, user_id, player_name, alliance, server, cp, kills, likes,
+                   vip_level, level, ownership_verified, scan_valid, avatar_url, last_image_url,
+                   local_image_path, raw_ocr, last_updated
+            FROM profile_snapshots
+            WHERE guild_id = ? {where_clause}
+            ORDER BY last_updated DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def set_profile_scan_valid(guild_id: int, user_id: int, is_valid: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE profile_snapshots SET scan_valid = ? WHERE guild_id = ? AND user_id = ?",
+            (int(is_valid), guild_id, user_id),
+        )
+        await db.commit()
+
+
+async def delete_profile_snapshot(guild_id: int, user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM profile_snapshots WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+        await db.commit()
 
 
 async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
@@ -803,11 +981,38 @@ async def top_profile_stat(guild_id: int, column: str, limit: int = 10):
             f'''
             SELECT user_id, player_name, {target} as value
             FROM profile_snapshots
-            WHERE guild_id = ? AND {target} IS NOT NULL
+            WHERE guild_id = ? AND {target} IS NOT NULL AND COALESCE(scan_valid, 1) = 1
             ORDER BY {target} DESC
             LIMIT ?
             ''',
             (guild_id, limit),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def top_global_profile_stat(column: str, limit: int = 10):
+    allowed = {
+        "cp": "cp",
+        "kills": "kills",
+        "likes": "likes",
+        "vip_level": "vip_level",
+        "level": "level",
+    }
+    target = allowed.get(column)
+    if not target:
+        return []
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f'''
+            SELECT guild_id, user_id, player_name, server, {target} as value
+            FROM profile_snapshots
+            WHERE {target} IS NOT NULL AND COALESCE(scan_valid, 1) = 1
+            ORDER BY {target} DESC
+            LIMIT ?
+            ''',
+            (limit,),
         ) as cursor:
             return await cursor.fetchall()
 
@@ -833,7 +1038,7 @@ async def get_user_stats(guild_id: int, user_id: int):
         await db.commit()
         async with db.execute(
             """
-            SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts
+            SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts, scavenge_streak
             FROM user_stats
             WHERE guild_id = ? AND user_id = ?
             """,
@@ -963,17 +1168,27 @@ async def transfer_inventory(guild_id: int, sender: int, receiver: int, item_nam
     return True
 
 
-async def update_scavenge_time(guild_id: int, user_id: int):
+async def update_scavenge_time(guild_id: int, user_id: int, streak: int | None = None):
     async with aiosqlite.connect(DB_PATH) as db:
         await _ensure_user(db, guild_id, user_id)
-        await db.execute(
-            """
-            UPDATE user_stats
-            SET last_scavenge_ts = ?
-            WHERE guild_id = ? AND user_id = ?
-            """,
-            (datetime.now(GAME_TZ).timestamp(), guild_id, user_id),
-        )
+        if streak is None:
+            await db.execute(
+                """
+                UPDATE user_stats
+                SET last_scavenge_ts = ?
+                WHERE guild_id = ? AND user_id = ?
+                """,
+                (datetime.now(GAME_TZ).timestamp(), guild_id, user_id),
+            )
+        else:
+            await db.execute(
+                """
+                UPDATE user_stats
+                SET last_scavenge_ts = ?, scavenge_streak = ?
+                WHERE guild_id = ? AND user_id = ?
+                """,
+                (datetime.now(GAME_TZ).timestamp(), streak, guild_id, user_id),
+            )
         await db.commit()
 
 
@@ -1026,7 +1241,7 @@ async def top_xp_leaderboard(guild_id: int, limit: int = 10):
             SELECT user_id, xp, level
             FROM user_stats
             WHERE guild_id = ?
-            ORDER BY xp DESC
+            ORDER BY level DESC, xp DESC
             LIMIT ?
             """,
             (guild_id, limit),
@@ -1090,6 +1305,49 @@ async def delete_reminder_template(guild_id: int, name: str) -> None:
         await db.execute(
             "DELETE FROM reminder_templates WHERE guild_id = ? AND template_name = ?",
             (guild_id, name),
+        )
+        await db.commit()
+
+
+async def add_scheduled_reminder(
+    guild_id: int,
+    channel_id: int,
+    creator_id: int,
+    body: str,
+    send_at_utc: str,
+) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            INSERT INTO scheduled_reminders (guild_id, channel_id, creator_id, body, send_at_utc)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (guild_id, channel_id, creator_id, body, send_at_utc),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_scheduled_reminders(guild_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT id, channel_id, creator_id, body, send_at_utc
+            FROM scheduled_reminders
+            WHERE guild_id = ?
+            ORDER BY send_at_utc ASC
+            """,
+            (guild_id,),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def delete_scheduled_reminder(guild_id: int, reminder_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM scheduled_reminders WHERE guild_id = ? AND id = ?",
+            (guild_id, reminder_id),
         )
         await db.commit()
 
@@ -1173,6 +1431,14 @@ async def delete_mission(guild_id, codename):
             "DELETE FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
             (guild_id, codename),
         )
+        await db.execute(
+            "DELETE FROM mission_rsvp_prompts WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.execute(
+            "DELETE FROM mission_rsvps WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
         await db.commit()
 
 
@@ -1229,6 +1495,99 @@ async def clear_mission_opt_ins(guild_id: int, codename: str) -> None:
         )
         await db.execute(
             "DELETE FROM mission_dm_opt_ins WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.commit()
+
+
+async def upsert_rsvp_prompt(guild_id: int, codename: str, message_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO mission_rsvp_prompts (guild_id, codename, message_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(message_id) DO UPDATE SET guild_id = excluded.guild_id, codename = excluded.codename
+            ''',
+            (guild_id, codename, message_id),
+        )
+        await db.commit()
+
+
+async def lookup_rsvp_prompt(message_id: int) -> tuple[int, str] | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT guild_id, codename FROM mission_rsvp_prompts WHERE message_id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return (row[0], row[1]) if row else None
+
+
+async def set_rsvp_status(guild_id: int, codename: str, user_id: int, status: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO mission_rsvps (guild_id, codename, user_id, status)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id, codename, user_id) DO UPDATE SET status = excluded.status
+            ''',
+            (guild_id, codename, user_id, status),
+        )
+        await db.commit()
+
+
+async def remove_rsvp_status(guild_id: int, codename: str, user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM mission_rsvps WHERE guild_id = ? AND codename = ? AND user_id = ?",
+            (guild_id, codename, user_id),
+        )
+        await db.commit()
+
+
+async def get_rsvp_counts(guild_id: int, codename: str) -> dict[str, int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            '''
+            SELECT status, COUNT(*) as total
+            FROM mission_rsvps
+            WHERE guild_id = ? AND codename = ?
+            GROUP BY status
+            ''',
+            (guild_id, codename),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            counts = {"going": 0, "maybe": 0, "no": 0}
+            for status, total in rows:
+                if status in counts:
+                    counts[status] = total
+            return counts
+
+
+async def get_rsvp_members(
+    guild_id: int, codename: str, *, status: str = "going"
+) -> list[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            '''
+            SELECT user_id
+            FROM mission_rsvps
+            WHERE guild_id = ? AND codename = ? AND status = ?
+            ''',
+            (guild_id, codename, status),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+
+
+async def clear_rsvp_data(guild_id: int, codename: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM mission_rsvp_prompts WHERE guild_id = ? AND codename = ?",
+            (guild_id, codename),
+        )
+        await db.execute(
+            "DELETE FROM mission_rsvps WHERE guild_id = ? AND codename = ?",
             (guild_id, codename),
         )
         await db.commit()

@@ -1,4 +1,4 @@
-# 📂 MARICA OS v3.0 | Helles Hub Tactical Bot
+# Marcia
 
 ![Status](https://img.shields.io/badge/Status-Online-brightgreen)
 ![Library](https://img.shields.io/badge/Library-Discord.py-blue)
