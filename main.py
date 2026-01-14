@@ -111,19 +111,24 @@ class MarciaBot(commands.Bot):
         except Exception:
             logger.exception("✘ Slash command sync failed")
 
+    async def _is_ignored_channel(self, guild_id: int, channel_id: int) -> bool:
+        """Return True when a channel is configured to be ignored, logging failures."""
+        try:
+            return await is_channel_ignored(guild_id, channel_id)
+        except Exception:
+            logger.exception("Channel ignore check failed")
+            return False
+
     async def _interaction_channel_gate(self, interaction: discord.Interaction) -> bool:
         """Block slash commands inside ignored channels without spamming responses."""
         if interaction.guild and interaction.channel_id:
-            try:
-                if await is_channel_ignored(interaction.guild.id, interaction.channel_id):
-                    logger.info(
-                        "🔇 Ignored channel interaction (%s | %s)",
-                        interaction.guild.id,
-                        interaction.channel_id,
-                    )
-                    return False
-            except Exception:
-                logger.exception("Channel gate check failed")
+            if await self._is_ignored_channel(interaction.guild.id, interaction.channel_id):
+                logger.info(
+                    "🔇 Ignored channel interaction (%s | %s)",
+                    interaction.guild.id,
+                    interaction.channel_id,
+                )
+                return False
         return True
 
     async def _safe_interaction_reply(self, interaction: discord.Interaction, **kwargs):
@@ -188,7 +193,7 @@ class MarciaBot(commands.Bot):
         if message.type is not discord.MessageType.default:
             return
 
-        if await is_channel_ignored(message.guild.id, message.channel.id):
+        if await self._is_ignored_channel(message.guild.id, message.channel.id):
             return
 
         ctx = await self.get_context(message)
@@ -297,7 +302,7 @@ class MarciaBot(commands.Bot):
         if (
             interaction.guild
             and interaction.channel
-            and await is_channel_ignored(interaction.guild.id, interaction.channel.id)
+            and await self._is_ignored_channel(interaction.guild.id, interaction.channel.id)
         ):
             return
 
