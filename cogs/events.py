@@ -581,14 +581,21 @@ class Events(commands.Cog):
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         info = DUEL_DATA.get(now_server.weekday(), "No data.")
                         day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now_server.weekday()]
-                        await chan.send(
-                            f"Good morning @everyone,\n\n"
-                            f"📡 **MARCIA OS | DUEL DIRECTIVE – {day_name.upper()}**\n\n"
-                            f"{info}\n\n"
-                            f"Stay sharp and keep those points climbing. I'm tracking your progress.",
-                            allowed_mentions=discord.AllowedMentions(everyone=True),
-                        )
-                        await mark_task_complete(task_id, date_str=date_key)
+                        try:
+                            await chan.send(
+                                f"Good morning @everyone,\n\n"
+                                f"📡 **MARCIA OS | DUEL DIRECTIVE – {day_name.upper()}**\n\n"
+                                f"{info}\n\n"
+                                f"Stay sharp and keep those points climbing. I'm tracking your progress.",
+                                allowed_mentions=discord.AllowedMentions(everyone=True),
+                            )
+                            await mark_task_complete(task_id, date_str=date_key)
+                        except discord.Forbidden:
+                            logger.warning(
+                                "Missing access to send duel directive in %s (%s).",
+                                guild.name,
+                                chan.id,
+                            )
             # Saturday (weekday 5) - Kill Event Shield Reminders
             if now_server.weekday() == 5 and now_server.hour in KILL_EVENT_SHIELD_REMINDERS:
                 date_key = now_server.strftime("%Y-%m-%d")
@@ -598,16 +605,23 @@ class Events(commands.Cog):
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         hours_left = max(0, 24 - now_server.hour)
                         reminder_line = KILL_EVENT_SHIELD_REMINDERS[now_server.hour]
-                        await chan.send(
-                            "Dear @everyone,\n\n"
-                            "🛡️ **KILL EVENT SHIELD CHECK**\n\n"
-                            f"{reminder_line}\n"
-                            f"⏳ **{hours_left}h** remaining in the kill event.\n"
-                            "If you can't maintain 24h shields, set alarms to refresh before they expire.\n"
-                            "Marcia's monitoring the grid—keep your squad protected. 💙",
-                            allowed_mentions=discord.AllowedMentions(everyone=True),
-                        )
-                        await mark_task_complete(task_id, date_str=date_key)
+                        try:
+                            await chan.send(
+                                "Dear @everyone,\n\n"
+                                "🛡️ **KILL EVENT SHIELD CHECK**\n\n"
+                                f"{reminder_line}\n"
+                                f"⏳ **{hours_left}h** remaining in the kill event.\n"
+                                "If you can't maintain 24h shields, set alarms to refresh before they expire.\n"
+                                "Marcia's monitoring the grid—keep your squad protected. 💙",
+                                allowed_mentions=discord.AllowedMentions(everyone=True),
+                            )
+                            await mark_task_complete(task_id, date_str=date_key)
+                        except discord.Forbidden:
+                            logger.warning(
+                                "Missing access to send kill event reminder in %s (%s).",
+                                guild.name,
+                                chan.id,
+                            )
             
             # Friday (weekday 4) - Pre-Kill Event Shield Reminders
             if now_server.weekday() == 4 and now_server.hour in KILL_EVENT_PRE_SHIELD_REMINDERS:
@@ -618,16 +632,23 @@ class Events(commands.Cog):
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         hours_until = 24 - now_server.hour
                         reminder_line = KILL_EVENT_PRE_SHIELD_REMINDERS[now_server.hour]
-                        await chan.send(
-                            "Attention @everyone,\n\n"
-                            "🛡️ **PRE-KILL EVENT PREPARATION**\n\n"
-                            f"{reminder_line}\n"
-                            f"⏰ Kill event begins at midnight (in **{hours_until}h**).\n"
-                            "Stack your shields, coordinate with your alliance, and be ready.\n"
-                            "Marcia's got your back—but only if you prep smart. 💙",
-                            allowed_mentions=discord.AllowedMentions(everyone=True),
-                        )
-                        await mark_task_complete(task_id, date_str=date_key)
+                        try:
+                            await chan.send(
+                                "Attention @everyone,\n\n"
+                                "🛡️ **PRE-KILL EVENT PREPARATION**\n\n"
+                                f"{reminder_line}\n"
+                                f"⏰ Kill event begins at midnight (in **{hours_until}h**).\n"
+                                "Stack your shields, coordinate with your alliance, and be ready.\n"
+                                "Marcia's got your back—but only if you prep smart. 💙",
+                                allowed_mentions=discord.AllowedMentions(everyone=True),
+                            )
+                            await mark_task_complete(task_id, date_str=date_key)
+                        except discord.Forbidden:
+                            logger.warning(
+                                "Missing access to send pre-kill reminder in %s (%s).",
+                                guild.name,
+                                chan.id,
+                            )
 
     @tasks.loop(minutes=30)
     async def cycle_status(self):
