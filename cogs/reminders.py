@@ -31,6 +31,14 @@ class Reminders(commands.Cog):
         self.scheduled_tasks: dict[int, asyncio.Task] = {}
         self.bot.loop.create_task(self._restore_scheduled_reminders())
 
+    def _format_reminder_message(self, body: str, template_name: str | None = None) -> str:
+        parts = [part for part in (template_name, body) if part]
+        combined = "\n".join(parts)
+        cleaned = combined.lstrip("* ").lower()
+        if cleaned.startswith("reminder"):
+            return f"📡 {combined}"
+        return f"📡 **Reminder:** {combined}"
+
     async def cog_check(self, ctx: commands.Context) -> bool:
         if ctx.guild and await is_channel_ignored(ctx.guild.id, ctx.channel.id):
             return False
@@ -83,7 +91,8 @@ class Reminders(commands.Cog):
 
         quote = random.choice(MARCIA_SYSTEM_LINES)
         channel = await self._resolve_event_channel(ctx)
-        await channel.send(f"📡 **Reminder:** {match['template_name']}\n{match['body']}\n\n{quote}")
+        reminder_message = self._format_reminder_message(match["body"], match["template_name"])
+        await channel.send(f"{reminder_message}\n\n{quote}")
         if channel.id != ctx.channel.id:
             await ctx.send(f"✅ Reminder sent to {channel.mention}.", delete_after=8)
 
@@ -121,7 +130,8 @@ class Reminders(commands.Cog):
         quote = random.choice(MARCIA_SYSTEM_LINES)
 
         async def _post():
-            await channel.send(f"📡 **Reminder:** {body}\n\n{quote}")
+            reminder_message = self._format_reminder_message(body)
+            await channel.send(f"{reminder_message}\n\n{quote}")
 
         if when_utc and when_utc > datetime.now(timezone.utc):
             reminder_id = await add_scheduled_reminder(
@@ -176,7 +186,8 @@ class Reminders(commands.Cog):
     ) -> None:
         await discord.utils.sleep_until(when_utc)
         try:
-            await channel.send(f"📡 **Reminder:** {body}\n\n{random.choice(MARCIA_SYSTEM_LINES)}")
+            reminder_message = self._format_reminder_message(body)
+            await channel.send(f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}")
         finally:
             await delete_scheduled_reminder(channel.guild.id, reminder_id)
             self.scheduled_tasks.pop(reminder_id, None)

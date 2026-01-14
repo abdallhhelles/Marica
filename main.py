@@ -318,6 +318,10 @@ class MarciaBot(commands.Bot):
 
     async def process_application_commands(self, interaction: discord.Interaction):
         """Compatibility shim so app commands route even on discord.py builds without it."""
+        if interaction.type != discord.InteractionType.application_command:
+            return
+        if not interaction.data or "name" not in interaction.data:
+            return
         try:
             await self.tree._call(interaction)
         except Exception:

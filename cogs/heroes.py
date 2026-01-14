@@ -345,7 +345,7 @@ def _hero_embed_base(hero: dict, description: str) -> discord.Embed:
 
 def _build_hero_lore_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
     hero = HEROES[hero_key]
-    embed = _hero_embed_base(hero, "Lore dossier. Tap the buttons below to switch panels.")
+    embed = _hero_embed_base(hero, "Character dossier. Tap the buttons below to switch panels.")
     _add_lore_fields(embed, hero["lore"])
     image_file = _attach_hero_image(embed, hero)
     return embed, image_file
@@ -362,7 +362,7 @@ def _build_hero_skills_embed(hero_key: str) -> tuple[discord.Embed, discord.File
 
 def _build_hero_weapon_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
     hero = HEROES[hero_key]
-    embed = _hero_embed_base(hero, "Exclusive weapon intel.")
+    embed = _hero_embed_base(hero, "Signature armament intel.")
     weapon = hero.get("exclusive_weapon")
     if weapon:
         weapon_lines = [
