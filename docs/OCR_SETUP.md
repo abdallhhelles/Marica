@@ -8,8 +8,7 @@ This guide keeps `/scan_profile` predictable across the owner-managed environmen
    pip install -r requirements.txt        # base bot only (lightweight)
    pip install --no-cache-dir -r requirements-ocr.txt    # optional OCR extras (CPU wheels)
    ```
-   * **Low-memory hosts (≤1–3 GB RAM):** keep the base install only on tiny panels; add `requirements-ocr.txt` later if resources allow. The file pins `torch==2.3.1+cpu` / `torchvision==0.18.1+cpu` and uses the PyTorch CPU index so you don't pull any NVIDIA CUDA extras. You can also preload the OCR wheels elsewhere and install with `pip install --no-index --find-links /path/to/wheels -r requirements-ocr.txt`.
-   * **External fallback:** set `OCR_SPACE_API_KEY` if you prefer to send screenshots to the OCR.space API instead of installing heavy OCR dependencies locally.
+   * **Low-memory hosts (≤1 GB RAM):** torch/EasyOCR wheels may be too heavy for tiny panels. Either install only the base bot with `pip install -r requirements-lite.txt` (OCR disabled) or preload wheels on another machine and install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`. See [Low-memory installation](LOW_MEMORY_INSTALL.md) for step-by-step examples and wheel-cache tips.
 2. Install the system Tesseract binary (required by pytesseract):
    * Debian/Ubuntu: `sudo apt-get install -y tesseract-ocr`
    * macOS (Homebrew): `brew install tesseract`

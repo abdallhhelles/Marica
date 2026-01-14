@@ -59,10 +59,9 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 **Low-memory hosts (≤1–3 GB RAM):** keep the base install tiny and opt into OCR only when resources allow. The OCR file pulls +cpu wheels and skips CUDA extras; add `--no-cache-dir` on tight disks.
 
-* Base bot only (no OCR): `pip install -r requirements.txt` (fits on small game panels).
-* Add local OCR later: `pip install --no-cache-dir -r requirements-ocr.txt` (CPU-only wheels, no CUDA downloads).
-* If you need OCR on an especially tiny panel, prebuild the `requirements-ocr.txt` wheels elsewhere and install with `pip install --no-index --find-links /path/to/wheels -r requirements-ocr.txt`.
-* Or set `OCR_SPACE_API_KEY` to let `/scan_profile` call the OCR.space API instead of loading torch/EasyOCR locally.
+* Use the lightweight install to skip OCR: `pip install -r requirements-lite.txt` (scanning stays disabled, everything else works).
+* If you need OCR, prebuild wheels on a bigger machine and upload them to the host. Install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
+* 512 MB RAM panels almost always OOM on torch. Preload wheels instead of live installing (see [Low-memory install guide](docs/LOW_MEMORY_INSTALL.md)).
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
