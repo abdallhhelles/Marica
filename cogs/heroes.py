@@ -140,8 +140,8 @@ HEROES: dict[str, dict] = {
         "name": "Tristan",
         "faction": "Fighters",
         "season": "Season 1",
-        "tier_label": "A",
-        "tier_emoji": ATIER_EMOJI,
+        "tier_label": "S",
+        "tier_emoji": STIER_EMOJI,
         "fragment_emoji": BLUEFRAGMENT_EMOJI,
         "emblem_emoji": FIGHTER_EMBLEM,
         "season_emoji": SEASON1_EMOJI,
@@ -315,18 +315,54 @@ def _add_chunked_field(embed: discord.Embed, title: str, lines: list[str]) -> No
         embed.add_field(name=title, value="\n".join(chunk), inline=False)
 
 
-def _build_hero_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
-    hero = HEROES[hero_key]
+def _hero_header(hero: dict) -> str:
+    return f"{hero['portrait_emoji']} **{hero['name']}**" if hero.get("portrait_emoji") else hero["name"]
+
+
+def _attach_hero_image(embed: discord.Embed, hero: dict) -> discord.File | None:
+    image_path = hero.get("image")
+    if image_path and image_path.exists():
+        image_file = discord.File(image_path, filename=image_path.name)
+        embed.set_image(url=f"attachment://{image_path.name}")
+        return image_file
+    return None
+
+
+def _hero_embed_base(hero: dict, description: str) -> discord.Embed:
     embed = discord.Embed(
         title=f"🛰️ {hero['name']}",
-        description="Hero dossier, lore, and weapon intel.",
+        description=description,
         color=0x5865F2,
     )
-    header = f"{hero['portrait_emoji']} **{hero['name']}**" if hero.get("portrait_emoji") else hero["name"]
-    embed.add_field(name="Hero Type", value=f"{header}\n{_hero_type_line(hero)}", inline=False)
+    embed.add_field(
+        name="Hero Type",
+        value=f"{_hero_header(hero)}\n{_hero_type_line(hero)}",
+        inline=False,
+    )
+    embed.set_footer(text="Stats are sourced from verified in-game data.")
+    return embed
+
+
+def _build_hero_lore_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
+    hero = HEROES[hero_key]
+    embed = _hero_embed_base(hero, "Lore dossier. Tap the buttons below to switch panels.")
     _add_lore_fields(embed, hero["lore"])
+    image_file = _attach_hero_image(embed, hero)
+    return embed, image_file
+
+
+def _build_hero_skills_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
+    hero = HEROES[hero_key]
+    embed = _hero_embed_base(hero, "Skill breakdown and scaling.")
     for skill_name, skill_text in hero["skills"]:
         embed.add_field(name=f"✨ {skill_name}", value=skill_text, inline=False)
+    image_file = _attach_hero_image(embed, hero)
+    return embed, image_file
+
+
+def _build_hero_weapon_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
+    hero = HEROES[hero_key]
+    embed = _hero_embed_base(hero, "Exclusive weapon intel.")
     weapon = hero.get("exclusive_weapon")
     if weapon:
         weapon_lines = [
@@ -342,14 +378,9 @@ def _build_hero_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None
             weapon_lines.append("**Upgrade Levels:**")
             weapon_lines.extend([f"{stars} {text}" for stars, text in weapon["upgrades"]])
         _add_chunked_field(embed, "Exclusive Weapon", weapon_lines)
-
-    image_file = None
-    image_path = hero.get("image")
-    if image_path and image_path.exists():
-        image_file = discord.File(image_path, filename=image_path.name)
-        embed.set_image(url=f"attachment://{image_path.name}")
-
-    embed.set_footer(text="Stats are sourced from verified in-game data.")
+    else:
+        embed.add_field(name="Exclusive Weapon", value="No exclusive weapon data logged yet.", inline=False)
+    image_file = _attach_hero_image(embed, hero)
     return embed, image_file
 
 
@@ -378,11 +409,11 @@ class HeroSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         hero_key = self.values[0]
-        embed, image_file = _build_hero_embed(hero_key)
+        embed, image_file = _build_hero_lore_embed(hero_key)
         attachments = [image_file] if image_file else []
         await interaction.response.edit_message(
             embed=embed,
-            view=self.view,
+            view=HeroDetailView(hero_key),
             attachments=attachments,
         )
 
@@ -429,6 +460,38 @@ class HeroesView(discord.ui.View):
             self.add_item(FactionButton(faction))
         if self.faction and any(hero["faction"] == self.faction for hero in HEROES.values()):
             self.add_item(HeroSelect(self.faction))
+
+
+class HeroDetailView(discord.ui.View):
+    def __init__(self, hero_key: str):
+        super().__init__(timeout=180)
+        self.hero_key = hero_key
+
+    async def _switch(self, interaction: discord.Interaction, builder):
+        embed, image_file = builder(self.hero_key)
+        attachments = [image_file] if image_file else []
+        await interaction.response.edit_message(
+            embed=embed,
+            view=self,
+            attachments=attachments,
+        )
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠")
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = _build_hero_home_embed()
+        await interaction.response.edit_message(embed=embed, view=HeroesView(), attachments=[])
+
+    @discord.ui.button(label="Lore", style=discord.ButtonStyle.primary, emoji="📖")
+    async def lore(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, _build_hero_lore_embed)
+
+    @discord.ui.button(label="Skills", style=discord.ButtonStyle.secondary, emoji="✨")
+    async def skills(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, _build_hero_skills_embed)
+
+    @discord.ui.button(label="Weapon", style=discord.ButtonStyle.secondary, emoji="🗡️")
+    async def weapon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, _build_hero_weapon_embed)
 
 
 class Heroes(commands.Cog):
