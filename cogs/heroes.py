@@ -252,7 +252,7 @@ def _build_hero_home_embed() -> discord.Embed:
         title="🧬 Hero Codex",
         description=(
             "A living dossier of verified heroes, their lore, skills, and signature weapons.\n"
-            "Choose a faction below, then select a hero to view their full profile."
+            "Choose a faction below, then select a hero from the dropdown to view their full profile."
         ),
         color=0x9b59b6,
     )
@@ -261,7 +261,7 @@ def _build_hero_home_embed() -> discord.Embed:
         value="\n".join([f"• {faction}" for faction in FACTIONS]),
         inline=False,
     )
-    embed.set_footer(text="Tap a faction button to begin. Use Home to return here.")
+    embed.set_footer(text="Tap a faction button to begin. Use Home to return to this menu.")
     return embed
 
 

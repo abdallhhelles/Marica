@@ -206,7 +206,7 @@ class Utility(commands.Cog):
             title="🛰️ About Marcia OS",
             description=(
                 "Marcia is a tactical operations bot built to keep alliances coordinated, loud chaos quiet, "
-                "and mission intel on time."
+                "and mission intel on time. Think of me as your command center for Dark War: Survival."
             ),
             color=0x5865F2,
         )
@@ -232,6 +232,7 @@ class Utility(commands.Cog):
             name="Signals & Support",
             value=(
                 f"Owner: {owner_label}\n"
+                "Contact: use `/feedback` or DM the owner\n"
                 f"Invite link: {self._share_link}\n"
                 "Support station (keeps the uptime running): https://www.buymeacoffee.com/akrot\n"
                 "Official server: https://discord.gg/z9pdDMDgak"
@@ -260,7 +261,7 @@ class Utility(commands.Cog):
         scope = guild_name or "your sector"
         embed = discord.Embed(
             title="🗄️ Marcia OS | Featureboard",
-            description="Pick a lane and I'll automate it. Everything stays siloed per guild.",
+            description="Quick, easy-to-read menu of everything Marcia does. Tap any section to explore.",
             color=0x9b59b6,
         )
         embed.add_field(
@@ -365,7 +366,7 @@ class Utility(commands.Cog):
         sections = {
             "home": {
                 "title": "🧭 Marcia Command Center",
-                "description": "Everything is here, categorized. Tap a menu button to jump around.",
+                "description": "Everything is here, categorized. Friendly UI, easy to navigate.",
                 "fields": [
                     ("How to use this", "Pick a category button. Each panel lists commands with a short, clear purpose."),
                     ("Why it’s shorter now", "Fewer commands, same power. You only need to remember the menu."),
@@ -377,9 +378,9 @@ class Utility(commands.Cog):
                 "fields": [
                     ("Command list", "\n".join([
                         "`/scavenge` — run an hourly loot + XP mission",
-                        "`/inventory` — view your stash",
-                        "`/profile` — XP, stash, and scan summary",
-                        "`/leaderboard` — XP + scan stats menu",
+                        "`/inventory` — view your stash + send items to a survivor",
+                        "`/profile` — Discord + in-game stats for you or a member",
+                        "`/leaderboard` — sector/network stats + export to Excel",
                     ])),
                 ],
             },
@@ -388,8 +389,8 @@ class Utility(commands.Cog):
                 "description": "Schedule ops, ping once, DM the rest.",
                 "fields": [
                     ("Command list", "\n".join([
-                        "`/event` — schedule, view, or remove upcoming ops",
-                        "`/remind` — send/schedule reminders + manage templates",
+                        "`/event` — new event, use template, archive, upcoming, remove",
+                        "`/remind` — new reminder, use template, archive, upcoming, remove",
                         "`/remindme` — personal DM timer",
                     ])),
                 ],
@@ -423,9 +424,9 @@ class Utility(commands.Cog):
                     ("Command list", "\n".join([
                         "`/setup` — select a feature and link its channel",
                         "`/status` — system diagnostics",
-                        "`/analytics` — server stats for everyone",
+                        "`/analytics` — fun stats for this server only",
                         "`/refresh_commands` — resync slash commands",
-                        "`/clear` — purge messages (admins)",
+                        "`/clear` — clear a set number of channel messages",
                         "`/import_old_levels` — legacy XP migration (text command)",
                     ])),
                 ],
@@ -444,7 +445,7 @@ class Utility(commands.Cog):
                         "`/feedback` — report ideas or bugs",
                         "`/tips` — survival tips",
                         "`/poll` — quick polls",
-                        "`/network` — global pulse",
+                        "`/network` — global pulse + server count",
                     ])),
                 ],
             },
@@ -568,14 +569,18 @@ class Utility(commands.Cog):
                 mention_author=False,
             )
 
-    @commands.hybrid_command(name="commands", aliases=["help"], description="Show Marcia's command directory.")
+    @commands.hybrid_command(
+        name="commands",
+        aliases=["help"],
+        description="Open a friendly, categorized menu of all active commands.",
+    )
     async def list_commands(self, ctx):
         """Displays all available commands categorized by module."""
         embed = self._build_command_center_embed("home", ctx.guild.name if ctx.guild else None)
         view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
         await self._safe_send(ctx, embed=embed, view=view)
 
-    @commands.hybrid_command(description="Marcia's lore, values, and operating scope.")
+    @commands.hybrid_command(description="Learn what Marcia is, why she exists, and how to support uptime.")
     async def about(self, ctx):
         """Share Marcia's lore and promise to the guild."""
         owner_label = "akrott"
@@ -583,7 +588,9 @@ class Utility(commands.Cog):
         await self._safe_send(ctx, embed=embed)
 
 
-    @commands.hybrid_command(description="Send feedback, ideas, or bug reports to my handler.")
+    @commands.hybrid_command(
+        description="Store feedback and DM it to the bot owner.",
+    )
     @app_commands.describe(message="What do you want to report?", category="bug, idea, praise, or anything else")
     async def feedback(self, ctx, *, message: str, category: Optional[str] = None):
         await self._submit_feedback(ctx, message, category)
@@ -619,7 +626,9 @@ class Utility(commands.Cog):
             mention_author=False,
         )
 
-    @commands.hybrid_command(description="Showcase Marcia's capabilities for new crews.")
+    @commands.hybrid_command(
+        description="Quick, easy-to-read menu of Marcia's features.",
+    )
     async def features(self, ctx):
         """Showcase Marcia's capabilities for new crews."""
         embed = self._build_showcase_embed(ctx.guild.name if ctx.guild else None)
@@ -652,7 +661,7 @@ class Utility(commands.Cog):
         embed.set_footer(text="Need a deeper check? Open /setup to review linked channels.")
         await self._safe_send(ctx, embed=embed)
 
-    @commands.hybrid_command(description="Per-server analytics and fun stats.")
+    @commands.hybrid_command(description="Per-server analytics, fun stats, and leaderboard slices.")
     async def analytics(self, ctx):
         """Detailed per-server analytics for the current server."""
         if not ctx.guild:
@@ -706,12 +715,16 @@ class Utility(commands.Cog):
 
         await self._safe_send(ctx, embed=embed)
 
-    @commands.hybrid_command(description="Global network leaderboard and usage pulse.")
+    @commands.hybrid_command(
+        description="Network-wide stats, fun counts, and popularity snapshot.",
+    )
     async def network(self, ctx):
         """Shows global XP leaders, server usage, and top commands."""
         xp_rows = await top_global_xp(5)
         usage_rows = await top_guild_usage(5)
         command_rows = await top_commands(5)
+        total_guilds = len(self.bot.guilds)
+        total_members = sum(guild.member_count or 0 for guild in self.bot.guilds)
 
         embed = discord.Embed(
             title="🌐 Network Pulse",
@@ -719,6 +732,11 @@ class Utility(commands.Cog):
                 "Live signal from every connected sector. Share me with allies to climb these boards."
             ),
             color=0x5865F2,
+        )
+        embed.add_field(
+            name="📡 Popularity Snapshot",
+            value=f"Servers online: **{total_guilds}**\nTracked survivors: **{total_members:,}**",
+            inline=False,
         )
 
         if xp_rows:
@@ -811,7 +829,7 @@ class Utility(commands.Cog):
         await asyncio.sleep(minutes * 60)
         await ctx.author.send(f"🔔 **REMINDER:** {task}")
 
-    @commands.hybrid_command(description="Purge chat history (admins).")
+    @commands.hybrid_command(description="Clear a number of messages in this channel.")
     @commands.has_permissions(manage_messages=True)
     async def clear(self, ctx, amount: int = 5):
         """Purge chat history."""
