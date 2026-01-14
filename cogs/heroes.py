@@ -279,40 +279,61 @@ def _build_faction_embed(faction: str) -> discord.Embed:
 
 
 def _add_lore_fields(embed: discord.Embed, lore: list[str]) -> None:
-    """Add lore chunks without exceeding Discord embed field limits."""
+    """
+    Add lore chunks without exceeding Discord embed field limits.
+    Fix: if lore spans multiple fields, label subsequent ones as "Lore (continued)"
+    so it doesn't look like the section restarted.
+    """
     chunk: list[str] = []
     current_len = 0
     story_index = 1
+    part = 1
+
     for story in lore:
         entry = f"**Story {story_index}:** {story}"
         story_index += 1
         entry_len = len(entry) + (2 if chunk else 0)
+
         if current_len + entry_len > 1000:
-            embed.add_field(name="Lore", value="\n\n".join(chunk), inline=False)
+            field_name = "Lore" if part == 1 else "Lore (continued)"
+            embed.add_field(name=field_name, value="\n\n".join(chunk), inline=False)
+            part += 1
             chunk = [entry]
             current_len = len(entry)
         else:
             chunk.append(entry)
             current_len += entry_len
+
     if chunk:
-        embed.add_field(name="Lore", value="\n\n".join(chunk), inline=False)
+        field_name = "Lore" if part == 1 else "Lore (continued)"
+        embed.add_field(name=field_name, value="\n\n".join(chunk), inline=False)
 
 
 def _add_chunked_field(embed: discord.Embed, title: str, lines: list[str]) -> None:
-    """Add chunked fields for long sections (weapons, etc.)."""
+    """
+    Add chunked fields for long sections.
+    Fix: when the content overflows and needs multiple fields, we label subsequent ones as "(continued)"
+    so it doesn't look like the section restarted.
+    """
     chunk: list[str] = []
     current_len = 0
+    part = 1
+
     for line in lines:
         entry_len = len(line) + (1 if chunk else 0)
         if current_len + entry_len > 1000:
-            embed.add_field(name=title, value="\n".join(chunk), inline=False)
+            field_name = title if part == 1 else f"{title} (continued)"
+            embed.add_field(name=field_name, value="\n".join(chunk), inline=False)
+            part += 1
             chunk = [line]
             current_len = len(line)
         else:
             chunk.append(line)
             current_len += entry_len
+
     if chunk:
-        embed.add_field(name=title, value="\n".join(chunk), inline=False)
+        field_name = title if part == 1 else f"{title} (continued)"
+        embed.add_field(name=field_name, value="\n".join(chunk), inline=False)
 
 
 def _hero_header(hero: dict) -> str:
@@ -364,33 +385,35 @@ def _build_hero_weapon_embed(hero_key: str) -> tuple[discord.Embed, discord.File
     hero = HEROES[hero_key]
     embed = _hero_embed_base(hero, "Signature armament intel.")
     weapon = hero.get("exclusive_weapon")
+
     if weapon:
-        weapon_lines = [
+        # Split weapon section into purpose-built fields for cleaner UX
+        meta_lines = [
             f"**Weapon Name:** {weapon['name']}",
             f"**Exclusivity:** {weapon['exclusivity']}",
             f"**Skill Name:** {weapon['skill_name']}",
             f"**Skill Description:** {weapon['description']}",
         ]
+        embed.add_field(name="Exclusive Weapon", value="\n".join(meta_lines), inline=False)
+
         if weapon.get("flavor"):
-            weapon_lines.append("**Flavor lines:**")
-            weapon_lines.extend([f"• {line}" for line in weapon["flavor"]])
+            flavor_lines = "\n".join([f"• {line}" for line in weapon["flavor"]])
+            embed.add_field(name="Flavor Lines", value=flavor_lines, inline=False)
+
         if weapon.get("upgrades"):
-            weapon_lines.append("**Upgrade Levels:**")
-            weapon_lines.extend([f"{stars} {text}" for stars, text in weapon["upgrades"]])
-        _add_chunked_field(embed, "Exclusive Weapon", weapon_lines)
+            upgrade_lines = [f"{stars} {text}" for stars, text in weapon["upgrades"]]
+            _add_chunked_field(embed, "Upgrade Levels", upgrade_lines)
+
     else:
         embed.add_field(name="Exclusive Weapon", value="No exclusive weapon data logged yet.", inline=False)
+
     image_file = _attach_hero_image(embed, hero)
     return embed, image_file
 
 
 class HeroSelect(discord.ui.Select):
     def __init__(self, faction: str):
-        heroes = [
-            (key, data)
-            for key, data in HEROES.items()
-            if data["faction"] == faction
-        ]
+        heroes = [(key, data) for key, data in HEROES.items() if data["faction"] == faction]
         options = [
             discord.SelectOption(
                 label=data["name"],
