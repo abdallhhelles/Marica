@@ -199,7 +199,7 @@ class MarciaServer(commands.Cog):
             "4) Keep feedback actionable (steps, screenshots, expected vs actual).",
             "5) English preferred so everyone can coordinate.",
         ]
-        await channel.send("\n".join(rules_lines))
+        await channel.send("\n".join(info_lines))
 
     async def _seed_commands(self, channel: discord.TextChannel) -> None:
         try:

@@ -65,7 +65,7 @@ Marcia enforces read-only behavior for:
 She will set **@everyone → send_messages: false** and allow only her own role to post.
 
 ## ✅ Event reminders (Marcia Server rules)
-- **T-60 minutes:** channel announcement in `#events` with `@everyone`.
+- **T-60 minutes:** channel announcement in `#marcia-info` with `@everyone`.
 - **All other reminders:** DM only to users who reacted with 🤝.
 
 ## ✅ Analytics channel
