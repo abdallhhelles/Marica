@@ -56,7 +56,7 @@ else:  # pragma: no cover - optional dependency guard
     np = None
 
 
-NUMBER_RE = re.compile(r"(?P<value>[\d.,]+)\s*(?P<suffix>[kmbKMB]?)")
+NUMBER_RE = re.compile(r"(?P<value>[\d.,\s]+)\s*(?P<suffix>[kmbKMB]?)")
 LABEL_HINTS = {
     "cp": ("cp", "power", "battle power", "total power", "combat power"),
     "kills": ("kills", "defeats", "defeated", "eliminations", "total kills"),
@@ -82,6 +82,7 @@ VERIFY_FIELDS = {"account_btn", "settings_btn"}
 VERIFY_MIN_CONF = 0.25
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
 OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
+SCAN_REVIEW_TIMEOUT = int(os.getenv("PROFILE_SCAN_REVIEW_TIMEOUT", "90"))
 
 
 def _extract_number(chunk: str) -> int | None:
@@ -89,7 +90,7 @@ def _extract_number(chunk: str) -> int | None:
     if not match:
         return None
 
-    raw = match.group("value").replace(",", "")
+    raw = match.group("value").replace(",", "").replace(" ", "")
     try:
         value = float(raw)
     except ValueError:
@@ -104,6 +105,21 @@ def _extract_number(chunk: str) -> int | None:
         value *= 1_000_000_000
 
     return int(value)
+
+
+def _normalize_server_value(value: str) -> str:
+    match = re.search(r"\d+", value)
+    if match:
+        return match.group(0)
+    return value.strip()
+
+
+def _clean_label(value: str, *labels: str) -> str:
+    cleaned = value
+    for label in labels:
+        cleaned = re.sub(rf"(?i){re.escape(label)}", "", cleaned)
+    cleaned = cleaned.replace(":", "")
+    return cleaned.strip()
 
 
 def _parse_profile_text(text: str) -> dict:
@@ -121,9 +137,12 @@ def _parse_profile_text(text: str) -> dict:
             if field in results and results[field] is not None:
                 continue
             if any(hint in lowered for hint in hints):
-                if field in {"alliance", "server"}:
-                    value = line.split(":", 1)[-1].strip() if ":" in line else line
-                    results[field] = value
+                if field == "alliance":
+                    value = line.split(":", 1)[-1] if ":" in line else line
+                    results[field] = _clean_label(value, "alliance", "guild")
+                elif field == "server":
+                    value = line.split(":", 1)[-1] if ":" in line else line
+                    results[field] = _normalize_server_value(value)
                 else:
                     results[field] = _extract_number(line)
     return results
@@ -228,10 +247,17 @@ class ProfileScanner(commands.Cog):
                 ),
                 ephemeral=True,
             )
-        await upsert_profile_snapshot(ctx.guild.id, ctx.author.id, **payload)
-
-        embed = self._build_confirmation_embed(payload, ocr_note)
-        await self._safe_send(ctx, embed=embed)
+        view = ProfileScanReviewView(
+            self,
+            ctx.guild.id,
+            ctx.author.id,
+            payload,
+            ocr_note,
+        )
+        embed = self._build_review_embed(payload, ocr_note)
+        message = await self._safe_send(ctx, embed=embed, view=view)
+        if isinstance(message, discord.Message):
+            view.bind_message(message)
 
     @commands.hybrid_command(
         name="profile_review",
@@ -375,8 +401,20 @@ class ProfileScanner(commands.Cog):
             )
             return
 
-        await upsert_profile_snapshot(message.guild.id, message.author.id, **payload)
-        await self._post_confirmation(message, payload, ocr_note)
+        view = ProfileScanReviewView(
+            self,
+            message.guild.id,
+            message.author.id,
+            payload,
+            ocr_note,
+        )
+        embed = self._build_review_embed(payload, ocr_note)
+        try:
+            reply = await message.reply(embed=embed, view=view, mention_author=False)
+        except Exception:  # pragma: no cover - Discord edge
+            self.log.exception("Failed to reply with profile review")
+            return
+        view.bind_message(reply)
 
     async def _perform_ocr(
         self,
@@ -753,18 +791,34 @@ class ProfileScanner(commands.Cog):
         suffix = Path(attachment.filename).suffix.lower().lstrip(".") if attachment.filename else ""
         return suffix in allowed
 
-    async def _post_confirmation(
-        self,
-        message: discord.Message,
-        payload: dict,
-        ocr_note: str | None,
-    ) -> None:
-        embed = self._build_confirmation_embed(payload, ocr_note)
-
-        try:
-            await message.reply(embed=embed, mention_author=False)
-        except Exception:  # pragma: no cover - Discord edge
-            self.log.exception("Failed to reply with profile confirmation")
+    def _build_review_embed(
+        self, payload: dict, ocr_note: str | None = None
+    ) -> discord.Embed:
+        embed = discord.Embed(
+            title="🛰️ Profile scan review",
+            description=(
+                "Confirm the scan or request a rescan. If you don't respond, "
+                "Marcia will auto-accept this scan."
+            ),
+            color=0xf1c40f,
+        )
+        ingame = [
+            f"🎖️ VIP: {_format_metric(payload.get('vip_level'))} | 👍 Likes: {_format_metric(payload.get('likes'))}",
+            f"⚔️ CP: {_format_metric(payload.get('cp'))} | ☠️ Kills: {_format_metric(payload.get('kills'))}",
+            f"🏰 Alliance: {payload.get('alliance') or '—'}",
+            f"🌐 Server: {payload.get('server') or '—'}",
+        ]
+        if payload.get("ownership_verified") is not None:
+            status = "✅ Self-view detected" if payload["ownership_verified"] else "⚠️ Ownership unverified"
+            ingame.append(status)
+        embed.add_field(name="Captured Stats", value="\n".join(ingame), inline=False)
+        if not payload.get("raw_ocr"):
+            footer = ocr_note or (
+                "Profile scan unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
+                " auto-parsing."
+            )
+            embed.set_footer(text=footer)
+        return embed
 
     def _build_confirmation_embed(
         self, payload: dict, ocr_note: str | None = None
@@ -827,6 +881,79 @@ class ProfileReviewSelect(discord.ui.Select):
         await interaction.response.edit_message(
             embed=self.review_view.build_embed(), view=self.review_view
         )
+
+
+class ProfileScanReviewView(discord.ui.View):
+    def __init__(
+        self,
+        cog: ProfileScanner,
+        guild_id: int,
+        user_id: int,
+        payload: dict,
+        ocr_note: str | None,
+    ):
+        super().__init__(timeout=SCAN_REVIEW_TIMEOUT)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.payload = payload
+        self.ocr_note = ocr_note
+        self.message: discord.Message | None = None
+        self._finalized = False
+
+    def bind_message(self, message: discord.Message) -> None:
+        self.message = message
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "🔒 Only the uploader can approve or rescan this profile.",
+            ephemeral=True,
+        )
+        return False
+
+    async def _finalize(self, *, interaction: discord.Interaction | None = None, auto: bool = False) -> None:
+        if self._finalized:
+            return
+        self._finalized = True
+        await upsert_profile_snapshot(self.guild_id, self.user_id, **self.payload)
+
+        embed = self.cog._build_confirmation_embed(self.payload, self.ocr_note)
+        content = "✅ Scan confirmed and saved." if not auto else "⏱️ Auto-confirmed after timeout."
+
+        try:
+            if interaction:
+                await interaction.response.edit_message(content=content, embed=embed, view=None)
+            elif self.message:
+                await self.message.edit(content=content, embed=embed, view=None)
+        except Exception:  # pragma: no cover - Discord edge
+            self.cog.log.exception("Failed to finalize profile scan review")
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._finalize(interaction=interaction, auto=False)
+
+    @discord.ui.button(label="Rescan", style=discord.ButtonStyle.secondary, emoji="🔁")
+    async def rescan_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self._finalized:
+            return
+        self._finalized = True
+        embed = discord.Embed(
+            title="🔁 Rescan requested",
+            description=(
+                "Upload a fresh profile screenshot here or run `/scan_profile` again. "
+                "This scan was not saved."
+            ),
+            color=0x95a5a6,
+        )
+        try:
+            await interaction.response.edit_message(embed=embed, view=None)
+        except Exception:  # pragma: no cover - Discord edge
+            self.cog.log.exception("Failed to update rescan message")
+
+    async def on_timeout(self) -> None:
+        await self._finalize(auto=True)
 
 
 class ProfileReviewView(discord.ui.View):

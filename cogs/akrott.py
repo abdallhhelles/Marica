@@ -7,20 +7,21 @@ from discord import app_commands
 from discord.ext import commands
 import aiosqlite
 
-from database import DB_PATH, command_usage_totals
+from database import DB_PATH, command_usage_totals, top_commands, top_guild_usage
 
 MENU_OPTIONS = [
-    ("XP Leaderboard", "Live ranking across all linked servers."),
-    ("Global Stats Dashboard", "Pulse check on XP, loot, and mission totals."),
-    ("Scavenged Items Summary", "Hourly scavenging output, rarity mix, and bottlenecks."),
-    ("Rare Drops Feed", "Recent Epic/Mythic drops and the servers they landed in."),
-    ("Economy Stats", "Marketplace volume, trade velocity, and sink/source balance."),
-    ("Server List, Health, Activity", "Connected sectors, heartbeat status, and presence."),
+    ("XP Leaderboard", "Global + per-server XP snapshots with activity timestamps."),
+    ("Global Stats Dashboard", "Bot + survivor totals, missions, trades, and scan coverage."),
+    ("Scavenged Items Summary", "Loot totals by rarity plus unique item coverage."),
+    ("Rare Drops Feed", "Latest Epic/Legendary/Artifact/Mythic holders."),
+    ("Economy Stats", "Marketplace volume, trade mix, and rarity flow."),
+    ("Server Health & Links", "Connected servers, channel link status, and activity pulse."),
+    ("Command Usage Breakdown", "Top commands + most active servers."),
     ("Send Update DM to all server owners", "Broadcast a short status update via DM."),
     ("Send Announcement to channel by channel_id", "Targeted announcement with a channel override."),
 ]
 
-NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
+NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
 
 
 OWNER_USERNAME = "akrott"
@@ -92,9 +93,9 @@ class ControlPanelDetail(_OwnerLockedView):
         self.cog = cog
         self.selection_index = selection_index
 
-        if selection_index == 6:
+        if selection_index == 7:
             self.add_item(BroadcastDMButton(cog))
-        elif selection_index == 7:
+        elif selection_index == 8:
             self.add_item(AnnouncementButton(cog))
 
     @discord.ui.button(label="⬅️ Back to menu", style=discord.ButtonStyle.secondary)
@@ -203,8 +204,9 @@ class AkrottControl(commands.Cog):
             3: self._build_rare_feed,
             4: self._build_economy_stats,
             5: self._build_server_health,
-            6: self._build_dm_helper,
-            7: self._build_announcement_helper,
+            6: self._build_command_usage,
+            7: self._build_dm_helper,
+            8: self._build_announcement_helper,
         }
 
         builder = builders.get(selection_index)
@@ -320,12 +322,27 @@ class AkrottControl(commands.Cog):
                 missions = (await cursor.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM trade_pool") as cursor:
                 trades = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM profile_snapshots") as cursor:
+                scans_total = (await cursor.fetchone())[0]
+            async with db.execute(
+                "SELECT COUNT(*) FROM profile_snapshots WHERE scan_valid = 1"
+            ) as cursor:
+                scans_valid = (await cursor.fetchone())[0]
+            async with db.execute(
+                "SELECT COUNT(*) FROM profile_snapshots WHERE cp IS NOT NULL OR kills IS NOT NULL"
+            ) as cursor:
+                scans_with_stats = (await cursor.fetchone())[0]
 
         embed.add_field(name="Configured Servers", value=f"{guilds}", inline=True)
         embed.add_field(name="Tracked Survivors", value=f"{users}", inline=True)
         embed.add_field(name="XP Recorded", value=f"{total_xp}", inline=True)
         embed.add_field(name="Active Missions", value=f"{missions}", inline=True)
         embed.add_field(name="Trade Listings", value=f"{trades}", inline=True)
+        embed.add_field(
+            name="Profile Scans",
+            value=f"{scans_total} total | {scans_valid} valid | {scans_with_stats} with stats",
+            inline=False,
+        )
         embed.set_footer(text="Live snapshot from Marcia's database")
         return embed
 
@@ -463,8 +480,32 @@ class AkrottControl(commands.Cog):
             embed.set_footer(text=f"+{len(lines) - 15} more servers tracked")
         return embed
 
+    async def _build_command_usage(self) -> discord.Embed:
+        embed = discord.Embed(title=f"{NUMBER_EMOJIS[6]} Command Usage Breakdown", color=0x5865F2)
+        top_rows = await top_commands(limit=6)
+        guild_rows = await top_guild_usage(limit=6)
+
+        if top_rows:
+            command_lines = [f"• `{row['command_name']}` — {row['total']} uses" for row in top_rows]
+            embed.add_field(name="Top Commands", value="\n".join(command_lines), inline=False)
+        else:
+            embed.add_field(name="Top Commands", value="No command usage logged yet.", inline=False)
+
+        if guild_rows:
+            guild_lines = []
+            for row in guild_rows:
+                guild = self.bot.get_guild(row["guild_id"])
+                name = guild.name if guild else f"Guild {row['guild_id']}"
+                guild_lines.append(f"• {name} — {row['total']} uses")
+            embed.add_field(name="Most Active Servers", value="\n".join(guild_lines), inline=False)
+        else:
+            embed.add_field(name="Most Active Servers", value="No server usage logged yet.", inline=False)
+
+        embed.set_footer(text="Totals aggregated across all linked servers")
+        return embed
+
     async def _build_dm_helper(self) -> discord.Embed:
-        embed = discord.Embed(title=f"{NUMBER_EMOJIS[6]} Send Update DM to all server owners", color=0x5865F2)
+        embed = discord.Embed(title=f"{NUMBER_EMOJIS[7]} Send Update DM to all server owners", color=0x5865F2)
         embed.description = (
             "Prepare a short update and press **Send update DM** to broadcast it to every guild owner "
             "Marcia is connected to."
@@ -472,7 +513,7 @@ class AkrottControl(commands.Cog):
         return embed
 
     async def _build_announcement_helper(self) -> discord.Embed:
-        embed = discord.Embed(title=f"{NUMBER_EMOJIS[7]} Send Announcement to channel by channel_id", color=0x5865F2)
+        embed = discord.Embed(title=f"{NUMBER_EMOJIS[8]} Send Announcement to channel by channel_id", color=0x5865F2)
         embed.description = (
             "Paste a channel ID and a message to push an announcement without changing servers. "
             "Use Discord's Copy ID on the target channel first."
@@ -513,7 +554,10 @@ class AkrottControl(commands.Cog):
         except Exception:
             return False
 
-    @akrott.command(name="panel", description="Owner-only control panel for cross-server analytics.")
+    @akrott.command(
+        name="panel",
+        description="Owner-only command center: analytics, usage, and broadcasts.",
+    )
     @app_commands.check(_owner_only)
     async def akrott_panel(self, interaction: discord.Interaction):
         await interaction.response.send_message(
@@ -535,7 +579,10 @@ class AkrottControl(commands.Cog):
                 ephemeral=True,
             )
 
-    @akrott.command(name="overview", description="Administrator-only network server overview.")
+    @akrott.command(
+        name="overview",
+        description="Owner-only network overview with server owners and member counts.",
+    )
     @app_commands.guild_only()
     @app_commands.check(_owner_only)
     async def akrott_overview(self, interaction: discord.Interaction):
