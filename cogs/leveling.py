@@ -25,7 +25,6 @@ from utils.assets import (
     MARCIA_QUOTES,
     PRESTIGE_ROLE,
 )
-from utils.navigation import go_to_command_center
 from database import (
     DB_PATH,
     get_inventory,
@@ -851,8 +850,9 @@ class Leveling(commands.Cog):
         if isinstance(message, discord.Message):
             view.bind_message(message)
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def import_old_levels(self, ctx):
         """Critical migration tool: Transfers legacy JSON data to the SQL database."""
         if not os.path.exists("legacy/levels.json"):
@@ -941,23 +941,6 @@ class InventoryTransferView(discord.ui.View):
         self.items = items
         self.embed = embed
         self.add_item(InventoryTransferSelect(ctx, items, embed))
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "You're already viewing your stash.",
-            ephemeral=True,
-        )
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="Inventory closed.", embed=None, view=self)
 
     async def on_timeout(self):
         for child in self.children:
@@ -1107,21 +1090,6 @@ class InventorySendView(discord.ui.View):
             embed=None,
             view=None,
         )
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = InventoryTransferView(self.ctx, self.items, self.parent_embed)
-        await interaction.response.edit_message(embed=self.parent_embed, view=view)
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="Item transfer closed.", embed=None, view=self)
 
     async def on_timeout(self):
         for child in self.children:
@@ -1287,7 +1255,6 @@ class LeaderboardView(discord.ui.View):
         self.add_item(LeaderboardMetricSelect(self))
         self.add_item(LeaderboardLimitSelect(self))
         self.add_item(ExportLeaderboardButton(self))
-        self.add_item(LeaderboardCloseButton(self))
 
     def bind_message(self, message: discord.Message) -> None:
         self.message = message
@@ -1310,16 +1277,6 @@ class LeaderboardView(discord.ui.View):
             except discord.HTTPException:
                 pass
 
-
-class LeaderboardCloseButton(discord.ui.Button):
-    def __init__(self, parent_view: "LeaderboardView"):
-        super().__init__(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=4)
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: discord.Interaction):
-        for child in self.parent_view.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="Leaderboard closed.", embed=None, view=self.parent_view)
 
 async def setup(bot):
     await bot.add_cog(Leveling(bot))

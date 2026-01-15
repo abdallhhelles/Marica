@@ -7,7 +7,6 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
-from utils.navigation import go_to_command_center
 
 # --------------------
 # Emoji references
@@ -457,36 +456,6 @@ class FactionButton(discord.ui.Button):
         await interaction.response.edit_message(embed=embed, view=view)
 
 
-class HomeButton(discord.ui.Button):
-    def __init__(self, disabled: bool):
-        super().__init__(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", disabled=disabled)
-
-    async def callback(self, interaction: discord.Interaction):
-        await go_to_command_center(interaction)
-
-
-class BackButton(discord.ui.Button):
-    def __init__(self, disabled: bool):
-        super().__init__(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", disabled=disabled)
-
-    async def callback(self, interaction: discord.Interaction):
-        view: HeroesView = self.view
-        view.set_faction(None)
-        embed = _build_hero_home_embed()
-        await interaction.response.edit_message(embed=embed, view=view)
-
-
-class CloseButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Close", style=discord.ButtonStyle.danger, emoji="🛑")
-
-    async def callback(self, interaction: discord.Interaction):
-        view: HeroesView = self.view
-        for child in view.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="Hero codex closed.", embed=None, view=view)
-
-
 class HeroesView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
@@ -499,9 +468,6 @@ class HeroesView(discord.ui.View):
 
     def _refresh_items(self):
         self.clear_items()
-        self.add_item(HomeButton(disabled=False))
-        self.add_item(BackButton(disabled=self.faction is None))
-        self.add_item(CloseButton())
         for faction in FACTIONS:
             self.add_item(FactionButton(faction))
         if self.faction and any(hero["faction"] == self.faction for hero in HEROES.values()):
@@ -526,27 +492,6 @@ class HeroDetailView(discord.ui.View):
             view=self,
             attachments=attachments,
         )
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=0)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=0)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.faction:
-            view = HeroesView()
-            view.set_faction(self.faction)
-            embed = _build_faction_embed(self.faction)
-        else:
-            view = HeroesView()
-            embed = _build_hero_home_embed()
-        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=0)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="Hero codex closed.", embed=None, view=self)
 
     @discord.ui.button(label="Lore", style=discord.ButtonStyle.primary, emoji="📖", row=1)
     async def lore(self, interaction: discord.Interaction, button: discord.ui.Button):

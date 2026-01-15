@@ -23,7 +23,6 @@ from database import (
     is_channel_ignored,
 )
 from utils.time_utils import GAME_TZ, game_to_utc, format_game
-from utils.navigation import go_to_command_center
 
 
 class Reminders(commands.Cog):
@@ -330,27 +329,6 @@ class ReminderMenuView(discord.ui.View):
             ephemeral=True,
         )
 
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "You're already at the reminder menu.",
-            ephemeral=True,
-        )
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Reminder menu closed.",
-            embed=None,
-            view=self,
-        )
-
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
@@ -536,48 +514,6 @@ class TemplateSelectView(discord.ui.View):
         self.event_channel_id = event_channel_id
         self.add_item(TemplateSelect(cog, ctx, templates, target, event_channel_id))
 
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = ReminderMenuView(self.cog, self.ctx, self.event_channel_id)
-        embed = discord.Embed(
-            title="🛰️ Reminder Control",
-            description=(
-                "Choose how you want to manage reminders:\n\n"
-                "**New Reminder**: Schedule a reminder to your events channel.\n"
-                "**Use Template**: Send a saved reminder template to the events channel.\n"
-                "**Archive Template**: Save a new template for reuse.\n"
-                "**Upcoming Reminders**: Review what is scheduled.\n"
-                "**Remove Reminder**: Cancel a scheduled reminder."
-            ),
-            color=0x5865F2,
-        )
-        embed.add_field(
-            name="📅 Scheduling Options",
-            value=(
-                "For new or template reminders:\n"
-                "• **Send now** — Leave the time field blank\n"
-                "• **Schedule for later** — Enter date/time in game time format:\n"
-                f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
-            ),
-            inline=False,
-        )
-        embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
-        await interaction.response.edit_message(embed=embed, view=view)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Template picker closed.",
-            embed=None,
-            view=self,
-        )
-
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
@@ -644,48 +580,6 @@ class ReminderRemoveView(discord.ui.View):
         self.reminders = reminders
         self.event_channel_id = event_channel_id
         self.add_item(ReminderRemoveSelect(cog, ctx, reminders))
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = ReminderMenuView(self.cog, self.ctx, self.event_channel_id)
-        embed = discord.Embed(
-            title="🛰️ Reminder Control",
-            description=(
-                "Choose how you want to manage reminders:\n\n"
-                "**New Reminder**: Schedule a reminder to your events channel.\n"
-                "**Use Template**: Send a saved reminder template to the events channel.\n"
-                "**Archive Template**: Save a new template for reuse.\n"
-                "**Upcoming Reminders**: Review what is scheduled.\n"
-                "**Remove Reminder**: Cancel a scheduled reminder."
-            ),
-            color=0x5865F2,
-        )
-        embed.add_field(
-            name="📅 Scheduling Options",
-            value=(
-                "For new or template reminders:\n"
-                "• **Send now** — Leave the time field blank\n"
-                "• **Schedule for later** — Enter date/time in game time format:\n"
-                f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
-            ),
-            inline=False,
-        )
-        embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
-        await interaction.response.edit_message(embed=embed, view=view)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Reminder removal closed.",
-            embed=None,
-            view=self,
-        )
 
     async def on_timeout(self):
         for child in self.children:

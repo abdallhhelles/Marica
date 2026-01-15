@@ -98,12 +98,6 @@ class ControlPanelDetail(_OwnerLockedView):
         elif selection_index == 8:
             self.add_item(AnnouncementButton(cog))
 
-    @discord.ui.button(label="⬅️ Back to menu", style=discord.ButtonStyle.secondary)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            embed=self.cog.build_menu_embed(), view=ControlPanelMenu(self.cog)
-        )
-
 
 class BroadcastDMButton(discord.ui.Button):
     def __init__(self, cog: "AkrottControl"):
@@ -216,7 +210,7 @@ class AkrottControl(commands.Cog):
         title, hint = MENU_OPTIONS[selection_index]
         embed = discord.Embed(title=f"{NUMBER_EMOJIS[selection_index]} {title}", color=0x5865F2)
         embed.description = hint
-        embed.set_footer(text="Tap Back to reopen the control panel menu.")
+        embed.set_footer(text="Re-run /akrott panel to reopen the control panel menu.")
         return embed
 
     async def _build_xp_leaderboard(self) -> discord.Embed:

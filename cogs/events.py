@@ -11,7 +11,6 @@ import logging
 from datetime import datetime, timezone, timedelta
 from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_SYSTEM_LINES
 from utils.time_utils import now_game, game_to_utc, format_game
-from utils.navigation import go_to_command_center
 from database import (
     add_mission,
     add_template,
@@ -302,33 +301,6 @@ class TemplatePreviewView(discord.ui.View):
                 ephemeral=True,
             )
 
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self.templates:
-            return await interaction.response.edit_message(
-                content="❌ Archive is empty.",
-                view=None,
-                embed=None,
-            )
-        view = TemplateMenuView(self.cog, self.ctx, self.templates, self.settings)
-        await interaction.response.edit_message(
-            content="**Select a mission preset to preview:**",
-            embed=None,
-            view=view,
-        )
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="📡 Directive cancelled.",
-            view=None,
-            embed=None,
-        )
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
@@ -375,26 +347,6 @@ class TemplateMenuView(discord.ui.View):
                 self.templates,
                 message_id=interaction.message.id if interaction.message else None,
             ),
-        )
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = self.cog._build_event_menu_embed()
-        view = EventMenuView(self.cog, self.ctx, self.settings)
-        await interaction.response.edit_message(content=None, embed=embed, view=view)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Template menu closed.",
-            embed=None,
-            view=self,
         )
 
     async def on_timeout(self):
@@ -484,27 +436,6 @@ class EventMenuView(discord.ui.View):
             ephemeral=True,
         )
 
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "You're already at the mission control menu.",
-            ephemeral=True,
-        )
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Mission control closed.",
-            embed=None,
-            view=self,
-        )
-
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
@@ -523,26 +454,6 @@ class EventRemovalView(discord.ui.View):
         self.missions = missions
         self.settings = settings
         self.add_item(EventRemovalSelect(cog, ctx, missions, settings))
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = self.cog._build_event_menu_embed()
-        view = EventMenuView(self.cog, self.ctx, self.settings)
-        await interaction.response.edit_message(content=None, embed=embed, view=view)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Event removal closed.",
-            embed=None,
-            view=self,
-        )
 
     async def on_timeout(self):
         for child in self.children:
@@ -620,29 +531,6 @@ class EventRemovalConfirmView(discord.ui.View):
             content=f"🗑️ Event **{codename}** removed.",
             embed=None,
             view=None,
-        )
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=0)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = EventRemovalView(self.cog, self.ctx, self.missions, self.settings)
-        await interaction.response.edit_message(
-            content="Select the event you want to remove.",
-            embed=None,
-            view=view,
-        )
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=1)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Event removal closed.",
-            embed=None,
-            view=self,
         )
 
     async def on_timeout(self):
