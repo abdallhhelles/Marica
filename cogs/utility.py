@@ -18,7 +18,6 @@ from utils.assets import (
     MARCIA_CAPABILITIES,
     MARCIA_TRAITS,
 )
-from utils.navigation import go_to_command_center
 from database import (
     get_settings,
     guild_analytics_snapshot,
@@ -102,83 +101,6 @@ SHOWCASE_SECTIONS = [
             "Use `/setup` before events to highlight missing channel links or permissions.",
             "Use `/status` for a fast signal check; `/analytics` shows per-server command usage and trading depth.",
             "Welcome, rules, and event channels can be kept minimal—Marcia formats reminders and guidance automatically.",
-        ],
-    },
-]
-
-COMMAND_CENTER_SECTIONS = [
-    {
-        "key": "daily ops",
-        "label": "Daily Ops",
-        "title": "⚡ Daily Ops",
-        "description": "Your core loop: loot, stash, progress, compare.",
-        "commands": [
-            {"name": "scavenge", "description": "Run an hourly loot + XP mission."},
-            {"name": "inventory", "description": "View stash and send items to allies."},
-            {"name": "profile", "description": "See Discord + in-game stats."},
-            {"name": "leaderboard", "description": "Sector/network rankings with export."},
-        ],
-    },
-    {
-        "key": "events",
-        "label": "Events",
-        "title": "🛰️ Events & Reminders",
-        "description": "Schedule ops, ping once, DM the rest.",
-        "commands": [
-            {"name": "event", "description": "New event, template, archive, upcoming, remove."},
-            {"name": "remind", "description": "Menu-driven reminders + templates."},
-            {"name": "remindme", "description": "Personal DM timer."},
-        ],
-    },
-    {
-        "key": "trading",
-        "label": "Trading",
-        "title": "🎣 Trading",
-        "description": "Fish-Link stays anchored in one channel.",
-        "commands": [
-            {"name": "setup_trade", "description": "Pin the Fish-Link terminal (admins)."},
-            {"name": "inventory", "description": "Open trade access from your stash."},
-            {"name": "profile", "description": "Access Fish-Link from profile view."},
-        ],
-    },
-    {
-        "key": "profiles",
-        "label": "Profiles",
-        "title": "🧬 Profiles & Scans",
-        "description": "Capture scans and keep stats clean.",
-        "commands": [
-            {"name": "scan_profile", "description": "Upload a profile screenshot."},
-            {"name": "profile_review", "description": "Admin review of scans."},
-            {"name": "ocr_status", "description": "OCR diagnostics (admins)."},
-        ],
-    },
-    {
-        "key": "admin",
-        "label": "Admin",
-        "title": "🛡️ Setup & Admin",
-        "description": "Link channels, check health, and clean up chat.",
-        "commands": [
-            {"name": "setup", "description": "Link channels and setup help."},
-            {"name": "status", "description": "System diagnostics."},
-            {"name": "analytics", "description": "Server-only stats dashboard."},
-            {"name": "refresh_commands", "description": "Resync slash commands."},
-            {"name": "clear", "description": "Clear a set number of messages."},
-        ],
-    },
-    {
-        "key": "support",
-        "label": "Support",
-        "title": "📚 Support & Fun",
-        "description": "Onboarding, feedback, and global signals.",
-        "commands": [
-            {"name": "commands", "description": "Open this command center."},
-            {"name": "features", "description": "Showcase Marcia’s systems."},
-            {"name": "heroes", "description": "Hero codex and lore."},
-            {"name": "about", "description": "Why Marcia exists."},
-            {"name": "feedback", "description": "Report ideas or bugs."},
-            {"name": "tips", "description": "Survival tips."},
-            {"name": "poll", "description": "Quick polls."},
-            {"name": "network", "description": "Global pulse + server count."},
         ],
     },
 ]
@@ -442,7 +364,7 @@ class Utility(commands.Cog):
 
         embed = discord.Embed(
             title="🛠️ Marcia OS | Command Directory",
-            description="Pick a section, tap a command. Everything below is slash-friendly.",
+            description="Commands are independent—type the one you want to use.",
             color=0x3498db,
         )
         for title, cmd_list in categories:
@@ -451,54 +373,6 @@ class Utility(commands.Cog):
         scope = guild_name or "your sector"
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
         return embed
-
-    def _build_command_center_embed(self, section: str, guild_name: Optional[str] = None) -> discord.Embed:
-        scope = guild_name or "your sector"
-        section_key = section.lower()
-        selected = self._get_command_center_section(section_key)
-        if section_key == "home":
-            embed = discord.Embed(
-                title="🧭 Marcia Command Center",
-                description="Everything is here, categorized. Pick a section and launch a command.",
-                color=0x5865F2,
-            )
-            categories = "\n".join(
-                f"• **{section['label']}** — {section['description']}"
-                for section in COMMAND_CENTER_SECTIONS
-            )
-            embed.add_field(
-                name="Categories",
-                value=categories,
-                inline=False,
-            )
-            embed.add_field(
-                name="Navigation",
-                value="Use **Home** any time to return here, **Back** for the previous panel, and **Close** to dismiss.",
-                inline=False,
-            )
-            embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
-            return embed
-
-        lines = [
-            f"`/{command['name']}` — {command['description']}"
-            for command in selected["commands"]
-        ]
-        embed = discord.Embed(
-            title=selected["title"],
-            description=selected["description"],
-            color=0x5865F2,
-        )
-        embed.add_field(name="Command list", value="\n".join(lines), inline=False)
-        embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope} | Menu: {selected['title']}")
-        return embed
-
-    def _get_command_center_section(self, section_key: str) -> dict:
-        if section_key == "home":
-            return {"key": "home", "commands": [], "title": "Home", "description": ""}
-        for section in COMMAND_CENTER_SECTIONS:
-            if section["key"] == section_key:
-                return section
-        return COMMAND_CENTER_SECTIONS[0]
 
     async def _submit_feedback(self, ctx, feedback_text: str, category: Optional[str]):
         """Persist feedback, notify the owner, and acknowledge the user."""
@@ -609,15 +483,12 @@ class Utility(commands.Cog):
     @commands.hybrid_command(
         name="commands",
         aliases=["help"],
-        description="Open a friendly, categorized menu of all active commands.",
+        description="View a categorized directory of all active commands.",
     )
     async def list_commands(self, ctx):
         """Displays all available commands categorized by module."""
-        embed = self._build_command_center_embed("home", ctx.guild.name if ctx.guild else None)
-        view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
-        message = await self._safe_send(ctx, embed=embed, view=view)
-        if isinstance(message, discord.Message):
-            view.bind_message(message)
+        embed = self._build_command_directory(ctx.guild.name if ctx.guild else None)
+        await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(description="Learn what Marcia is, why she exists, and how to support uptime.")
     async def about(self, ctx):
@@ -918,165 +789,6 @@ class Utility(commands.Cog):
         await ctx.send(f"🧹 {cleared} signals cleared.", delete_after=3)
 
 
-class CommandPicker(discord.ui.Select):
-    def __init__(self, parent_view: "CommandCenterView"):
-        self.parent_view = parent_view
-        super().__init__(placeholder="Select a command to open…", options=[])
-        self.refresh_options()
-
-    def refresh_options(self) -> None:
-        section = self.parent_view.cog._get_command_center_section(self.parent_view.section)
-        options = [
-            discord.SelectOption(
-                label=f"/{command['name']}",
-                description=command["description"][:90],
-                value=command["name"],
-            )
-            for command in section.get("commands", [])
-        ]
-        if not options:
-            options = [
-                discord.SelectOption(
-                    label="No commands in this section",
-                    description="Pick another category above.",
-                    value="none",
-                )
-            ]
-            self.disabled = True
-        else:
-            self.disabled = False
-        self.options = options
-
-    async def callback(self, interaction: discord.Interaction):
-        if self.values[0] == "none":
-            return await interaction.response.send_message(
-                "Pick a category with commands first.",
-                ephemeral=True,
-            )
-        self.parent_view.selected_command = self.values[0]
-        await interaction.response.edit_message(view=self.parent_view)
-
-
-class OpenCommandButton(discord.ui.Button):
-    def __init__(self, parent_view: "CommandCenterView"):
-        super().__init__(label="Open Command", emoji="🚀", style=discord.ButtonStyle.primary, row=4)
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: discord.Interaction):
-        command_name = self.parent_view.selected_command
-        if not command_name:
-            return await interaction.response.send_message(
-                "Select a command above to open it.",
-                ephemeral=True,
-            )
-        command = interaction.client.tree.get_command(command_name)
-        mention = command.mention if command else f"/{command_name}"
-        await interaction.response.send_message(
-            f"✅ Ready to launch: {mention}",
-            ephemeral=True,
-        )
-
-
-class CommandCenterView(discord.ui.View):
-    def __init__(self, cog: Utility, guild_name: Optional[str]):
-        super().__init__(timeout=300)
-        self.cog = cog
-        self.guild_name = guild_name
-        self.section = "home"
-        self.history = ["home"]
-        self.selected_command: str | None = None
-        self.message: discord.Message | None = None
-        self.command_picker = CommandPicker(self)
-        self.command_picker.row = 3
-        self.add_item(self.command_picker)
-        self.open_button = OpenCommandButton(self)
-        self.add_item(self.open_button)
-        self._refresh_command_picker()
-
-    def bind_message(self, message: discord.Message) -> None:
-        self.message = message
-
-    def _refresh_command_picker(self) -> None:
-        self.command_picker.refresh_options()
-        if self.section == "home":
-            self.command_picker.disabled = True
-            self.selected_command = None
-        self.open_button.disabled = self.command_picker.disabled
-
-    async def _switch(self, interaction: discord.Interaction, section: str):
-        if section != self.section:
-            self.section = section
-            if not self.history or self.history[-1] != section:
-                self.history.append(section)
-        self._refresh_command_picker()
-        embed = self.cog._build_command_center_embed(section, self.guild_name)
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🧭", row=0)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.section = "home"
-        self.history = ["home"]
-        self._refresh_command_picker()
-        embed = self.cog._build_command_center_embed("home", self.guild_name)
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=0)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if len(self.history) <= 1:
-            return await interaction.response.send_message(
-                "You're already at the top-level menu.",
-                ephemeral=True,
-            )
-        self.history.pop()
-        self.section = self.history[-1]
-        self._refresh_command_picker()
-        embed = self.cog._build_command_center_embed(self.section, self.guild_name)
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=0)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Command Center closed.",
-            embed=None,
-            view=self,
-        )
-
-    @discord.ui.button(label="Daily Ops", style=discord.ButtonStyle.primary, emoji="⚡", row=1)
-    async def quick_start(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "daily ops")
-
-    @discord.ui.button(label="Events", style=discord.ButtonStyle.secondary, emoji="🛰️", row=1)
-    async def events(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "events")
-
-    @discord.ui.button(label="Trading", style=discord.ButtonStyle.success, emoji="🎣", row=1)
-    async def trading(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "trading")
-
-    @discord.ui.button(label="Profiles", style=discord.ButtonStyle.secondary, emoji="🧬", row=1)
-    async def profiles(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "profiles")
-
-    @discord.ui.button(label="Admin", style=discord.ButtonStyle.danger, emoji="🛡️", row=1)
-    async def admin(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "admin")
-
-    @discord.ui.button(label="Support", style=discord.ButtonStyle.secondary, emoji="📚", row=2)
-    async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "support")
-
-    async def on_timeout(self):
-        for child in self.children:
-            child.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except discord.HTTPException:
-                pass
-
-
 class AnalyticsView(discord.ui.View):
     def __init__(self, cog: Utility, guild: discord.Guild):
         super().__init__(timeout=120)
@@ -1087,17 +799,6 @@ class AnalyticsView(discord.ui.View):
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = await self.cog._build_analytics_embed(self.guild)
         await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=1)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "Use Home to return to the command center.",
-            ephemeral=True,
-        )
 
     @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1128,17 +829,6 @@ class ClearConfirmView(discord.ui.View):
             content="Clear cancelled.",
             embed=None,
             view=None,
-        )
-
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=1)
-    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await go_to_command_center(interaction)
-
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "No previous menu for this action. Use Home instead.",
-            ephemeral=True,
         )
 
     @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)

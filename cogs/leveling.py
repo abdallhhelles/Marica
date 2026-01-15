@@ -1287,8 +1287,6 @@ class LeaderboardView(discord.ui.View):
         self.add_item(LeaderboardMetricSelect(self))
         self.add_item(LeaderboardLimitSelect(self))
         self.add_item(ExportLeaderboardButton(self))
-        self.add_item(LeaderboardHomeButton(self))
-        self.add_item(LeaderboardBackButton(self))
         self.add_item(LeaderboardCloseButton(self))
 
     def bind_message(self, message: discord.Message) -> None:
@@ -1311,27 +1309,6 @@ class LeaderboardView(discord.ui.View):
                 await self.message.edit(view=self)
             except discord.HTTPException:
                 pass
-
-
-class LeaderboardHomeButton(discord.ui.Button):
-    def __init__(self, parent_view: "LeaderboardView"):
-        super().__init__(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=4)
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: discord.Interaction):
-        await go_to_command_center(interaction)
-
-
-class LeaderboardBackButton(discord.ui.Button):
-    def __init__(self, parent_view: "LeaderboardView"):
-        super().__init__(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=4)
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(
-            "Use Home to return to the command center.",
-            ephemeral=True,
-        )
 
 
 class LeaderboardCloseButton(discord.ui.Button):
