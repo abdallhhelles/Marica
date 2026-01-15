@@ -25,6 +25,7 @@ from utils.assets import (
     MARCIA_QUOTES,
     PRESTIGE_ROLE,
 )
+from utils.navigation import go_to_command_center
 from database import (
     DB_PATH,
     get_inventory,
@@ -41,6 +42,7 @@ from database import (
     update_user_xp,
     add_to_inventory,
     transfer_inventory,
+    log_inventory_transfer,
 )
 
 XP_PER_MESSAGE = 12
@@ -582,10 +584,10 @@ class Leveling(commands.Cog):
         embed = discord.Embed(
             title=f"🎒 {ctx.author.display_name}'S STASH",
             description=f"{items_list}\n\n{progress_line}",
-            color=0x95a5a6
+            color=0x5865F2
         )
         embed.set_footer(text="Items are local to this sector.")
-        view = InventoryTransferView(ctx, sorted_items)
+        view = InventoryTransferView(ctx, sorted_items, embed)
         await self._safe_send(ctx, embed=embed, view=view)
 
     async def _build_leaderboard_embed(
@@ -601,7 +603,7 @@ class Leveling(commands.Cog):
             return discord.Embed(
                 title="🏅 Leaderboards",
                 description="Leaderboards are scoped to servers. Run this inside a guild.",
-                color=0xe67e22,
+                color=0x5865F2,
             )
 
         if metric == "xp" and scope != "global":
@@ -610,13 +612,13 @@ class Leveling(commands.Cog):
                 return discord.Embed(
                     title="🏆 Sector XP",
                     description="No data yet. Talk, trade, and scavenge to generate rankings.",
-                    color=0xe67e22,
+                    color=0x5865F2,
                 )
 
             embed = discord.Embed(
                 title="🏆 Sector XP",
                 description="XP rankings are isolated per sector. Bragging rights stay local.",
-                color=0xe67e22,
+                color=0x5865F2,
             )
             lines = []
             for idx, row in enumerate(rows, start=1):
@@ -639,7 +641,7 @@ class Leveling(commands.Cog):
                     description=(
                         "No global data yet. Start chatting and running `/scavenge` to claim the top slots."
                     ),
-                    color=0x3498db,
+                    color=0x5865F2,
                 )
 
             embed = discord.Embed(
@@ -647,7 +649,7 @@ class Leveling(commands.Cog):
                 description=(
                     "Top performers across Marcia's entire network. Each survivor is tagged with their home sector."
                 ),
-                color=0x3498db,
+                color=0x5865F2,
             )
             lines = []
             for idx, row in enumerate(rows, start=1):
@@ -677,13 +679,13 @@ class Leveling(commands.Cog):
                 return discord.Embed(
                     title=f"{emoji} {stat_label} Leaderboard",
                     description="No scanned profiles yet. Run `/scan_profile` and try again.",
-                    color=0xf1c40f,
+                    color=0x5865F2,
                 )
 
             embed = discord.Embed(
                 title=f"{emoji} {stat_label} Leaderboard",
                 description="Profile scan stats from across the entire network. Server numbers shown for each player.",
-                color=0xf1c40f,
+                color=0x5865F2,
             )
             lines = []
             for idx, row in enumerate(rows, start=1):
@@ -708,13 +710,13 @@ class Leveling(commands.Cog):
             return discord.Embed(
                 title=f"{emoji} {stat_label} Leaderboard",
                 description="No scanned profiles yet. Run `/scan_profile` and try again.",
-                color=0xf1c40f,
+                color=0x5865F2,
             )
 
         embed = discord.Embed(
             title=f"{emoji} {stat_label} Leaderboard",
             description="Profile scan stats from the latest profile scans in this sector.",
-            color=0xf1c40f,
+            color=0x5865F2,
         )
         lines = []
         for idx, row in enumerate(rows, start=1):
@@ -933,15 +935,40 @@ class Leveling(commands.Cog):
 
 
 class InventoryTransferView(discord.ui.View):
-    def __init__(self, ctx: commands.Context, items: list[dict]):
+    def __init__(self, ctx: commands.Context, items: list[dict], embed: discord.Embed):
         super().__init__(timeout=120)
         self.ctx = ctx
-        self.add_item(InventoryTransferSelect(ctx, items))
+        self.items = items
+        self.embed = embed
+        self.add_item(InventoryTransferSelect(ctx, items, embed))
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "You're already viewing your stash.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="Inventory closed.", embed=None, view=self)
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 
 class InventoryTransferSelect(discord.ui.Select):
-    def __init__(self, ctx: commands.Context, items: list[dict]):
+    def __init__(self, ctx: commands.Context, items: list[dict], embed: discord.Embed):
         options = []
+        self.items = items
+        self.embed = embed
         for item in items[:25]:
             label = item["item_id"]
             description = f"x{item['quantity']} • {item['rarity']}"
@@ -961,67 +988,144 @@ class InventoryTransferSelect(discord.ui.Select):
             return await interaction.response.send_message(
                 "Only the stash owner can send items.", ephemeral=True
             )
-        await interaction.response.send_modal(
-            InventoryTransferModal(self.ctx, self.values[0])
+        item_name = self.values[0]
+        matched = next((item for item in self.items if item["item_id"] == item_name), None)
+        max_qty = matched["quantity"] if matched else 1
+        view = InventorySendView(
+            self.ctx,
+            item_name,
+            max_qty,
+            self.items,
+            self.embed,
         )
+        embed = view.build_embed()
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
-class InventoryTransferModal(discord.ui.Modal):
-    def __init__(self, ctx: commands.Context, item_name: str):
-        super().__init__(title="Send item to survivor")
+class InventoryRecipientSelect(discord.ui.UserSelect):
+    def __init__(self, parent_view: "InventorySendView"):
+        super().__init__(placeholder="Select a recipient", min_values=1, max_values=1)
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        self.parent_view.recipient = self.values[0]
+        await interaction.response.edit_message(embed=self.parent_view.build_embed(), view=self.parent_view)
+
+
+class InventoryQuantitySelect(discord.ui.Select):
+    def __init__(self, parent_view: "InventorySendView", max_qty: int):
+        self.parent_view = parent_view
+        options = [
+            discord.SelectOption(label=str(i), value=str(i))
+            for i in range(1, min(max_qty, 10) + 1)
+        ]
+        if max_qty > 10:
+            options.append(discord.SelectOption(label=f"All ({max_qty})", value=str(max_qty)))
+        super().__init__(placeholder="Pick a quantity", options=options, min_values=1, max_values=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.parent_view.quantity = int(self.values[0])
+        await interaction.response.edit_message(embed=self.parent_view.build_embed(), view=self.parent_view)
+
+
+class InventorySendView(discord.ui.View):
+    def __init__(
+        self,
+        ctx: commands.Context,
+        item_name: str,
+        max_qty: int,
+        items: list[dict],
+        parent_embed: discord.Embed,
+    ):
+        super().__init__(timeout=120)
         self.ctx = ctx
         self.item_name = item_name
-        self.recipient = discord.ui.TextInput(
-            label="Recipient (mention or user ID)",
-            placeholder="@survivor or 1234567890",
-            max_length=64,
-        )
-        self.quantity = discord.ui.TextInput(
-            label="Quantity",
-            placeholder="1",
-            max_length=6,
-        )
-        self.add_item(self.recipient)
-        self.add_item(self.quantity)
+        self.max_qty = max_qty
+        self.items = items
+        self.parent_embed = parent_embed
+        self.recipient: discord.Member | None = None
+        self.quantity: int | None = None
+        self.add_item(InventoryRecipientSelect(self))
+        self.add_item(InventoryQuantitySelect(self, max_qty))
 
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        raw_recipient = str(self.recipient.value).strip()
-        member = None
-        if raw_recipient.startswith("<@") and raw_recipient.endswith(">"):
-            raw_recipient = raw_recipient.strip("<@!>")
-        if raw_recipient.isdigit():
-            member = self.ctx.guild.get_member(int(raw_recipient))
-        if not member:
-            await interaction.followup.send("❌ Could not find that survivor.", ephemeral=True)
-            return
-        if member.id == self.ctx.author.id:
-            await interaction.followup.send("❌ You cannot send items to yourself.", ephemeral=True)
-            return
-        try:
-            quantity = int(str(self.quantity.value))
-        except ValueError:
-            await interaction.followup.send("❌ Quantity must be a number.", ephemeral=True)
-            return
-        if quantity <= 0:
-            await interaction.followup.send("❌ Quantity must be greater than zero.", ephemeral=True)
-            return
+    def build_embed(self) -> discord.Embed:
+        recipient_label = self.recipient.mention if self.recipient else "Select a survivor"
+        qty_label = str(self.quantity) if self.quantity else "Select a quantity"
+        embed = discord.Embed(
+            title="📤 Send Item",
+            description=(
+                f"**Item:** {self.item_name}\n"
+                f"**Recipient:** {recipient_label}\n"
+                f"**Quantity:** {qty_label}\n"
+            ),
+            color=0x5865F2,
+        )
+        embed.set_footer(text="Confirm to send or go back to your stash.")
+        return embed
+
+    @discord.ui.button(label="Confirm Send", style=discord.ButtonStyle.success, emoji="✅", row=1)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message(
+                "Only the stash owner can send items.", ephemeral=True
+            )
+        if not self.recipient or not self.quantity:
+            return await interaction.response.send_message(
+                "Select a recipient and quantity before confirming.",
+                ephemeral=True,
+            )
+        if self.recipient.id == self.ctx.author.id:
+            return await interaction.response.send_message(
+                "❌ You cannot send items to yourself.",
+                ephemeral=True,
+            )
 
         success = await transfer_inventory(
             self.ctx.guild.id,
             self.ctx.author.id,
-            member.id,
+            self.recipient.id,
             self.item_name,
-            quantity,
+            self.quantity,
         )
         if not success:
-            await interaction.followup.send("❌ Not enough of that item to send.", ephemeral=True)
-            return
+            return await interaction.response.send_message(
+                "❌ Not enough of that item to send.",
+                ephemeral=True,
+            )
 
-        await interaction.followup.send(
-            f"✅ Sent **{self.item_name}** x{quantity} to {member.mention}.",
-            ephemeral=True,
+        await log_inventory_transfer(
+            self.ctx.guild.id,
+            self.ctx.channel.id,
+            self.ctx.author.id,
+            self.recipient.id,
+            self.item_name,
+            self.quantity,
         )
+
+        await interaction.response.edit_message(
+            content=f"✅ Sent **{self.item_name}** x{self.quantity} to {self.recipient.mention}.",
+            embed=None,
+            view=None,
+        )
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = InventoryTransferView(self.ctx, self.items, self.parent_embed)
+        await interaction.response.edit_message(embed=self.parent_embed, view=view)
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="Item transfer closed.", embed=None, view=self)
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 
 class LeaderboardScopeSelect(discord.ui.Select):
@@ -1183,6 +1287,9 @@ class LeaderboardView(discord.ui.View):
         self.add_item(LeaderboardMetricSelect(self))
         self.add_item(LeaderboardLimitSelect(self))
         self.add_item(ExportLeaderboardButton(self))
+        self.add_item(LeaderboardHomeButton(self))
+        self.add_item(LeaderboardBackButton(self))
+        self.add_item(LeaderboardCloseButton(self))
 
     def bind_message(self, message: discord.Message) -> None:
         self.message = message
@@ -1204,6 +1311,38 @@ class LeaderboardView(discord.ui.View):
                 await self.message.edit(view=self)
             except discord.HTTPException:
                 pass
+
+
+class LeaderboardHomeButton(discord.ui.Button):
+    def __init__(self, parent_view: "LeaderboardView"):
+        super().__init__(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=4)
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        await go_to_command_center(interaction)
+
+
+class LeaderboardBackButton(discord.ui.Button):
+    def __init__(self, parent_view: "LeaderboardView"):
+        super().__init__(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=4)
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            "Use Home to return to the command center.",
+            ephemeral=True,
+        )
+
+
+class LeaderboardCloseButton(discord.ui.Button):
+    def __init__(self, parent_view: "LeaderboardView"):
+        super().__init__(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=4)
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        for child in self.parent_view.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="Leaderboard closed.", embed=None, view=self.parent_view)
 
 async def setup(bot):
     await bot.add_cog(Leveling(bot))
