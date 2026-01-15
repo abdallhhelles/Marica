@@ -20,8 +20,7 @@ from database import (
 
 
 MARCIA_SERVER_ID = 1454704176662843525
-RULES_CHANNEL_NAME = "rules"
-EVENTS_CHANNEL_NAME = "events"
+INFO_CHANNEL_NAME = "marcia-info"
 FEEDBACK_CHANNEL_NAME = "feedback-suggestions"
 ANALYTICS_CHANNEL_NAME = "global-analytics"
 
@@ -49,16 +48,10 @@ class MarciaServer(commands.Cog):
         await self._post_or_update_analytics(guild)
 
     async def _ensure_marcia_channels(self, guild: discord.Guild) -> None:
-        rules_channel = await self._ensure_channel(
+        info_channel = await self._ensure_channel(
             guild,
-            RULES_CHANNEL_NAME,
-            topic="Alliance rules and onboarding (Marcia-managed).",
-            read_only=True,
-        )
-        events_channel = await self._ensure_channel(
-            guild,
-            EVENTS_CHANNEL_NAME,
-            topic="Event announcements (Marcia-managed).",
+            INFO_CHANNEL_NAME,
+            topic="Marcia OS info, announcements, and onboarding (Marcia-managed).",
             read_only=True,
         )
         feedback_channel = await self._ensure_channel(
@@ -74,12 +67,12 @@ class MarciaServer(commands.Cog):
             read_only=True,
         )
 
-        await update_setting(guild.id, "rules_channel_id", rules_channel.id, guild.name)
-        await update_setting(guild.id, "event_channel_id", events_channel.id, guild.name)
+        await update_setting(guild.id, "rules_channel_id", info_channel.id, guild.name)
+        await update_setting(guild.id, "event_channel_id", info_channel.id, guild.name)
         await update_setting(guild.id, "feedback_channel_id", feedback_channel.id, guild.name)
         await update_setting(guild.id, "analytics_channel_id", analytics_channel.id, guild.name)
 
-        await self._seed_rules(rules_channel)
+        await self._seed_info(info_channel)
 
     async def _ensure_channel(
         self,
@@ -126,22 +119,32 @@ class MarciaServer(commands.Cog):
         overwrites = self._read_only_overwrites(channel.guild)
         await channel.edit(overwrites=overwrites, reason="Marcia Server read-only channel policy")
 
-    async def _seed_rules(self, channel: discord.TextChannel) -> None:
+    async def _seed_info(self, channel: discord.TextChannel) -> None:
         try:
             history = [msg async for msg in channel.history(limit=1)]
         except Exception:
             history = []
         if history:
             return
-        rules_lines = [
-            "📜 **Alliance Rules — Marcia Server**",
-            "1) Respect the squad. No harassment, hate speech, or personal attacks.",
-            "2) Keep ops clean. Use the Events channel for scheduled missions only.",
-            "3) No spam or scam links. Marcia will scrub offenders.",
-            "4) Keep feedback constructive and actionable.",
-            "5) Use English for ops posts so everyone can follow.",
+        info_lines = [
+            "🛰️ **Marcia Server — Mission Brief**",
+            "**Purpose**",
+            "• Learn what Marcia OS can do, read updates, and share feedback with the devs.",
+            "",
+            "**How to use this server**",
+            "• Updates + announcements land here.",
+            "• Drop ideas in **#feedback-suggestions** (clear, actionable notes are best).",
+            "",
+            "**Core commands**",
+            "• `/commands` → full catalog",
+            "• `/setup` → link channels + profile scan intake",
+            "• `/scan_profile` → log CP/Kills/VIP/Likes",
+            "",
+            "**Respect the squad**",
+            "• Be respectful. No harassment, hate speech, or scams.",
+            "• Keep posts readable; English preferred for coordination.",
         ]
-        await channel.send("\n".join(rules_lines))
+        await channel.send("\n".join(info_lines))
 
     def _build_analytics_embed(self, guild: discord.Guild, snapshot: dict, xp_rows, cp_rows, kill_rows) -> discord.Embed:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
