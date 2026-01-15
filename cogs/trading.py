@@ -4,6 +4,7 @@ USE: The Fish-Link Trading Network (SQL Version).
 FEATURES: Server-isolated matching, automatic menu re-anchoring on restart.
 """
 import discord
+from discord import app_commands
 from discord.ext import commands
 import aiosqlite
 import logging
@@ -306,8 +307,9 @@ class Trading(commands.Cog):
             except Exception:
                 pass
 
-    @commands.command(name="setup_trade")
+    @commands.hybrid_command(name="setup_trade")
     @commands.has_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     async def setup_trade(self, ctx):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("INSERT OR IGNORE INTO settings (guild_id) VALUES (?)", (ctx.guild.id,))

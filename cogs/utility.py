@@ -687,53 +687,53 @@ class Utility(commands.Cog):
         embed.set_footer(text=f"Invite link: {self._share_link} | Commanders don't remind. Systems do.")
         await self._safe_send(ctx, embed=embed)
 
-    @commands.command(description="Create a poll. /poll 'Title' option1 option2 ...")
-    async def poll(self, ctx, question: str, *options):
-        """Message-based polls with up to 10 options."""
-        if not options:
-            msg = await ctx.send(embed=discord.Embed(title="🗳️ POLL", description=question, color=0x00ffcc))
-            await msg.add_reaction("✅")
-            await msg.add_reaction("❌")
-            return
-
-        if len(options) > 10:
-            return await ctx.send("Limit 10.")
-
-        reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-        desc = "\n".join([f"{reactions[i]} {opt}" for i, opt in enumerate(options)])
-        msg = await ctx.send(embed=discord.Embed(title=f"🗳️ {question}", description=desc, color=0x00ffcc))
-        for i in range(len(options)):
-            await msg.add_reaction(reactions[i])
-
-    @app_commands.command(name="poll", description="Create a poll with up to five options.")
+    @commands.hybrid_command(name="poll", description="Create a poll with up to five options.")
     @app_commands.describe(
         question="Poll question",
-        option1="First option",
-        option2="Second option",
+        option1="First option (optional)",
+        option2="Second option (optional)",
         option3="Third option (optional)",
         option4="Fourth option (optional)",
         option5="Fifth option (optional)",
     )
-    async def slash_poll(
+    async def poll(
         self,
-        interaction: discord.Interaction,
+        ctx,
         question: str,
-        option1: str,
-        option2: str,
+        option1: Optional[str] = None,
+        option2: Optional[str] = None,
         option3: Optional[str] = None,
         option4: Optional[str] = None,
         option5: Optional[str] = None,
     ):
-        options = [option1, option2]
-        for opt in (option3, option4, option5):
-            if opt:
-                options.append(opt)
+        options = [opt for opt in (option1, option2, option3, option4, option5) if opt]
+        if len(options) == 1:
+            return await self._safe_send(
+                ctx,
+                content="Add at least two options, or send none for a yes/no poll.",
+                ephemeral=True,
+            )
+
+        interaction = getattr(ctx, "interaction", None)
+        if not options:
+            embed = discord.Embed(title="🗳️ POLL", description=question, color=0x00ffcc)
+            if interaction:
+                await self.bot._safe_interaction_reply(interaction, embed=embed)
+                poll_message = await interaction.original_response()
+            else:
+                poll_message = await ctx.send(embed=embed)
+            await poll_message.add_reaction("✅")
+            await poll_message.add_reaction("❌")
+            return
 
         reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
         desc = "\n".join([f"{reactions[i]} {opt}" for i, opt in enumerate(options)])
         embed = discord.Embed(title=f"🗳️ {question}", description=desc, color=0x00ffcc)
-        await interaction.response.send_message(embed=embed)
-        poll_message = await interaction.original_response()
+        if interaction:
+            await self.bot._safe_interaction_reply(interaction, embed=embed)
+            poll_message = await interaction.original_response()
+        else:
+            poll_message = await ctx.send(embed=embed)
         for i in range(len(options)):
             await poll_message.add_reaction(reactions[i])
 
@@ -800,12 +800,6 @@ class AnalyticsView(discord.ui.View):
         embed = await self.cog._build_analytics_embed(self.guild)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="Analytics panel closed.", embed=None, view=self)
-
 
 class ClearConfirmView(discord.ui.View):
     def __init__(self, cog: Utility, ctx: commands.Context, amount: int):
@@ -829,16 +823,6 @@ class ClearConfirmView(discord.ui.View):
             content="Clear cancelled.",
             embed=None,
             view=None,
-        )
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(
-            content="Clear confirmation closed.",
-            embed=None,
-            view=self,
         )
 
 async def setup(bot):
