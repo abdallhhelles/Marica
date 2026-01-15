@@ -18,6 +18,7 @@ from utils.assets import (
     MARCIA_CAPABILITIES,
     MARCIA_TRAITS,
 )
+from utils.navigation import go_to_command_center
 from database import (
     get_settings,
     guild_analytics_snapshot,
@@ -37,6 +38,9 @@ FLAG_LANG = {
     "🇯🇵": "ja", "🇰🇷": "ko", "🇨🇳": "zh-cn", "🇻🇳": "vi", "🇹🇭": "th",
     "🇦🇪": "ar", "🇹🇷": "tr", "🇮🇳": "hi", "🇧🇷": "pt"
 }
+
+CLEAR_LIMIT = 100
+CLEAR_CONFIRM_THRESHOLD = 25
 
 # Single source of truth for the in-bot showcase. Keep this list aligned with docs/SHOWCASE.md
 # so Discord users see the same capabilities advertised in documentation/screenshots.
@@ -102,6 +106,83 @@ SHOWCASE_SECTIONS = [
     },
 ]
 
+COMMAND_CENTER_SECTIONS = [
+    {
+        "key": "daily ops",
+        "label": "Daily Ops",
+        "title": "⚡ Daily Ops",
+        "description": "Your core loop: loot, stash, progress, compare.",
+        "commands": [
+            {"name": "scavenge", "description": "Run an hourly loot + XP mission."},
+            {"name": "inventory", "description": "View stash and send items to allies."},
+            {"name": "profile", "description": "See Discord + in-game stats."},
+            {"name": "leaderboard", "description": "Sector/network rankings with export."},
+        ],
+    },
+    {
+        "key": "events",
+        "label": "Events",
+        "title": "🛰️ Events & Reminders",
+        "description": "Schedule ops, ping once, DM the rest.",
+        "commands": [
+            {"name": "event", "description": "New event, template, archive, upcoming, remove."},
+            {"name": "remind", "description": "Menu-driven reminders + templates."},
+            {"name": "remindme", "description": "Personal DM timer."},
+        ],
+    },
+    {
+        "key": "trading",
+        "label": "Trading",
+        "title": "🎣 Trading",
+        "description": "Fish-Link stays anchored in one channel.",
+        "commands": [
+            {"name": "setup_trade", "description": "Pin the Fish-Link terminal (admins)."},
+            {"name": "inventory", "description": "Open trade access from your stash."},
+            {"name": "profile", "description": "Access Fish-Link from profile view."},
+        ],
+    },
+    {
+        "key": "profiles",
+        "label": "Profiles",
+        "title": "🧬 Profiles & Scans",
+        "description": "Capture scans and keep stats clean.",
+        "commands": [
+            {"name": "scan_profile", "description": "Upload a profile screenshot."},
+            {"name": "profile_review", "description": "Admin review of scans."},
+            {"name": "ocr_status", "description": "OCR diagnostics (admins)."},
+        ],
+    },
+    {
+        "key": "admin",
+        "label": "Admin",
+        "title": "🛡️ Setup & Admin",
+        "description": "Link channels, check health, and clean up chat.",
+        "commands": [
+            {"name": "setup", "description": "Link channels and setup help."},
+            {"name": "status", "description": "System diagnostics."},
+            {"name": "analytics", "description": "Server-only stats dashboard."},
+            {"name": "refresh_commands", "description": "Resync slash commands."},
+            {"name": "clear", "description": "Clear a set number of messages."},
+        ],
+    },
+    {
+        "key": "support",
+        "label": "Support",
+        "title": "📚 Support & Fun",
+        "description": "Onboarding, feedback, and global signals.",
+        "commands": [
+            {"name": "commands", "description": "Open this command center."},
+            {"name": "features", "description": "Showcase Marcia’s systems."},
+            {"name": "heroes", "description": "Hero codex and lore."},
+            {"name": "about", "description": "Why Marcia exists."},
+            {"name": "feedback", "description": "Report ideas or bugs."},
+            {"name": "tips", "description": "Survival tips."},
+            {"name": "poll", "description": "Quick polls."},
+            {"name": "network", "description": "Global pulse + server count."},
+        ],
+    },
+]
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -110,6 +191,7 @@ class Utility(commands.Cog):
         self._app_owner = None
         self._feedback_owner = None
         self._share_link = "https://bit.ly/49z28IZ"
+        self._about_cache: dict[str | None, discord.Embed] = {}
 
     async def cog_unload(self):
         await self.http.aclose()
@@ -242,6 +324,16 @@ class Utility(commands.Cog):
         embed.set_footer(text=f"Sector: {scope} | Data never leaves your guild")
         return embed
 
+    def _get_about_embed(self, guild_name: Optional[str], owner_label: str) -> discord.Embed:
+        """Return a cached about embed for static content."""
+        cache_key = guild_name or "your sector"
+        cached = self._about_cache.get(cache_key)
+        if cached:
+            return cached
+        built = self._build_about_embed(guild_name, owner_label)
+        self._about_cache[cache_key] = built
+        return built
+
     @staticmethod
     def _fit_embed_lines(lines: list[str], max_len: int = 1024) -> str:
         rendered: list[str] = []
@@ -262,7 +354,7 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title="🗄️ Marcia OS | Featureboard",
             description="Quick, easy-to-read menu of everything Marcia does. Tap any section to explore.",
-            color=0x9b59b6,
+            color=0x5865F2,
         )
         embed.add_field(
             name="Operations",
@@ -363,105 +455,50 @@ class Utility(commands.Cog):
     def _build_command_center_embed(self, section: str, guild_name: Optional[str] = None) -> discord.Embed:
         scope = guild_name or "your sector"
         section_key = section.lower()
-        sections = {
-            "home": {
-                "title": "🧭 Marcia Command Center",
-                "description": "Everything is here, categorized. Friendly UI, easy to navigate.",
-                "fields": [
-                    ("How to use this", "Pick a category button. Each panel lists commands with a short, clear purpose."),
-                    ("Why it’s shorter now", "Fewer commands, same power. You only need to remember the menu."),
-                ],
-            },
-            "daily ops": {
-                "title": "⚡ Daily Ops",
-                "description": "Your core loop: loot, stash, progress, compare.",
-                "fields": [
-                    ("Command list", "\n".join([
-                        "`/scavenge` — run an hourly loot + XP mission",
-                        "`/inventory` — view your stash + send items to a survivor",
-                        "`/profile` — Discord + in-game stats for you or a member",
-                        "`/leaderboard` — sector/network stats + export to Excel",
-                    ])),
-                ],
-            },
-            "events": {
-                "title": "🛰️ Events & Reminders",
-                "description": "Schedule ops, ping once, DM the rest.",
-                "fields": [
-                    ("Command list", "\n".join([
-                        "`/event` — new event, use template, archive, upcoming, remove",
-                        "`/remind` — new reminder, use template, archive, upcoming, remove",
-                        "`/remindme` — personal DM timer",
-                    ])),
-                ],
-            },
-            "trading": {
-                "title": "🎣 Trading",
-                "description": "Fish-Link stays anchored in one channel.",
-                "fields": [
-                    ("Command list", "\n".join([
-                        "`/setup_trade` — pin the Fish-Link terminal (admins)",
-                        "Fish-Link buttons — Add Spare / Find Fish / Who Has My Wanted",
-                        "Trade access — open from `/profile` or `/inventory`",
-                    ])),
-                ],
-            },
-            "profiles": {
-                "title": "🛰️ Profiles & Scans",
-                "description": "Capture scans and keep stats clean.",
-                "fields": [
-                    ("Command list", "\n".join([
-                        "`/scan_profile` — upload a profile screenshot",
-                        "`/profile_review` — admin review of scans",
-                        "`/ocr_status` — OCR diagnostics (admins)",
-                    ])),
-                ],
-            },
-            "admin": {
-                "title": "🛡️ Setup & Admin",
-                "description": "Link channels, check health, and clean up chat.",
-                "fields": [
-                    ("Command list", "\n".join([
-                        "`/setup` — select a feature and link its channel",
-                        "`/status` — system diagnostics",
-                        "`/analytics` — fun stats for this server only",
-                        "`/refresh_commands` — resync slash commands",
-                        "`/clear` — clear a set number of channel messages",
-                        "`/import_old_levels` — legacy XP migration (text command)",
-                    ])),
-                ],
-            },
-            "support": {
-                "title": "📚 Support & Fun",
-                "description": "Onboarding, feedback, and global signals.",
-                "fields": [
-                    ("Guides", "\n".join([
-                        "`/commands` — this directory",
-                        "`/features` — showcase",
-                        "`/heroes` — hero codex",
-                        "`/about` — why Marcia exists",
-                    ])),
-                    ("Extras", "\n".join([
-                        "`/feedback` — report ideas or bugs",
-                        "`/tips` — survival tips",
-                        "`/poll` — quick polls",
-                        "`/network` — global pulse + server count",
-                    ])),
-                ],
-            },
-        }
+        selected = self._get_command_center_section(section_key)
+        if section_key == "home":
+            embed = discord.Embed(
+                title="🧭 Marcia Command Center",
+                description="Everything is here, categorized. Pick a section and launch a command.",
+                color=0x5865F2,
+            )
+            categories = "\n".join(
+                f"• **{section['label']}** — {section['description']}"
+                for section in COMMAND_CENTER_SECTIONS
+            )
+            embed.add_field(
+                name="Categories",
+                value=categories,
+                inline=False,
+            )
+            embed.add_field(
+                name="Navigation",
+                value="Use **Home** any time to return here, **Back** for the previous panel, and **Close** to dismiss.",
+                inline=False,
+            )
+            embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
+            return embed
 
-        selected = sections.get(section_key, sections["home"])
+        lines = [
+            f"`/{command['name']}` — {command['description']}"
+            for command in selected["commands"]
+        ]
         embed = discord.Embed(
             title=selected["title"],
             description=selected["description"],
-            color=0x3498db,
+            color=0x5865F2,
         )
-        for name, value in selected["fields"]:
-            embed.add_field(name=name, value=value, inline=False)
-
+        embed.add_field(name="Command list", value="\n".join(lines), inline=False)
         embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope} | Menu: {selected['title']}")
         return embed
+
+    def _get_command_center_section(self, section_key: str) -> dict:
+        if section_key == "home":
+            return {"key": "home", "commands": [], "title": "Home", "description": ""}
+        for section in COMMAND_CENTER_SECTIONS:
+            if section["key"] == section_key:
+                return section
+        return COMMAND_CENTER_SECTIONS[0]
 
     async def _submit_feedback(self, ctx, feedback_text: str, category: Optional[str]):
         """Persist feedback, notify the owner, and acknowledge the user."""
@@ -515,7 +552,7 @@ class Utility(commands.Cog):
         """
         embed = discord.Embed(
             title="🛰️ Marcia OS | Showcase",
-            color=0x9b59b6,
+            color=0x5865F2,
             description="Freedom is expensive. Don't waste my time for free. — Marcia",
         )
 
@@ -578,13 +615,15 @@ class Utility(commands.Cog):
         """Displays all available commands categorized by module."""
         embed = self._build_command_center_embed("home", ctx.guild.name if ctx.guild else None)
         view = CommandCenterView(self, ctx.guild.name if ctx.guild else None)
-        await self._safe_send(ctx, embed=embed, view=view)
+        message = await self._safe_send(ctx, embed=embed, view=view)
+        if isinstance(message, discord.Message):
+            view.bind_message(message)
 
     @commands.hybrid_command(description="Learn what Marcia is, why she exists, and how to support uptime.")
     async def about(self, ctx):
         """Share Marcia's lore and promise to the guild."""
         owner_label = "akrott"
-        embed = self._build_about_embed(ctx.guild.name if ctx.guild else None, owner_label)
+        embed = self._get_about_embed(ctx.guild.name if ctx.guild else None, owner_label)
         await self._safe_send(ctx, embed=embed)
 
 
@@ -662,24 +701,16 @@ class Utility(commands.Cog):
         embed.set_footer(text="Need a deeper check? Open /setup to review linked channels.")
         await self._safe_send(ctx, embed=embed)
 
-    @commands.hybrid_command(description="Per-server analytics, fun stats, and leaderboard slices.")
-    async def analytics(self, ctx):
-        """Detailed per-server analytics for the current server."""
-        if not ctx.guild:
-            return await self._safe_send(
-                ctx,
-                content="Analytics are only available inside servers.",
-                ephemeral=True,
-            )
-        snapshot = await guild_analytics_snapshot(ctx.guild.id)
-        xp_rows = await top_xp_leaderboard(ctx.guild.id, limit=5)
-        cp_rows = await top_profile_stat(ctx.guild.id, "cp", limit=5)
-        kill_rows = await top_profile_stat(ctx.guild.id, "kills", limit=5)
+    async def _build_analytics_embed(self, guild: discord.Guild) -> discord.Embed:
+        snapshot = await guild_analytics_snapshot(guild.id)
+        xp_rows = await top_xp_leaderboard(guild.id, limit=5)
+        cp_rows = await top_profile_stat(guild.id, "cp", limit=5)
+        kill_rows = await top_profile_stat(guild.id, "kills", limit=5)
 
         embed = discord.Embed(
             title="📊 Sector Analytics",
             description="Fun stats, live counts, and leaderboard slices for this server only.",
-            color=0x9b59b6,
+            color=0x5865F2,
         )
         embed.add_field(name="🎣 Trading Listings", value=str(snapshot["trade_listings"]), inline=True)
         embed.add_field(name="👥 Active Traders", value=str(snapshot["traders"]), inline=True)
@@ -691,7 +722,7 @@ class Utility(commands.Cog):
         if xp_rows:
             lines = []
             for idx, row in enumerate(xp_rows, start=1):
-                member = ctx.guild.get_member(row["user_id"])
+                member = guild.get_member(row["user_id"])
                 name = member.display_name if member else f"User {row['user_id']}"
                 lines.append(f"**{idx}. {name}** — L{row['level']} | {row['xp']:,} XP")
             embed.add_field(name="🏆 Top XP", value="\n".join(lines), inline=False)
@@ -699,7 +730,7 @@ class Utility(commands.Cog):
         if cp_rows:
             lines = []
             for idx, row in enumerate(cp_rows, start=1):
-                member = ctx.guild.get_member(row["user_id"])
+                member = guild.get_member(row["user_id"])
                 name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
                 lines.append(f"**{idx}. {name}** — {row['value']:,} CP")
             embed.add_field(name="⚔️ Top Combat Power", value="\n".join(lines), inline=False)
@@ -707,14 +738,26 @@ class Utility(commands.Cog):
         if kill_rows:
             lines = []
             for idx, row in enumerate(kill_rows, start=1):
-                member = ctx.guild.get_member(row["user_id"])
+                member = guild.get_member(row["user_id"])
                 name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
                 lines.append(f"**{idx}. {name}** — {row['value']:,} Kills")
             embed.add_field(name="☠️ Top Kills", value="\n".join(lines), inline=False)
 
         embed.set_footer(text="Clock: UTC-2 | Data never crosses sectors.")
+        return embed
 
-        await self._safe_send(ctx, embed=embed)
+    @commands.hybrid_command(description="Per-server analytics, fun stats, and leaderboard slices.")
+    async def analytics(self, ctx):
+        """Detailed per-server analytics for the current server."""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="Analytics are only available inside servers.",
+                ephemeral=True,
+            )
+        embed = await self._build_analytics_embed(ctx.guild)
+        view = AnalyticsView(self, ctx.guild)
+        await self._safe_send(ctx, embed=embed, view=view)
 
     @commands.hybrid_command(
         description="Network-wide stats, fun counts, and popularity snapshot.",
@@ -834,8 +877,104 @@ class Utility(commands.Cog):
     @commands.has_permissions(manage_messages=True)
     async def clear(self, ctx, amount: int = 5):
         """Purge chat history."""
-        await ctx.channel.purge(limit=amount + 1)
-        await ctx.send(f"🧹 {amount} signals cleared.", delete_after=3)
+        if amount <= 0:
+            return await self._safe_send(
+                ctx,
+                content="⚠️ Enter a number greater than zero.",
+                ephemeral=True,
+            )
+
+        if amount > CLEAR_LIMIT:
+            return await self._safe_send(
+                ctx,
+                content=f"⚠️ Max clear limit is {CLEAR_LIMIT} messages.",
+                ephemeral=True,
+            )
+
+        if amount >= CLEAR_CONFIRM_THRESHOLD:
+            embed = discord.Embed(
+                title="🧹 Confirm Channel Clear",
+                description=(
+                    f"You're about to clear **{amount}** messages from {ctx.channel.mention}.\n"
+                    "Confirm to proceed, or cancel to keep history intact."
+                ),
+                color=0x5865F2,
+            )
+            view = ClearConfirmView(self, ctx, amount)
+            return await self._safe_send(ctx, embed=embed, view=view, ephemeral=True)
+
+        await self._execute_clear(ctx, amount)
+
+    async def _execute_clear(self, ctx, amount: int) -> None:
+        deleted = await ctx.channel.purge(limit=amount + 1)
+        cleared = max(0, len(deleted) - 1)
+        self.log.info(
+            "Clear executed by %s in %s (%s) for %s messages",
+            ctx.author.id,
+            ctx.guild.id if ctx.guild else "DM",
+            ctx.channel.id,
+            cleared,
+        )
+        await ctx.send(f"🧹 {cleared} signals cleared.", delete_after=3)
+
+
+class CommandPicker(discord.ui.Select):
+    def __init__(self, parent_view: "CommandCenterView"):
+        self.parent_view = parent_view
+        super().__init__(placeholder="Select a command to open…", options=[])
+        self.refresh_options()
+
+    def refresh_options(self) -> None:
+        section = self.parent_view.cog._get_command_center_section(self.parent_view.section)
+        options = [
+            discord.SelectOption(
+                label=f"/{command['name']}",
+                description=command["description"][:90],
+                value=command["name"],
+            )
+            for command in section.get("commands", [])
+        ]
+        if not options:
+            options = [
+                discord.SelectOption(
+                    label="No commands in this section",
+                    description="Pick another category above.",
+                    value="none",
+                )
+            ]
+            self.disabled = True
+        else:
+            self.disabled = False
+        self.options = options
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "none":
+            return await interaction.response.send_message(
+                "Pick a category with commands first.",
+                ephemeral=True,
+            )
+        self.parent_view.selected_command = self.values[0]
+        await interaction.response.edit_message(view=self.parent_view)
+
+
+class OpenCommandButton(discord.ui.Button):
+    def __init__(self, parent_view: "CommandCenterView"):
+        super().__init__(label="Open Command", emoji="🚀", style=discord.ButtonStyle.primary, row=4)
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        command_name = self.parent_view.selected_command
+        if not command_name:
+            return await interaction.response.send_message(
+                "Select a command above to open it.",
+                ephemeral=True,
+            )
+        command = interaction.client.tree.get_command(command_name)
+        mention = command.mention if command else f"/{command_name}"
+        await interaction.response.send_message(
+            f"✅ Ready to launch: {mention}",
+            ephemeral=True,
+        )
 
 
 class CommandCenterView(discord.ui.View):
@@ -843,38 +982,174 @@ class CommandCenterView(discord.ui.View):
         super().__init__(timeout=300)
         self.cog = cog
         self.guild_name = guild_name
+        self.section = "home"
+        self.history = ["home"]
+        self.selected_command: str | None = None
+        self.message: discord.Message | None = None
+        self.command_picker = CommandPicker(self)
+        self.command_picker.row = 3
+        self.add_item(self.command_picker)
+        self.open_button = OpenCommandButton(self)
+        self.add_item(self.open_button)
+        self._refresh_command_picker()
+
+    def bind_message(self, message: discord.Message) -> None:
+        self.message = message
+
+    def _refresh_command_picker(self) -> None:
+        self.command_picker.refresh_options()
+        if self.section == "home":
+            self.command_picker.disabled = True
+            self.selected_command = None
+        self.open_button.disabled = self.command_picker.disabled
 
     async def _switch(self, interaction: discord.Interaction, section: str):
+        if section != self.section:
+            self.section = section
+            if not self.history or self.history[-1] != section:
+                self.history.append(section)
+        self._refresh_command_picker()
         embed = self.cog._build_command_center_embed(section, self.guild_name)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🧭")
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🧭", row=0)
     async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self._switch(interaction, "home")
+        self.section = "home"
+        self.history = ["home"]
+        self._refresh_command_picker()
+        embed = self.cog._build_command_center_embed("home", self.guild_name)
+        await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Daily Ops", style=discord.ButtonStyle.primary, emoji="⚡")
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=0)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if len(self.history) <= 1:
+            return await interaction.response.send_message(
+                "You're already at the top-level menu.",
+                ephemeral=True,
+            )
+        self.history.pop()
+        self.section = self.history[-1]
+        self._refresh_command_picker()
+        embed = self.cog._build_command_center_embed(self.section, self.guild_name)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=0)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Command Center closed.",
+            embed=None,
+            view=self,
+        )
+
+    @discord.ui.button(label="Daily Ops", style=discord.ButtonStyle.primary, emoji="⚡", row=1)
     async def quick_start(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "daily ops")
 
-    @discord.ui.button(label="Events", style=discord.ButtonStyle.secondary, emoji="🛰️")
+    @discord.ui.button(label="Events", style=discord.ButtonStyle.secondary, emoji="🛰️", row=1)
     async def events(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "events")
 
-    @discord.ui.button(label="Trading", style=discord.ButtonStyle.success, emoji="🎣")
+    @discord.ui.button(label="Trading", style=discord.ButtonStyle.success, emoji="🎣", row=1)
     async def trading(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "trading")
 
-    @discord.ui.button(label="Profiles", style=discord.ButtonStyle.secondary, emoji="🧬")
+    @discord.ui.button(label="Profiles", style=discord.ButtonStyle.secondary, emoji="🧬", row=1)
     async def profiles(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "profiles")
 
-    @discord.ui.button(label="Admin", style=discord.ButtonStyle.danger, emoji="🛡️")
+    @discord.ui.button(label="Admin", style=discord.ButtonStyle.danger, emoji="🛡️", row=1)
     async def admin(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "admin")
 
-    @discord.ui.button(label="Support", style=discord.ButtonStyle.secondary, emoji="📚")
+    @discord.ui.button(label="Support", style=discord.ButtonStyle.secondary, emoji="📚", row=2)
     async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "support")
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
+
+
+class AnalyticsView(discord.ui.View):
+    def __init__(self, cog: Utility, guild: discord.Guild):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.guild = guild
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.primary, emoji="🔄")
+    async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = await self.cog._build_analytics_embed(self.guild)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=1)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "Use Home to return to the command center.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="Analytics panel closed.", embed=None, view=self)
+
+
+class ClearConfirmView(discord.ui.View):
+    def __init__(self, cog: Utility, ctx: commands.Context, amount: int):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.ctx = ctx
+        self.amount = amount
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger, emoji="🧹")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog._execute_clear(self.ctx, self.amount)
+        await interaction.response.edit_message(
+            content="✅ Clear complete.",
+            embed=None,
+            view=None,
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="Clear cancelled.",
+            embed=None,
+            view=None,
+        )
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=1)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "No previous menu for this action. Use Home instead.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Clear confirmation closed.",
+            embed=None,
+            view=self,
+        )
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))

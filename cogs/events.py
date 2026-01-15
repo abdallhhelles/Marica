@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_SYSTEM_LINES
 from utils.time_utils import now_game, game_to_utc, format_game
+from utils.navigation import go_to_command_center
 from database import (
     add_mission,
     add_template,
@@ -237,6 +238,8 @@ class TemplatePreviewView(discord.ui.View):
         ctx,
         template_name: str,
         template_desc: str,
+        settings: dict,
+        templates: list[dict],
         message_id: int | None = None,
     ):
         super().__init__(timeout=120)
@@ -244,6 +247,8 @@ class TemplatePreviewView(discord.ui.View):
         self.ctx = ctx
         self.template_name = template_name
         self.template_desc = template_desc
+        self.settings = settings
+        self.templates = templates
         self.message_id = message_id
 
     async def _refresh_preview(self, interaction: discord.Interaction):
@@ -254,7 +259,7 @@ class TemplatePreviewView(discord.ui.View):
             view=self,
         )
 
-    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="✅", row=0)
     async def use_template(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.cog.use_template_callback(
             interaction,
@@ -263,7 +268,7 @@ class TemplatePreviewView(discord.ui.View):
             template_desc_override=self.template_desc,
         )
 
-    @discord.ui.button(label="Edit Before Sending", style=discord.ButtonStyle.primary, emoji="✏️")
+    @discord.ui.button(label="Edit Before Sending", style=discord.ButtonStyle.primary, emoji="✏️", row=0)
     async def edit_template(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = TemplateEditModal(
             self.template_name,
@@ -297,23 +302,22 @@ class TemplatePreviewView(discord.ui.View):
                 ephemeral=True,
             )
 
-    @discord.ui.button(label="Back to Templates", style=discord.ButtonStyle.secondary, emoji="↩️")
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        templates = await get_templates(interaction.guild.id)
-        if not templates:
+        if not self.templates:
             return await interaction.response.edit_message(
                 content="❌ Archive is empty.",
                 view=None,
                 embed=None,
             )
-        view = TemplateMenuView(self.cog, self.ctx, templates)
+        view = TemplateMenuView(self.cog, self.ctx, self.templates, self.settings)
         await interaction.response.edit_message(
             content="**Select a mission preset to preview:**",
             embed=None,
             view=view,
         )
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="🛑")
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
             content="📡 Directive cancelled.",
@@ -321,13 +325,27 @@ class TemplatePreviewView(discord.ui.View):
             embed=None,
         )
 
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message_id is not None and self.ctx.interaction:
+            try:
+                await self.ctx.interaction.followup.edit_message(message_id=self.message_id, view=self)
+            except discord.HTTPException:
+                pass
+
 
 class TemplateMenuView(discord.ui.View):
-    def __init__(self, cog, ctx, templates: list[dict]):
+    def __init__(self, cog, ctx, templates: list[dict], settings: dict):
         super().__init__(timeout=90)
         self.cog = cog
         self.ctx = ctx
         self.templates = templates
+        self.settings = settings
         self.add_item(TemplateSelect(templates, self._preview_template))
 
     async def _preview_template(self, interaction: discord.Interaction, template_name: str):
@@ -353,14 +371,47 @@ class TemplateMenuView(discord.ui.View):
                 self.ctx,
                 selected["template_name"],
                 selected["description"],
+                self.settings,
+                self.templates,
                 message_id=interaction.message.id if interaction.message else None,
             ),
         )
 
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = self.cog._build_event_menu_embed()
+        view = EventMenuView(self.cog, self.ctx, self.settings)
+        await interaction.response.edit_message(content=None, embed=embed, view=view)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Template menu closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.ctx.interaction and self.ctx.interaction.message:
+            try:
+                await self.ctx.interaction.message.edit(view=self)
+            except discord.HTTPException:
+                pass
+
 class EventMenuView(discord.ui.View):
-    def __init__(self, cog, ctx):
-        super().__init__(timeout=60)
+    def __init__(self, cog, ctx, settings: dict):
+        super().__init__(timeout=120)
         self.cog, self.ctx = cog, ctx
+        self.settings = settings or {}
+        self.event_channel_id = self.settings.get("event_channel_id")
 
     def _can_manage_events(self, interaction: discord.Interaction) -> bool:
         return bool(
@@ -378,34 +429,34 @@ class EventMenuView(discord.ui.View):
         )
         return False
 
-    @discord.ui.button(label="New Event", style=discord.ButtonStyle.primary, emoji="✍️")
+    @discord.ui.button(label="New Event", style=discord.ButtonStyle.primary, emoji="✍️", row=0)
     async def custom_event(self, it, btn):
         if not await self._require_manage_events(it):
             return
         await it.response.send_message("📡 Setup signal sent to DMs.", ephemeral=True)
         await self.cog.create_mission_flow(self.ctx)
 
-    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="📋")
+    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="📋", row=0)
     async def template_event(self, it, btn):
         if not await self._require_manage_events(it):
             return
         tps = await get_templates(it.guild.id)
         if not tps: return await it.response.send_message("❌ Archive is empty.", ephemeral=True)
-        view = TemplateMenuView(self.cog, self.ctx, tps)
+        view = TemplateMenuView(self.cog, self.ctx, tps, self.settings)
         await it.response.edit_message(
             content="**Select a mission preset to preview:**",
             view=view,
             embed=None,
         )
 
-    @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾")
+    @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾", row=0)
     async def create_template_btn(self, it, btn):
         if not await self._require_manage_events(it):
             return
         await it.response.send_message("💾 Archiving Module Active. Check DMs.", ephemeral=True)
         await self.cog.create_template_flow(self.ctx)
 
-    @discord.ui.button(label="Upcoming Events", style=discord.ButtonStyle.secondary, emoji="📆")
+    @discord.ui.button(label="Upcoming Events", style=discord.ButtonStyle.secondary, emoji="📆", row=1)
     async def upcoming_events(self, it, btn):
         missions = await get_upcoming_missions(it.guild.id, limit=10)
         if not missions:
@@ -416,7 +467,7 @@ class EventMenuView(discord.ui.View):
         embed = self.cog._build_upcoming_events_embed(it.guild, missions)
         await it.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="Remove Event", style=discord.ButtonStyle.danger, emoji="🗑️")
+    @discord.ui.button(label="Remove Event", style=discord.ButtonStyle.danger, emoji="🗑️", row=1)
     async def remove_event(self, it, btn):
         if not await self._require_manage_events(it):
             return
@@ -426,27 +477,89 @@ class EventMenuView(discord.ui.View):
                 "📡 *No upcoming events to remove in this sector.*",
                 ephemeral=True,
             )
-        view = EventRemovalView(self.cog, self.ctx, missions)
+        view = EventRemovalView(self.cog, self.ctx, missions, self.settings)
         await it.response.send_message(
             content="Select the event you want to remove.",
             view=view,
             ephemeral=True,
         )
 
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "You're already at the mission control menu.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Mission control closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.ctx.interaction and self.ctx.interaction.message:
+            try:
+                await self.ctx.interaction.message.edit(view=self)
+            except discord.HTTPException:
+                pass
+
 
 class EventRemovalView(discord.ui.View):
-    def __init__(self, cog, ctx, missions):
+    def __init__(self, cog, ctx, missions, settings: dict):
         super().__init__(timeout=120)
         self.cog = cog
         self.ctx = ctx
         self.missions = missions
-        self.add_item(EventRemovalSelect(cog, ctx, missions))
+        self.settings = settings
+        self.add_item(EventRemovalSelect(cog, ctx, missions, settings))
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = self.cog._build_event_menu_embed()
+        view = EventMenuView(self.cog, self.ctx, self.settings)
+        await interaction.response.edit_message(content=None, embed=embed, view=view)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Event removal closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.ctx.interaction and self.ctx.interaction.message:
+            try:
+                await self.ctx.interaction.message.edit(view=self)
+            except discord.HTTPException:
+                pass
 
 
 class EventRemovalSelect(discord.ui.Select):
-    def __init__(self, cog, ctx, missions):
+    def __init__(self, cog, ctx, missions, settings: dict):
         options = []
         self.mission_map = {}
+        self.missions = missions
+        self.settings = settings
         for mission in missions[:25]:
             target = datetime.fromisoformat(mission["target_utc"]).astimezone(timezone.utc)
             time_label = format_game(target)
@@ -480,18 +593,20 @@ class EventRemovalSelect(discord.ui.Select):
         await interaction.response.edit_message(
             content="Confirm removal below.",
             embed=embed,
-            view=EventRemovalConfirmView(self.cog, self.ctx, mission),
+            view=EventRemovalConfirmView(self.cog, self.ctx, mission, self.missions, self.settings),
         )
 
 
 class EventRemovalConfirmView(discord.ui.View):
-    def __init__(self, cog, ctx, mission):
+    def __init__(self, cog, ctx, mission, missions, settings: dict):
         super().__init__(timeout=60)
         self.cog = cog
         self.ctx = ctx
         self.mission = mission
+        self.missions = missions
+        self.settings = settings
 
-    @discord.ui.button(label="Confirm removal", style=discord.ButtonStyle.danger, emoji="🗑️")
+    @discord.ui.button(label="Confirm removal", style=discord.ButtonStyle.danger, emoji="🗑️", row=0)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.user.guild_permissions.manage_guild:
             return await interaction.response.send_message(
@@ -507,13 +622,32 @@ class EventRemovalConfirmView(discord.ui.View):
             view=None,
         )
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=0)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = EventRemovalView(self.cog, self.ctx, self.missions, self.settings)
         await interaction.response.edit_message(
-            content="📡 Removal cancelled.",
+            content="Select the event you want to remove.",
             embed=None,
-            view=None,
+            view=view,
         )
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=1)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Event removal closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 # --- COG MAIN ---
 
@@ -538,6 +672,23 @@ class Events(commands.Cog):
             )
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
+
+    @staticmethod
+    def _build_event_menu_embed() -> discord.Embed:
+        embed = discord.Embed(
+            title="📡 Mission Control // Marcia",
+            description=(
+                "Pick how you want me to broadcast your operation.\n"
+                "`New Event` opens a DM interview, `Use Template` pulls from your archive.\n"
+                "`Archive Template` saves a new template for reuse.\n"
+                "`Upcoming Events` previews the next ops list for this sector.\n"
+                "`Remove Event` lets you delete a scheduled op without leaving this menu.\n"
+                "I track everything in UTC-2 (Dark War Survival)."
+            ),
+            color=0x5865F2,
+        )
+        embed.set_footer(text="Marcia drones on standby. Keep it sharp.")
+        return embed
 
     async def recover_missions(self):
         """Reloads active missions from SQL on startup."""
@@ -664,20 +815,15 @@ class Events(commands.Cog):
                 content="Events can only be managed inside servers.",
                 ephemeral=True,
             )
-        embed = discord.Embed(
-            title="📡 Mission Control // Marcia",
-            description=(
-                "Pick how you want me to broadcast your operation.\n"
-                "`New Event` opens a DM interview, `Use Template` pulls from your archive.\n"
-                "`Archive Template` saves a new template for reuse.\n"
-                "`Upcoming Events` previews the next ops list for this sector.\n"
-                "`Remove Event` lets you delete a scheduled op without leaving this menu.\n"
-                "I track everything in UTC-2 (Dark War Survival)."
-            ),
-            color=0x2b2d31
-        )
-        embed.set_footer(text="Marcia drones on standby. Keep it sharp.")
-        await self._safe_send(ctx, embed=embed, view=EventMenuView(self, ctx))
+        settings = await get_settings(ctx.guild.id)
+        if not settings or not settings.get("event_channel_id"):
+            return await self._safe_send(
+                ctx,
+                content="📌 Set an events channel first with `/setup` so I know where to post ops.",
+                ephemeral=True,
+            )
+        embed = self._build_event_menu_embed()
+        await self._safe_send(ctx, embed=embed, view=EventMenuView(self, ctx, settings))
 
     async def create_template_flow(self, ctx):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
@@ -782,7 +928,7 @@ class Events(commands.Cog):
     def _build_upcoming_events_embed(self, guild, missions):
         embed = discord.Embed(
             title="🛰️ Upcoming Operations (UTC-2)",
-            color=0x3498db,
+            color=0x5865F2,
             description="I'll ping this channel when it's go-time.",
         )
         for m in missions:
@@ -803,7 +949,7 @@ class Events(commands.Cog):
         embed = discord.Embed(
             title="🗑️ Remove Operation",
             description="Confirm the event you want to scrub from the docket.",
-            color=0xe74c3c,
+            color=0x5865F2,
         )
         embed.add_field(name="Codename", value=mission["codename"], inline=False)
         embed.add_field(name="Scheduled", value=format_game(target), inline=True)

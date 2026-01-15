@@ -7,6 +7,7 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
+from utils.navigation import go_to_command_center
 
 # --------------------
 # Emoji references
@@ -254,7 +255,7 @@ def _build_hero_home_embed() -> discord.Embed:
             "A living dossier of verified heroes, their lore, skills, and signature weapons.\n"
             "Choose a faction below, then select a hero from the dropdown to view their full profile."
         ),
-        color=0x9b59b6,
+        color=0x5865F2,
     )
     embed.add_field(
         name="Factions",
@@ -270,7 +271,7 @@ def _build_faction_embed(faction: str) -> discord.Embed:
     embed = discord.Embed(
         title=f"🧬 {faction} Codex",
         description="Select a hero from the dropdown to view lore, skills, and exclusive weapon details.",
-        color=0x9b59b6,
+        color=0x5865F2,
     )
     lines = [f"• **{hero['name']}** — {_hero_type_line(hero)}" for hero in heroes]
     embed.add_field(name="Available Heroes", value="\n".join(lines) if lines else "—", inline=False)
@@ -413,6 +414,7 @@ def _build_hero_weapon_embed(hero_key: str) -> tuple[discord.Embed, discord.File
 
 class HeroSelect(discord.ui.Select):
     def __init__(self, faction: str):
+        self.faction = faction
         heroes = [(key, data) for key, data in HEROES.items() if data["faction"] == faction]
         options = [
             discord.SelectOption(
@@ -436,7 +438,7 @@ class HeroSelect(discord.ui.Select):
         attachments = [image_file] if image_file else []
         await interaction.response.edit_message(
             embed=embed,
-            view=HeroDetailView(hero_key),
+            view=HeroDetailView(hero_key, faction=self.faction),
             attachments=attachments,
         )
 
@@ -460,10 +462,29 @@ class HomeButton(discord.ui.Button):
         super().__init__(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", disabled=disabled)
 
     async def callback(self, interaction: discord.Interaction):
+        await go_to_command_center(interaction)
+
+
+class BackButton(discord.ui.Button):
+    def __init__(self, disabled: bool):
+        super().__init__(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", disabled=disabled)
+
+    async def callback(self, interaction: discord.Interaction):
         view: HeroesView = self.view
         view.set_faction(None)
         embed = _build_hero_home_embed()
         await interaction.response.edit_message(embed=embed, view=view)
+
+
+class CloseButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Close", style=discord.ButtonStyle.danger, emoji="🛑")
+
+    async def callback(self, interaction: discord.Interaction):
+        view: HeroesView = self.view
+        for child in view.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="Hero codex closed.", embed=None, view=view)
 
 
 class HeroesView(discord.ui.View):
@@ -478,17 +499,24 @@ class HeroesView(discord.ui.View):
 
     def _refresh_items(self):
         self.clear_items()
-        self.add_item(HomeButton(disabled=self.faction is None))
+        self.add_item(HomeButton(disabled=False))
+        self.add_item(BackButton(disabled=self.faction is None))
+        self.add_item(CloseButton())
         for faction in FACTIONS:
             self.add_item(FactionButton(faction))
         if self.faction and any(hero["faction"] == self.faction for hero in HEROES.values()):
             self.add_item(HeroSelect(self.faction))
 
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+
 
 class HeroDetailView(discord.ui.View):
-    def __init__(self, hero_key: str):
+    def __init__(self, hero_key: str, faction: str | None = None):
         super().__init__(timeout=180)
         self.hero_key = hero_key
+        self.faction = faction
 
     async def _switch(self, interaction: discord.Interaction, builder):
         embed, image_file = builder(self.hero_key)
@@ -499,22 +527,42 @@ class HeroDetailView(discord.ui.View):
             attachments=attachments,
         )
 
-    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠")
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=0)
     async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = _build_hero_home_embed()
-        await interaction.response.edit_message(embed=embed, view=HeroesView(), attachments=[])
+        await go_to_command_center(interaction)
 
-    @discord.ui.button(label="Lore", style=discord.ButtonStyle.primary, emoji="📖")
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=0)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.faction:
+            view = HeroesView()
+            view.set_faction(self.faction)
+            embed = _build_faction_embed(self.faction)
+        else:
+            view = HeroesView()
+            embed = _build_hero_home_embed()
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=0)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="Hero codex closed.", embed=None, view=self)
+
+    @discord.ui.button(label="Lore", style=discord.ButtonStyle.primary, emoji="📖", row=1)
     async def lore(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, _build_hero_lore_embed)
 
-    @discord.ui.button(label="Skills", style=discord.ButtonStyle.secondary, emoji="✨")
+    @discord.ui.button(label="Skills", style=discord.ButtonStyle.secondary, emoji="✨", row=1)
     async def skills(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, _build_hero_skills_embed)
 
-    @discord.ui.button(label="Weapon", style=discord.ButtonStyle.secondary, emoji="🗡️")
+    @discord.ui.button(label="Weapon", style=discord.ButtonStyle.secondary, emoji="🗡️", row=1)
     async def weapon(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, _build_hero_weapon_embed)
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 
 class Heroes(commands.Cog):

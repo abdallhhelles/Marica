@@ -23,6 +23,7 @@ from database import (
     is_channel_ignored,
 )
 from utils.time_utils import GAME_TZ, game_to_utc, format_game
+from utils.navigation import go_to_command_center
 
 
 class Reminders(commands.Cog):
@@ -49,14 +50,17 @@ class Reminders(commands.Cog):
         invoke_without_command=True,
         description="Send a reminder from a saved template or manage the archive.",
     )
-    async def remind(self, ctx: commands.Context, *, template: str | None = None):
+    async def remind(self, ctx: commands.Context):
         if not ctx.guild:
             return await ctx.send("❌ Reminders can only be managed inside a server.")
 
-        if template:
-            return await self._send_template(ctx, template)
+        settings = await get_settings(ctx.guild.id)
+        if not settings or not settings.get("event_channel_id"):
+            return await ctx.send(
+                "📌 Set an events channel first with `/setup` so I know where to post reminders."
+            )
 
-        view = ReminderMenuView(self, ctx)
+        view = ReminderMenuView(self, ctx, settings["event_channel_id"])
         embed = discord.Embed(
             title="🛰️ Reminder Control",
             description=(
@@ -67,7 +71,7 @@ class Reminders(commands.Cog):
                 "**Upcoming Reminders**: Review what is scheduled.\n"
                 "**Remove Reminder**: Cancel a scheduled reminder."
             ),
-            color=0x2b2d31,
+            color=0x5865F2,
         )
         embed.add_field(
             name="📅 Scheduling Options",
@@ -82,7 +86,7 @@ class Reminders(commands.Cog):
         embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
         await ctx.send(embed=embed, view=view)
 
-    async def _send_template(self, ctx: commands.Context, template: str):
+    async def _send_template(self, ctx: commands.Context, template: str, event_channel_id: int):
         templates = await get_reminder_templates(ctx.guild.id)
         match = next((t for t in templates if t['template_name'].lower() == template.lower()), None)
         if not match:
@@ -90,7 +94,11 @@ class Reminders(commands.Cog):
             return await ctx.send(f"❌ Template not found. Available: {names}")
 
         quote = random.choice(MARCIA_SYSTEM_LINES)
-        channel = await self._resolve_event_channel(ctx)
+        channel = ctx.guild.get_channel(event_channel_id)
+        if not channel:
+            return await ctx.send(
+                "⚠️ I can't find the configured events channel. Run `/setup` to relink it."
+            )
         reminder_message = self._format_reminder_message(match["body"], match["template_name"])
         await channel.send(f"{reminder_message}\n\n{quote}")
         if channel.id != ctx.channel.id:
@@ -98,7 +106,12 @@ class Reminders(commands.Cog):
 
     @remind.command(name="send", description="Broadcast a saved reminder template.")
     async def remind_send(self, ctx: commands.Context, *, template: str):
-        await self._send_template(ctx, template)
+        settings = await get_settings(ctx.guild.id)
+        if not settings or not settings.get("event_channel_id"):
+            return await ctx.send(
+                "📌 Set an events channel first with `/setup` so I know where to post reminders."
+            )
+        await self._send_template(ctx, template, settings["event_channel_id"])
 
     @remind.command(name="add", description="Archive a new reminder template.")
     @commands.has_permissions(manage_guild=True)
@@ -226,14 +239,14 @@ class Reminders(commands.Cog):
             channel = ctx.guild.get_channel(settings["event_channel_id"])
             if channel:
                 return channel
-        return ctx.channel
+        return None
 
     async def _build_upcoming_reminders_embed(self, guild: discord.Guild) -> discord.Embed:
         reminders = await get_scheduled_reminders(guild.id)
         embed = discord.Embed(
             title="📆 Upcoming Reminders",
             description="Scheduled reminders for this sector.",
-            color=0x2b2d31,
+            color=0x5865F2,
         )
         if not reminders:
             embed.add_field(name="Status", value="No reminders scheduled yet.", inline=False)
@@ -256,23 +269,24 @@ class Reminders(commands.Cog):
 
 
 class ReminderMenuView(discord.ui.View):
-    def __init__(self, cog: Reminders, ctx: commands.Context):
+    def __init__(self, cog: Reminders, ctx: commands.Context, event_channel_id: int):
         super().__init__(timeout=120)
         self.cog = cog
         self.ctx = ctx
+        self.event_channel_id = event_channel_id
 
     def _is_requester(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == self.ctx.author.id
 
-    @discord.ui.button(label="New Reminder", style=discord.ButtonStyle.primary, emoji="🆕")
+    @discord.ui.button(label="New Reminder", style=discord.ButtonStyle.primary, emoji="🆕", row=0)
     async def new_reminder(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._is_requester(interaction):
             return await interaction.response.send_message("Only the requester can use this menu.", ephemeral=True)
         await interaction.response.send_modal(
-            ReminderModal(self.cog, self.ctx, target="events")
+            ReminderModal(self.cog, self.ctx, target="events", event_channel_id=self.event_channel_id)
         )
 
-    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="📋")
+    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="📋", row=0)
     async def send_from_template(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._is_requester(interaction):
             return await interaction.response.send_message("Only the requester can use this menu.", ephemeral=True)
@@ -285,24 +299,24 @@ class ReminderMenuView(discord.ui.View):
 
         await interaction.response.send_message(
             "Select a template to send.",
-            view=TemplateSelectView(self.cog, self.ctx, templates, target="events"),
+            view=TemplateSelectView(self.cog, self.ctx, templates, target="events", event_channel_id=self.event_channel_id),
             ephemeral=True,
         )
 
-    @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾")
+    @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾", row=0)
     async def archive_template(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._is_requester(interaction):
             return await interaction.response.send_message("Only the requester can use this menu.", ephemeral=True)
         await interaction.response.send_modal(TemplateCreateModal(self.ctx))
 
-    @discord.ui.button(label="Upcoming Reminders", style=discord.ButtonStyle.secondary, emoji="📆")
+    @discord.ui.button(label="Upcoming Reminders", style=discord.ButtonStyle.secondary, emoji="📆", row=1)
     async def upcoming_reminders(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._is_requester(interaction):
             return await interaction.response.send_message("Only the requester can use this menu.", ephemeral=True)
         embed = await self.cog._build_upcoming_reminders_embed(self.ctx.guild)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="Remove Reminder", style=discord.ButtonStyle.danger, emoji="🗑️")
+    @discord.ui.button(label="Remove Reminder", style=discord.ButtonStyle.danger, emoji="🗑️", row=1)
     async def remove_reminder(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._is_requester(interaction):
             return await interaction.response.send_message("Only the requester can use this menu.", ephemeral=True)
@@ -312,9 +326,39 @@ class ReminderMenuView(discord.ui.View):
             return
         await interaction.response.send_message(
             "Select a reminder to remove.",
-            view=ReminderRemoveView(self.cog, self.ctx, reminders),
+            view=ReminderRemoveView(self.cog, self.ctx, reminders, self.event_channel_id),
             ephemeral=True,
         )
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "You're already at the reminder menu.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Reminder menu closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.ctx.interaction and self.ctx.interaction.message:
+            try:
+                await self.ctx.interaction.message.edit(view=self)
+            except discord.HTTPException:
+                pass
 
 
 class ReminderChannelModal(discord.ui.Modal):
@@ -382,11 +426,18 @@ class ReminderChannelModal(discord.ui.Modal):
 
 
 class ReminderModal(discord.ui.Modal):
-    def __init__(self, cog: Reminders, ctx: commands.Context, target: str):
+    def __init__(
+        self,
+        cog: Reminders,
+        ctx: commands.Context,
+        target: str,
+        event_channel_id: int | None = None,
+    ):
         super().__init__(title="Schedule reminder")
         self.cog = cog
         self.ctx = ctx
         self.target = target
+        self.event_channel_id = event_channel_id
 
         self.body = discord.ui.TextInput(
             label="Reminder text",
@@ -412,18 +463,34 @@ class ReminderModal(discord.ui.Modal):
             await interaction.followup.send(str(e), ephemeral=True)
             return
 
-        channel = (
-            await self.cog._resolve_event_channel(self.ctx)
-            if self.target == "events"
-            else self.ctx.channel
-        )
+        if self.target == "events":
+            channel = (
+                self.ctx.guild.get_channel(self.event_channel_id)
+                if self.event_channel_id
+                else None
+            )
+            if not channel:
+                await interaction.followup.send(
+                    "📌 Set an events channel first with `/setup` so I know where to post reminders.",
+                    ephemeral=True,
+                )
+                return
+        else:
+            channel = self.ctx.channel
 
         await self.cog._send_or_schedule(self.ctx, channel, str(self.body.value), when_utc)
         await interaction.followup.send("Reminder queued.", ephemeral=True)
 
 
 class TemplateSelect(discord.ui.Select):
-    def __init__(self, cog: Reminders, ctx: commands.Context, templates: list[dict], target: str):
+    def __init__(
+        self,
+        cog: Reminders,
+        ctx: commands.Context,
+        templates: list[dict],
+        target: str,
+        event_channel_id: int | None = None,
+    ):
         options = [
             discord.SelectOption(label=t["template_name"], description=t["body"][:90])
             for t in templates
@@ -433,6 +500,7 @@ class TemplateSelect(discord.ui.Select):
         self.ctx = ctx
         self.templates = templates
         self.target = target
+        self.event_channel_id = event_channel_id
 
     async def callback(self, interaction: discord.Interaction):
         template = next(
@@ -442,15 +510,77 @@ class TemplateSelect(discord.ui.Select):
             await interaction.response.send_message("Template not found.", ephemeral=True)
             return
 
-        modal = ReminderModal(self.cog, self.ctx, target=self.target)
+        modal = ReminderModal(
+            self.cog,
+            self.ctx,
+            target=self.target,
+            event_channel_id=self.event_channel_id,
+        )
         modal.body.default = template["body"]
         await interaction.response.send_modal(modal)
 
 
 class TemplateSelectView(discord.ui.View):
-    def __init__(self, cog: Reminders, ctx: commands.Context, templates: list[dict], target: str):
+    def __init__(
+        self,
+        cog: Reminders,
+        ctx: commands.Context,
+        templates: list[dict],
+        target: str,
+        event_channel_id: int | None = None,
+    ):
         super().__init__(timeout=60)
-        self.add_item(TemplateSelect(cog, ctx, templates, target))
+        self.cog = cog
+        self.ctx = ctx
+        self.target = target
+        self.event_channel_id = event_channel_id
+        self.add_item(TemplateSelect(cog, ctx, templates, target, event_channel_id))
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = ReminderMenuView(self.cog, self.ctx, self.event_channel_id)
+        embed = discord.Embed(
+            title="🛰️ Reminder Control",
+            description=(
+                "Choose how you want to manage reminders:\n\n"
+                "**New Reminder**: Schedule a reminder to your events channel.\n"
+                "**Use Template**: Send a saved reminder template to the events channel.\n"
+                "**Archive Template**: Save a new template for reuse.\n"
+                "**Upcoming Reminders**: Review what is scheduled.\n"
+                "**Remove Reminder**: Cancel a scheduled reminder."
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(
+            name="📅 Scheduling Options",
+            value=(
+                "For new or template reminders:\n"
+                "• **Send now** — Leave the time field blank\n"
+                "• **Schedule for later** — Enter date/time in game time format:\n"
+                f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
+        await interaction.response.edit_message(embed=embed, view=view)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Template picker closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 
 class TemplateCreateModal(discord.ui.Modal):
@@ -507,9 +637,59 @@ class ReminderRemoveSelect(discord.ui.Select):
 
 
 class ReminderRemoveView(discord.ui.View):
-    def __init__(self, cog: Reminders, ctx: commands.Context, reminders):
+    def __init__(self, cog: Reminders, ctx: commands.Context, reminders, event_channel_id: int):
         super().__init__(timeout=60)
+        self.cog = cog
+        self.ctx = ctx
+        self.reminders = reminders
+        self.event_channel_id = event_channel_id
         self.add_item(ReminderRemoveSelect(cog, ctx, reminders))
+
+    @discord.ui.button(label="Home", style=discord.ButtonStyle.secondary, emoji="🏠", row=2)
+    async def home(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await go_to_command_center(interaction)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, emoji="↩️", row=2)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = ReminderMenuView(self.cog, self.ctx, self.event_channel_id)
+        embed = discord.Embed(
+            title="🛰️ Reminder Control",
+            description=(
+                "Choose how you want to manage reminders:\n\n"
+                "**New Reminder**: Schedule a reminder to your events channel.\n"
+                "**Use Template**: Send a saved reminder template to the events channel.\n"
+                "**Archive Template**: Save a new template for reuse.\n"
+                "**Upcoming Reminders**: Review what is scheduled.\n"
+                "**Remove Reminder**: Cancel a scheduled reminder."
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(
+            name="📅 Scheduling Options",
+            value=(
+                "For new or template reminders:\n"
+                "• **Send now** — Leave the time field blank\n"
+                "• **Schedule for later** — Enter date/time in game time format:\n"
+                f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
+        await interaction.response.edit_message(embed=embed, view=view)
+
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(
+            content="Reminder removal closed.",
+            embed=None,
+            view=self,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 
 class TemplateDeleteSelect(discord.ui.Select):

@@ -339,6 +339,19 @@ async def init_db():
             )
         ''')
 
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS inventory_transfers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER,
+                channel_id INTEGER,
+                sender_id INTEGER,
+                receiver_id INTEGER,
+                item_id TEXT,
+                quantity INTEGER,
+                created_at TEXT
+            )
+        ''')
+
         # 7. Command usage telemetry (guild-isolated)
         await db.execute('''
             CREATE TABLE IF NOT EXISTS command_usage (
@@ -400,6 +413,7 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_mission_guild ON server_missions(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_user_stats_guild ON user_stats(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_transfers_guild ON inventory_transfers(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
 
         async with db.execute("PRAGMA table_info(user_stats)") as cursor:
@@ -1166,6 +1180,28 @@ async def transfer_inventory(guild_id: int, sender: int, receiver: int, item_nam
         )
         await db.commit()
     return True
+
+
+async def log_inventory_transfer(
+    guild_id: int,
+    channel_id: int,
+    sender_id: int,
+    receiver_id: int,
+    item_name: str,
+    quantity: int,
+) -> None:
+    """Persist a transfer audit entry for inventory movement."""
+    created_at = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO inventory_transfers
+                (guild_id, channel_id, sender_id, receiver_id, item_id, quantity, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (guild_id, channel_id, sender_id, receiver_id, item_name, quantity, created_at),
+        )
+        await db.commit()
 
 
 async def update_scavenge_time(guild_id: int, user_id: int, streak: int | None = None):
