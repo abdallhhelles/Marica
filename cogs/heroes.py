@@ -286,37 +286,25 @@ def _add_sectioned_fields(
     max_len: int = 1000,
 ) -> None:
     if not lines:
-        embed.add_field(name=titles[0], value="No data available.", inline=False)
+        for title in titles:
+            embed.add_field(name=title, value="—", inline=False)
         return
 
-    sections: list[list[str]] = []
-    current: list[str] = []
-    current_len = 0
+    section_count = len(titles)
+    sections: list[list[str]] = [[] for _ in range(section_count)]
+    lengths = [0 for _ in range(section_count)]
+    index = 0
 
     for line in lines:
-        entry_len = len(line) + (len(separator) if current else 0)
-        if current and current_len + entry_len > max_len and len(sections) < len(titles) - 1:
-            sections.append(current)
-            current = [line]
-            current_len = len(line)
-        else:
-            current.append(line)
-            current_len += entry_len
-
-    if current:
-        sections.append(current)
-
-    if len(sections) > len(titles):
-        overflow = sections[len(titles) - 1:]
-        merged: list[str] = []
-        for chunk in overflow:
-            if merged:
-                merged.append("")
-            merged.extend(chunk)
-        sections = sections[: len(titles) - 1] + [merged]
+        entry_len = len(line) + (len(separator) if sections[index] else 0)
+        if lengths[index] + entry_len > max_len and index < section_count - 1:
+            index += 1
+        sections[index].append(line)
+        lengths[index] += len(line) + (len(separator) if len(sections[index]) > 1 else 0)
 
     for title, chunk in zip(titles, sections):
-        embed.add_field(name=title, value=separator.join(chunk), inline=False)
+        value = separator.join(chunk) if chunk else "—"
+        embed.add_field(name=title, value=value, inline=False)
 
 
 def _add_lore_fields(embed: discord.Embed, lore: list[str]) -> None:
@@ -363,8 +351,10 @@ def _build_hero_lore_embed(hero_key: str) -> tuple[discord.Embed, discord.File |
 def _build_hero_skills_embed(hero_key: str) -> tuple[discord.Embed, discord.File | None]:
     hero = HEROES[hero_key]
     embed = _hero_embed_base(hero, "Skill breakdown and scaling.")
-    for skill_name, skill_text in hero["skills"]:
-        embed.add_field(name=f"✨ {skill_name}", value=skill_text, inline=False)
+    skill_lines = [
+        f"**{skill_name}** — {skill_text}" for skill_name, skill_text in hero["skills"]
+    ]
+    _add_sectioned_fields(embed, ["Skill Array", "Skill Array • Phase 2", "Skill Array • Phase 3"], skill_lines, separator="\n")
     image_file = _attach_hero_image(embed, hero)
     return embed, image_file
 
