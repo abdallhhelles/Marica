@@ -78,7 +78,7 @@ For the full map and module list, see [STRUCTURE.md](STRUCTURE.md).
 * **Channel guard:** `/setup` scopes ingestion to a specific channel; other channels are ignored by design.
 * **Metric extraction:** Parses CP, kills, server, and alliance from uploaded screenshots, including the extended **More** tab layouts.
 * **Review & ranking:** `/profile` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/profile_review` lets admins invalidate or delete scans; `/leaderboard` surfaces XP plus CP/kills/likes/VIP (profile scan) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
-* **Health checks:** `/ocr_status` and `python ocr/diagnostics.py` verify dependencies/templates. See [OCR_SETUP.md](OCR_SETUP.md).
+* **Health checks:** `python ocr/diagnostics.py` verifies dependencies/templates. See [OCR_SETUP.md](OCR_SETUP.md).
 
 ---
 
@@ -106,7 +106,7 @@ These steps are for the owner’s private deployment only.
    * `pip install -r requirements.txt` (includes OCR extras)
 2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
 3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`).
-4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py` or `/ocr_status` in Discord.
+4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py`.
 
 ---
 

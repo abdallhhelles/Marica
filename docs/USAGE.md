@@ -14,7 +14,7 @@ Concise guidance for the commands operators use most. Times use the in-game cloc
 ### 2) Essential commands (owners + admins)
 - **Mission control:** `/event` opens the mission console, **Custom Event** schedules ops, **Use Template** reuses presets, and **Upcoming Events** lists the schedule.
 - **Remove events:** `/event` → **Remove Event** deletes an operation.
-- **Health checks:** `/status` for latency and wiring; `/analytics` for per-server usage and inventory stats.
+- **Health checks:** `/analytics` for per-server usage and inventory stats.
 - **Command refresh:** `/refresh_commands` if slash commands go out of sync.
 
 ### 3) Member-facing commands (share with your crew)

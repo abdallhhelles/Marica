@@ -85,45 +85,6 @@ class Reminders(commands.Cog):
         embed.set_footer(text="Marcia keeps your reminders sharp and on schedule.")
         await ctx.send(embed=embed, view=view)
 
-    async def _send_template(self, ctx: commands.Context, template: str, event_channel_id: int):
-        templates = await get_reminder_templates(ctx.guild.id)
-        match = next((t for t in templates if t['template_name'].lower() == template.lower()), None)
-        if not match:
-            names = ", ".join(t['template_name'] for t in templates) or "none"
-            return await ctx.send(f"❌ Template not found. Available: {names}")
-
-        quote = random.choice(MARCIA_SYSTEM_LINES)
-        channel = ctx.guild.get_channel(event_channel_id)
-        if not channel:
-            return await ctx.send(
-                "⚠️ I can't find the configured events channel. Run `/setup` to relink it."
-            )
-        reminder_message = self._format_reminder_message(match["body"], match["template_name"])
-        await channel.send(f"{reminder_message}\n\n{quote}")
-        if channel.id != ctx.channel.id:
-            await ctx.send(f"✅ Reminder sent to {channel.mention}.", delete_after=8)
-
-    @remind.command(name="send", description="Broadcast a saved reminder template.")
-    async def remind_send(self, ctx: commands.Context, *, template: str):
-        settings = await get_settings(ctx.guild.id)
-        if not settings or not settings.get("event_channel_id"):
-            return await ctx.send(
-                "📌 Set an events channel first with `/setup` so I know where to post reminders."
-            )
-        await self._send_template(ctx, template, settings["event_channel_id"])
-
-    @remind.command(name="add", description="Archive a new reminder template.")
-    @commands.has_permissions(manage_guild=True)
-    async def remind_add(self, ctx: commands.Context, name: str, *, body: str):
-        await add_reminder_template(ctx.guild.id, name, body)
-        await ctx.send(f"✅ Template `{name}` saved to the archive.")
-
-    @remind.command(name="remove", description="Delete a saved reminder template.")
-    @commands.has_permissions(manage_guild=True)
-    async def remind_remove(self, ctx: commands.Context, *, name: str):
-        await delete_reminder_template(ctx.guild.id, name)
-        await ctx.send(f"🗑️ Template `{name}` deleted.")
-
     async def _send_or_schedule(
         self,
         ctx: commands.Context,
