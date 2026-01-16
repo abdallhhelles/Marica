@@ -29,7 +29,6 @@ from database import (
     upsert_profile_snapshot,
 )
 from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
-from ocr.diagnostics import collect_ocr_diagnostics
 
 _PIL_SPEC = importlib.util.find_spec("PIL")
 _PYTESSERACT_SPEC = importlib.util.find_spec("pytesseract")
@@ -285,59 +284,6 @@ class ProfileScanner(commands.Cog):
         message = await self._safe_send(ctx, embed=embed, view=view, ephemeral=True)
         if isinstance(message, discord.Message):
             view.bind_message(message)
-
-    @commands.hybrid_command(
-        name="ocr_status",
-        description="Check whether profile scan dependencies and templates are ready.",
-    )
-    @commands.has_permissions(manage_guild=True)
-    async def ocr_status(self, ctx):
-        await ctx.defer(ephemeral=True)
-
-        easyocr_ready = await self._ensure_easyocr()
-        diag = collect_ocr_diagnostics()
-        diag.easyocr_ready = bool(easyocr_ready)
-        diag.easyocr_failure = self._easyocr_failure_reason
-        diag.box_count = len(self._easyocr_boxes or {}) or diag.box_count
-        diag.boxes_present = BOXES_PATH.exists()
-
-        box_status = (
-            f"Loaded {diag.box_count} fields from {BOXES_PATH.name}" if diag.box_count else "No templates loaded"
-        )
-        box_details = (
-            f"Box file present at {BOXES_PATH}" if diag.boxes_present else "Missing boxes_ratios.json"
-        )
-
-        easyocr_label = "Ready" if diag.easyocr_ready else "Not ready" if diag.easyocr else "Not installed"
-        if diag.easyocr_failure:
-            easyocr_label += f" — {diag.easyocr_failure}"
-
-        pytess_label = "Installed" if diag.pytesseract else "Missing"
-        if diag.tesseract_binary is True:
-            pytess_label += " (binary found)"
-        elif diag.tesseract_binary is False:
-            pytess_label += " (install the Tesseract CLI)"
-
-        embed = discord.Embed(title="🛰️ Profile Scan Status", color=0x3498db)
-        if diag.install_tips:
-            embed.description = (
-                "⚠️ Profile scans will stay blank until you finish the fixes below."
-            )
-        elif diag.easyocr_ready:
-            embed.description = "✅ Profile scan dependencies and templates look ready."
-        embed.add_field(name="EasyOCR", value=easyocr_label, inline=False)
-        embed.add_field(name="Templates", value=f"{box_status}\n{box_details}", inline=False)
-        embed.add_field(name="Pillow", value="Installed" if diag.pillow else "Missing", inline=True)
-        embed.add_field(name="pytesseract", value=pytess_label, inline=True)
-
-        if diag.install_tips:
-            embed.add_field(
-                name="Blocking fixes",
-                value="\n".join(f"• {tip}" for tip in diag.install_tips),
-                inline=False,
-            )
-
-        await self._safe_send(ctx, embed=embed, ephemeral=True)
 
     # --------------------
     # Intake listener

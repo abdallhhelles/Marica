@@ -14,7 +14,7 @@ This guide keeps `/scan_profile` predictable across the owner-managed environmen
    * macOS (Homebrew): `brew install tesseract`
    * Windows (Chocolatey): `choco install tesseract`
 3. Verify versions: `tesseract --version` and, if OCR is enabled, `python -m pip show easyocr opencv-python-headless numpy torch torchvision`.
-4. Run diagnostics: `python ocr/diagnostics.py` locally or `/ocr_status` inside Discord.
+4. Run diagnostics: `python ocr/diagnostics.py` locally.
 
 Profile scanning runs purely on CPU by default (see `GPU = False` in `ocr/ocr_runner.py`). If you later add a CUDA-capable GPU
 and want faster scans, install the matching CUDA wheels for torch/torchvision and flip that flag to `True`.
@@ -30,11 +30,9 @@ EasyOCR uses bounding boxes from `ocr/boxes_ratios.json`. If your screenshot lay
 * **Conflicting packages:** third-party images sometimes bundle `googletrans==4.0.0rc1`, which forces `httpx==0.13.3`. Re-pin `httpx` to the version from `requirements.txt` to avoid breaking the bot’s HTTP client.
 
 ## Diagnostics reference
-The diagnostics scripts call out exactly what's missing:
-* **Local CLI:**
-  ```bash
-  python ocr/diagnostics.py
-  ```
-* **Discord slash command:** `/ocr_status`
+The diagnostics script calls out exactly what's missing:
+```bash
+python ocr/diagnostics.py
+```
 
-Both paths surface missing Python dependencies, the Tesseract binary, and template issues so you can resolve blockers quickly.
+It surfaces missing Python dependencies, the Tesseract binary, and template issues so you can resolve blockers quickly.

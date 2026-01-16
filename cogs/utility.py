@@ -19,7 +19,6 @@ from utils.assets import (
     MARCIA_TRAITS,
 )
 from database import (
-    get_settings,
     guild_analytics_snapshot,
     increment_activity_metric,
     log_feedback_entry,
@@ -45,62 +44,41 @@ CLEAR_CONFIRM_THRESHOLD = 25
 # so Discord users see the same capabilities advertised in documentation/screenshots.
 SHOWCASE_SECTIONS = [
     {
-        "name": "Lore Snapshot",
+        "name": "Ops & Reminders",
         "lines": [
-            "Former underground hacker who now guards ops and data with her drone fleet (Sparky, Vulture-7, Ghost-Link).",
-            "Protects refugees while keeping morale high with banter; rewards banshees with barbs if they break server safety.",
-            "Keeps all survivor data isolated per server for security—no cross-pollination.",
-            "Tracks scavenging streaks like war diaries; discipline earns the big hauls.",
-        ],
-    },
-        {
-            "name": "Core Systems",
-            "lines": [
-                "📡 Operations (UTC-2 clock): `/event`, `/setup`, `/status`, `/analytics`.",
-                "🎣 Trading | Fish-Link: `/setup_trade` anchors the terminal; trade flows through buttons and profile/inventory views.",
-                "🛰️ Progression & Scavenging: `/scavenge` with streak + overclock XP, `/leaderboard` exports, `/profile`, `/inventory`.",
-                "🛰️ Profile Scan: `/scan_profile` intake configured via `/setup`; stats flow into `/profile` + `/leaderboard`.",
-            ],
-        },
-    {
-        "name": "Welcomes, Departures, & Automation",
-        "lines": [
-            "`/setup` links welcome/verify/rules and reminder channels; use `/setup` any time to review link status.",
-            "Auto role: optional helper to assign a base role on join for visibility.",
-            "Analytics dashboards summarize command usage so admins know what crews lean on most.",
+            "📡 `/event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
+            "⏱️ `/remind` opens a control deck for new reminders, templates, and scheduled blasts.",
+            "📆 `/remindme` sets personal DM timers for solo tasks.",
         ],
     },
     {
-            "name": "Command Directory (quick view)",
-            "lines": [
-                "Admin: `/setup`, `/setup_trade`, `/refresh_commands`, `/event`, `/analytics`, `/status`.",
-                "Members: `/event` (upcoming ops), `/scavenge`, `/profile`, `/leaderboard`, `/inventory`, `/features`, `/commands`, `/heroes`.",
-                "Profile scans: `/scan_profile`; `/leaderboard` export sends TSV to DM.",
-                "Trading: Fish-Link buttons + trade access in `/profile` and `/inventory`.",
-            ],
-        },
-    {
-            "name": "How to Deploy",
-            "lines": [
-                "1) With Mod permissions, run `/setup` to link channels and auto-role in minutes.",
-                "2) Launch `/setup_trade` in a trade channel to pin the Fish-Link terminal (seeded in SQLite for persistence).",
-                "3) Run `/event` for mission planning; auto reminders are stored in SQLite with crash-safe WAL mode.",
-                "4) Add event timers to `/scavenge` and trading to keep grind and swaps moving.",
-            ],
-        },
-    {
-        "name": "Data & Safety",
+        "name": "Trading & Progression",
         "lines": [
-            "Events, reminders, and trading data live in `marcia_os.db`; backups are WAL-friendly and seed data restores wiped hosts.",
-            "Trade data is isolated per server; analytics and reminders never cross guild boundaries.",
+            "🎣 Fish-Link trading terminal: `/setup_trade` anchors the hub; buttons drive listings.",
+            "🛰️ `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
+            "🏆 `/leaderboard` + `/profile` surface XP and scan stats; `/inventory` tracks drops.",
         ],
     },
     {
-        "name": "Tips for Server Admins",
+        "name": "Profile Scans",
         "lines": [
-            "Use `/setup` before events to highlight missing channel links or permissions.",
-            "Use `/status` for a fast signal check; `/analytics` shows per-server command usage and trading depth.",
-            "Welcome, rules, and event channels can be kept minimal—Marcia formats reminders and guidance automatically.",
+            "📷 `/scan_profile` intake set via `/setup`—stats roll into `/profile` and `/leaderboard`.",
+            "🔎 `/profile_review` lets mods validate or purge scan data.",
+        ],
+    },
+    {
+        "name": "Community & Safety",
+        "lines": [
+            "🎯 `/commands`, `/features`, `/about`, and `/heroes` onboard new survivors fast.",
+            "🛡️ `/feedback` routes reports to the handler without leaking server data.",
+            "🚫 Channel ignore keeps silenced rooms dark; analytics stay locked to each server.",
+        ],
+    },
+    {
+        "name": "Admin Toolkit",
+        "lines": [
+            "⚙️ `/setup` links channels + auto-role; `/refresh_commands` re-syncs slash commands.",
+            "📊 `/analytics` gives per-server usage snapshots and trading depth.",
         ],
     },
 ]
@@ -112,6 +90,7 @@ class Utility(commands.Cog):
         self.log = logging.getLogger("MarciaOS.Utility")
         self._app_owner = None
         self._feedback_owner = None
+        self._feedback_dedupe: dict[tuple, float] = {}
         self._share_link = "https://bit.ly/49z28IZ"
         self._about_cache: dict[str | None, discord.Embed] = {}
 
@@ -283,7 +262,7 @@ class Utility(commands.Cog):
             value="\n".join([
                 "• `/event` (with upcoming ops + removal) for UTC-2 planning",
                 "• `/remind` with templates, schedule, and immediate blasts",
-                "• `/status` & `/analytics` for uptime, wiring, and usage",
+                "• `/analytics` for usage, wiring, and activity snapshots",
             ]),
             inline=False,
         )
@@ -302,7 +281,7 @@ class Utility(commands.Cog):
                 "• Trading terminal with persistent Fish-Link inventory",
                 "• `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
                 "• Profile scans: `/scan_profile` (configure intake via `/setup`); caches uploads",
-                "• Analytics per guild; nothing crosses sectors",
+                "• Per-guild analytics; nothing crosses sectors",
             ]),
             inline=False,
         )
@@ -327,7 +306,7 @@ class Utility(commands.Cog):
                     "`/event` • plan ops + upcoming list + removal",
                     "`/remind` • channel reminder",
                     "`/remindme` • DM timer",
-                    "`/status` • quick signal | `/analytics`",
+                    "`/analytics` • usage snapshot",
                 ],
             ),
             (
@@ -378,6 +357,22 @@ class Utility(commands.Cog):
         """Persist feedback, notify the owner, and acknowledge the user."""
         category_label = (category or "general").strip() or "general"
         packaged = f"[{category_label}] {feedback_text}".strip()
+
+        interaction_id = getattr(getattr(ctx, "interaction", None), "id", None)
+        message_id = getattr(getattr(ctx, "message", None), "id", None)
+        dedupe_key = (
+            ctx.guild.id if ctx.guild else None,
+            ctx.author.id,
+            interaction_id or message_id,
+            packaged,
+        )
+        now = datetime.now(timezone.utc).timestamp()
+        for key, timestamp in list(self._feedback_dedupe.items()):
+            if now - timestamp > 10:
+                self._feedback_dedupe.pop(key, None)
+        if dedupe_key in self._feedback_dedupe:
+            return
+        self._feedback_dedupe[dedupe_key] = now
 
         guild_id = ctx.guild.id if ctx.guild else None
         channel_id = ctx.channel.id if getattr(ctx, "channel", None) else None
@@ -509,10 +504,19 @@ class Utility(commands.Cog):
     async def tips(self, ctx):
         """Random survival tips and bot tricks."""
         tips_list = [
-            "You can use `/remindme 60 Prepare for War` and I will DM you in one hour.",
-            "Mission timers use the Dark War Survival clock (UTC-2) across every server.",
-            "The Trading Terminal is server-specific. You won't see fish from other servers here!",
-            "Try `/heroes` for the hero codex and `/features` for the full showcase."
+            "Use `/remindme 60 Prepare for War` to get a DM in one hour.",
+            "Mission timers run on Dark War Survival time (UTC-2).",
+            "Pin Fish-Link with `/setup_trade` so traders can move fast without spam.",
+            "Use `/remind` to schedule reminders or save templates for rapid ops pings.",
+            "Run `/event` to stage ops with a codename, location, and optional role ping.",
+            "Need proof of power? `/scan_profile` feeds `/profile` and `/leaderboard` stats.",
+            "Inventory is sector-locked—`/inventory` only shows loot from this server.",
+            "Clear stale drops with `/clear` instead of manual pruning.",
+            "Use `/features` or `/commands` to onboard new survivors in seconds.",
+            "Keep a calm event channel—Marcia formats reminders so chatter stays low.",
+            "Check `/leaderboard` exports if you need a TSV for spreadsheets.",
+            "Use `/feedback` to report bugs or ideas without leaking server intel.",
+            "Browse `/heroes` when you need a quick dossier before upgrades."
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
 
@@ -546,31 +550,6 @@ class Utility(commands.Cog):
         featureboard = self._build_featureboard(ctx.guild.name if ctx.guild else None)
         await self._safe_send(ctx, embeds=[featureboard, embed])
 
-    @commands.hybrid_command(description="System diagnostic and latency check.")
-    async def status(self, ctx):
-        """System diagnostic and latency check."""
-        latency = round(self.bot.latency * 1000)
-        settings = await get_settings(ctx.guild.id)
-
-        embed = discord.Embed(title="📡 System Diagnostic", color=0x2ecc71)
-        embed.add_field(name="Signal Latency", value=f"🟢 {latency}ms")
-        embed.add_field(name="Databank", value="🔵 SQL Stable")
-        embed.add_field(
-            name="Sectors Linked",
-            value=(
-                "✅ Event" if settings and settings.get('event_channel_id') else "❌ Event missing"
-            ) + " | " + (
-                "✅ Chat" if settings and settings.get('chat_channel_id') else "❌ Chat missing"
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="⏱️ Server Clock",
-            value="UTC-2 (Dark War Survival global time)",
-            inline=False,
-        )
-        embed.set_footer(text="Need a deeper check? Open /setup to review linked channels.")
-        await self._safe_send(ctx, embed=embed)
 
     async def _build_analytics_embed(self, guild: discord.Guild) -> discord.Embed:
         snapshot = await guild_analytics_snapshot(guild.id)

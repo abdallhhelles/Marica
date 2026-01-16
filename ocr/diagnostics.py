@@ -1,7 +1,6 @@
 """Utilities to check whether OCR dependencies and templates are ready.
 
-Run ``python ocr/diagnostics.py`` to print a CLI report. The helper functions are
-reused by the bot's ``/ocr_status`` command to surface the same details in Discord.
+Run ``python ocr/diagnostics.py`` to print a CLI report for local validation.
 """
 from __future__ import annotations
 
