@@ -1,15 +1,13 @@
 """
 FILE: cogs/leveling.py
 USE: Multi-server RPG system (SQL Version).
-FEATURES: Per-server XP, Scavenging with Rarity, Prestige collectors, and Automated Data Migration.
+FEATURES: Per-server XP, Scavenging with Rarity, and Prestige collectors.
 """
 import discord
 from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
 import io
-import json
-import os
 import random
 import time
 import aiosqlite
@@ -564,6 +562,12 @@ class Leveling(commands.Cog):
     )
     async def inventory(self, ctx):
         """Displays your current server-specific item stash."""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="🎒 Inventory is only available inside servers.",
+                ephemeral=True,
+            )
         rows = await get_inventory(ctx.guild.id, ctx.author.id)
 
         if not rows:
@@ -849,45 +853,6 @@ class Leveling(commands.Cog):
         message = await self._safe_send(ctx, embed=embed, view=view)
         if isinstance(message, discord.Message):
             view.bind_message(message)
-
-    @commands.hybrid_command()
-    @commands.has_permissions(manage_guild=True)
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def import_old_levels(self, ctx):
-        """Critical migration tool: Transfers legacy JSON data to the SQL database."""
-        if not os.path.exists("legacy/levels.json"):
-            return await ctx.send("❌ `legacy/levels.json` not found in root directory.")
-        
-        try:
-            with open("legacy/levels.json", "r") as f:
-                old_data = json.load(f)
-            
-            async with aiosqlite.connect(DB_PATH) as db:
-                for uid, stats in old_data.items():
-                    # Import Stats with safety check for types
-                    user_id = int(uid)
-                    xp = stats.get('xp', 0)
-                    lvl = stats.get('level', 1)
-                    
-                    await db.execute('''
-                        INSERT OR REPLACE INTO user_stats (guild_id, user_id, xp, level)
-                        VALUES (?, ?, ?, ?)
-                    ''', (ctx.guild.id, user_id, xp, lvl))
-                    
-                    # Import Inventory items (handles both string and dict formats)
-                    for item in stats.get('inventory', []):
-                        name = item['name'] if isinstance(item, dict) else item
-                        # Assign default 'Common' rarity for legacy items
-                        await db.execute('''
-                            INSERT INTO user_inventory (guild_id, user_id, item_id, quantity, rarity)
-                            VALUES (?, ?, ?, 1, 'Common')
-                            ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET quantity = quantity + 1
-                        ''', (ctx.guild.id, user_id, name))
-                await db.commit()
-            
-            await ctx.send(f"✅ **Sector Data Restored.** Migrated {len(old_data)} user profiles to database.")
-        except Exception as e:
-            await ctx.send(f"❌ **System Breach during migration:** `{e}`")
 
     def _tier_role_name(self, tier: int) -> str:
         index = max(0, (tier // ROLE_STEP) - 1)

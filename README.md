@@ -40,7 +40,7 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 * **Channel guard:** `/setup_profile_channel` scopes ingestion to a specific channel; other channels are ignored by design.
 * **Metric extraction:** Parses CP, kills, likes, VIP, level, server, and alliance from uploaded screenshots.
 * **Review & ranking:** `/profile_stats` shows the last snapshot; `/profile_leaderboard` surfaces the top CP/kills/likes/VIP/level.
-* **Health checks:** `/ocr_status` and `python ocr/diagnostics.py` verify dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
+* **Health checks:** `python ocr/diagnostics.py` verifies dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
 
 ---
 
@@ -69,7 +69,7 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
    * Enable OCR locally: `pip install --no-cache-dir -r requirements-ocr.txt`
 2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
 3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`). If OCR is enabled, also check `python -m pip show torch torchvision easyocr`.
-4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py` or `/ocr_status` in Discord.
+4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py`.
 
 ---
 

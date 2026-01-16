@@ -14,4 +14,4 @@ These scripts let you crop game profile screenshots and extract key stats with E
 If either script reports `Input folder 'shots' is missing`, create `shots/` and add at least one screenshot before running again.
 
 ## Diagnostics
-- Run `python ocr/diagnostics.py` locally or `/ocr_status` in Discord to confirm dependencies, the Tesseract binary, and templates are available.
+- Run `python ocr/diagnostics.py` locally to confirm dependencies, the Tesseract binary, and templates are available.

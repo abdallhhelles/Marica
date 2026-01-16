@@ -41,7 +41,6 @@ All notable changes to Marcia OS will be documented in this file.
 - All changes are backward compatible
 - Old import paths automatically updated
 - No database schema changes required
-- Legacy data migration still functional via `/import_old_levels` command
 
 ---
 

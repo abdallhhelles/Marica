@@ -4,65 +4,32 @@
 
 A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. Marcia speaks in-character, runs your ops clock, manages trading, and keeps survivor data isolated per server.
 
-## Lore Snapshot
-- Former underground hacker who now guards scattered hubs with a drone fleet (Sparky, Vulture-7, Ghost-Link, and more).
-- Protects refugees while hiding empathy behind sarcasm; rewards self-sufficient crews and mocks freeloaders.
-- Drones patrol every linked sector; her voice and quotes keep broadcasts human, not robotic.
-- Tracks scavenging streaks as war diaries and pushes crews to earn freedom with discipline, not shortcuts.
+## Ops & Reminders
+- `/event` schedules ops with UTC-2 timing, role pings, and upcoming mission lists.
+- `/remind` opens a control deck for new reminders, templates, and scheduled blasts.
+- `/remindme` sets personal DM timers for solo tasks.
 
-## Core Systems
-### Owner Control & Analytics
-- Private control panel (owner-only) shows XP leaders, global stats, rare drops, economy health, and per-server uptime/link status.
-- Command usage telemetry keeps a running count of message + slash executions, surfaced in the server health view.
-- Broadcast helpers let the owner DM guild leaders or target a channel with in-character announcements.
+## Trading & Progression
+- Fish-Link trading terminal anchored via `/setup_trade` with persistent buttons for listings.
+- `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.
+- `/leaderboard`, `/profile`, and `/inventory` track XP, scan stats, and drop collections.
 
-### Operations (UTC-2 clock)
-- `/event` DM wizard asks for codename, instructions, UTC-2 start, optional location, and role ping.
-- Reminder cadence: channel ping at 60 minutes, opt-in DM reminders after that.
-- Members use `/event` to see upcoming ops and remove scheduled events.
+## Profile Scans
+- `/scan_profile` intake set via `/setup` so screenshots stay scoped to the right channel.
+- `/profile_review` lets admins validate or purge scan data for accuracy.
 
-### Trading: Fish-Link
-- Persistent button UI (`Add Spare`, `Find Fish`, `My Listings`, `Who Has My Wanted?`).
-- Per-server isolation; re-anchors on restart without spamming the channel.
-- Automatic donor DMs when matches appear.
+## Community & Safety
+- `/commands`, `/features`, `/about`, and `/heroes` onboard new survivors fast.
+- `/feedback` routes reports to the handler without leaking server data.
+- Channel ignore keeps silenced rooms dark; analytics stay locked to each server.
 
-### Progression & Scavenging
-- Endless XP ladder with scaling milestones and auto-created Uplink Tier roles (colors and names adjust per tier).
-- Hourly `/scavenge` for Common → Mythic loot, zone hazard pay, streak + overclock bonuses, milestone XP, and ultra-rare catalog items.
-- Inventory tracking per guild; prestige **Vaultwalker** role when a member completes the loot catalog.
-- `/leaderboard` shows XP plus CP/kills from profile scans with 10/25/50/100 row controls and a DM export.
-- Profile scanner: `/scan_profile` intake configured via `/setup`; caches uploads to avoid re-downloading screenshots.
-
-### Welcomes, Departures, & Automation
-- `/setup` (admins/mods) links event/chat/welcome/rules/verify channels and auto-role.
-- Joins: chat-style welcomes with rule/verify reminders using Marcia’s voice.
-- Leaves: 15 in-character farewell variants.
-- Status helpers: `/status`, `/setup`, `/analytics` for quick health and data snapshots.
+## Admin Toolkit
+- `/setup` links channels and auto-role; `/refresh_commands` resyncs slash commands.
+- `/analytics` provides per-server usage snapshots and trading depth.
 
 ## Command Directory (quick view)
-- **Admin:** `/setup`, `/setup_trade`, `/refresh_commands`, `/event`, `/analytics`, `/status`
+- **Admin:** `/setup`, `/setup_trade`, `/refresh_commands`, `/event`, `/analytics`
 - **Members:** `/event` (upcoming ops), `/profile`, `/leaderboard`, `/inventory`, `/scavenge`, `/features`, `/commands`, `/heroes`
 - **Profile scans:** `/scan_profile`; `/leaderboard` export sends TSV via DM
 - **Utility:** `/poll`, `/remindme`, `/clear`, translation via flag reactions
 - **Trading:** Fish-Link buttons + trade access in `/profile` + `/inventory`
-
-## How to Deploy
-1. Invite the bot with message content/role perms enabled; place it above auto-role targets.
-2. In each server, run `/setup` and follow the guided setup in-channel to link channels and auto-role (saved in SQLite for restart persistence).
-3. Drop a trade terminal with `/setup_trade` and pin the message if desired.
-4. Create operations via `/event`; let Marcia handle UTC-2 reminders and roster pings.
-5. Encourage members to `/scavenge`, trade via Fish-Link, and climb ranks for prestige.
-
-## Data & Safety
-- All settings, events, leveling, telemetry, and trading data are stored per guild in `data/marcia_os.db`; no cross-server leakage.
-- Allowed mentions are scoped to avoid unwanted @everyone pings; role pings are opt-in during event creation.
-- Uses WAL-mode SQLite and startup migrations so data survives restarts, updates, and re-deploys.
-
-## Tips for Server Admins
-- Keep an events channel with minimal chatter to highlight reminders.
-- Rotate Fish-Link to an appropriate channel; it auto-reanchors on reboot.
-- Use `/setup` after changing channel permissions to ensure Marcia can send messages.
-- If voice pings are desired for ops, pick a role dedicated to live comms and select it during `/event`.
-
-## Marcia’s Voice
-Her replies and reminders pull from a large quote bank in `assets.py`, blending dry humor with tactical urgency. Every broadcast should feel like a human ally watching the grid, not a sterile scheduler.
