@@ -38,7 +38,7 @@ RSVP_EMOJIS = {
 
 DUEL_DATA = {
     0: (
-        "**MONDAY — Day 1: Shelter Expansion**\n\n"
+        "**MONDAY - Day 1: Shelter Expansion**\n\n"
         "**Event Focus:** Building + Research CP growth, Wisdom Medals, and Gathering.\n"
         "**Primary Score Sources:** **Building CP increase**, **Research CP increase**, Wisdom Medal spending, Gathering returns.\n\n"
         "**📋 Action Plan (Today):**\n"
@@ -58,7 +58,7 @@ DUEL_DATA = {
         "**💡 Marcia’s Call:** If CP didn’t move, you didn’t score. Build smart, research smarter, gather nonstop."
     ),
     1: (
-        "**TUESDAY — Day 2: Hero Initiative**\n\n"
+        "**TUESDAY - Day 2: Hero Initiative**\n\n"
         "**Event Focus:** Radar, Prime Recruit, Hero Fragments, Exclusive Equipment.\n"
         "**Primary Score Sources:** Radar missions, Recruit tickets, Hero fragments spent, Exclusive equipment star-ups.\n\n"
         "**📋 Action Plan (Today):**\n"
@@ -71,7 +71,7 @@ DUEL_DATA = {
         "**💡 Marcia’s Call:** Start troop training before reset so it **finishes after reset** for Day 3 points."
     ),
     2: (
-        "**WEDNESDAY — Day 3: Keep Progressing**\n\n"
+        "**WEDNESDAY - Day 3: Keep Progressing**\n\n"
         "**Event Focus:** Trucks, Shadow Calls, Troop Training, Equipment progression.\n"
         "**Primary Score Sources:** S-tier trucks, orange Shadow Calls, troop training/promotion + training speedups, power cores, hero equipment lucky chests (and red equipment stars if applicable).\n\n"
         "**📋 Action Plan (Today):**\n"
@@ -88,7 +88,7 @@ DUEL_DATA = {
         "**💡 Marcia’s Call:** Keep queues full. Empty barracks means empty scoreboard."
     ),
     3: (
-        "**THURSDAY — Day 4: Arms Expert**\n\n"
+        "**THURSDAY - Day 4: Arms Expert**\n\n"
         "**Event Focus:** Radar, APC upgrades, Roamers/Boomers.\n"
         "**Primary Score Sources:** Radar missions, gears/titanium/blueprints spent on APC, roamer kills, boomer rally kills.\n\n"
         "**📋 Action Plan (Today):**\n"
@@ -101,7 +101,7 @@ DUEL_DATA = {
         "**💡 Marcia’s Call:** Spend materials with a plan. Efficiency beats chaos."
     ),
     4: (
-        "**FRIDAY — Day 5: Holistic Growth**\n\n"
+        "**FRIDAY - Day 5: Holistic Growth**\n\n"
         "**Event Focus:** Flexible catch-up across systems.\n"
         "**Primary Score Sources:** APC upgrades, hero fragments, wisdom medals, accelerations (construction/research/training/promotion), plus other growth items your version includes.\n\n"
         "**📋 Action Plan (Today):**\n"
@@ -114,7 +114,7 @@ DUEL_DATA = {
         "**💡 Marcia’s Call:** Fix weak links today so Saturday doesn’t expose them."
     ),
     5: (
-        "**SATURDAY — Day 6: Enemy Buster (Kill Event)**\n\n"
+        "**SATURDAY - Day 6: Enemy Buster (Kill Event)**\n\n"
         "**Event Focus:** PvP eliminations and high-risk scoring.\n"
         "**Primary Score Sources:** Defeating enemy units (and sometimes losses score too), plus **trucks/shadows/speedups** if your in-game task list shows them today.\n\n"
         "**📋 Action Plan (Today):**\n"
@@ -124,14 +124,14 @@ DUEL_DATA = {
         "• ⏩ **Speedups:** Use only if it converts to direct points (or healing if your version counts it).\n\n"
         "**🛡️ DEFENSE (If Not Participating):**\n"
         "• Keep **24h shields** active for the full event.\n"
-        "• Set alarms for shorter shields—missed refreshes get you zeroed.\n"
+        "• Set alarms for shorter shields-missed refreshes get you zeroed.\n"
         "• Shelter troops before shields drop.\n\n"
         "**💡 Marcia’s Call:** High risk day. Win smart, or sit safe."
     ),
     6: (
-        "**SUNDAY — Day 7: Preparation & Planning**\n\n"
+        "**SUNDAY - Day 7: Preparation & Planning**\n\n"
         "**Event Focus:** Rest day. Prep for next cycle + Survival Preparedness only.\n"
-        "**Primary Score Sources:** Minimal—use it to stage resources and line up Monday.\n\n"
+        "**Primary Score Sources:** Minimal-use it to stage resources and line up Monday.\n\n"
         "**📋 Action Plan (Today):**\n"
         "• 🧭 **Gathering Prep:** Send gatherers so returns land after reset.\n"
         "• 📦 **Inventory Audit:** Stage speedups, stamina/energy, medals, tickets, fragments.\n"
@@ -151,9 +151,9 @@ DUEL_DATA = {
 KILL_EVENT_SHIELD_REMINDERS = {
     0: "🛰️ Midnight sweep. The kill event just lit up, so drop that **24h shield** if you can.",
     6: "☀️ Dawn check-in. If your shield is shorter, set alarms to refresh it before it fizzles.",
-    12: "🧭 Midday scan. Keep shields up and remind your squad—no free hits on my watch.",
+    12: "🧭 Midday scan. Keep shields up and remind your squad-no free hits on my watch.",
     18: "🌆 Dusk patrol. If you're on timers, renew now before the evening rush.",
-    22: "🌙 Late op window. Last stretch—top off protection and keep loved ones safe.",
+    22: "🌙 Late op window. Last stretch-top off protection and keep loved ones safe.",
 }
 
 # Reminders for the day BEFORE kill event (Friday)
@@ -657,7 +657,7 @@ class Events(commands.Cog):
                                 f"{reminder_line}\n"
                                 f"⏳ **{hours_left}h** remaining in the kill event.\n"
                                 "If you can't maintain 24h shields, set alarms to refresh before they expire.\n"
-                                "Marcia's monitoring the grid—keep your squad protected. 💙",
+                                "Marcia's monitoring the grid-keep your squad protected. 💙",
                                 allowed_mentions=discord.AllowedMentions(everyone=True),
                             )
                             await mark_task_complete(task_id, date_str=date_key)
@@ -684,7 +684,7 @@ class Events(commands.Cog):
                                 f"{reminder_line}\n"
                                 f"⏰ Kill event begins at midnight (in **{hours_until}h**).\n"
                                 "Stack your shields, coordinate with your alliance, and be ready.\n"
-                                "Marcia's got your back—but only if you prep smart. 💙",
+                                "Marcia's got your back-but only if you prep smart. 💙",
                                 allowed_mentions=discord.AllowedMentions(everyone=True),
                             )
                             await mark_task_complete(task_id, date_str=date_key)

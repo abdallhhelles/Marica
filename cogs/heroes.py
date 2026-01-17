@@ -124,7 +124,7 @@ HEROES: dict[str, dict] = {
             ),
             "flavor": [
                 "“Perseus system synced”",
-                "“These aren’t machines—they’re divine retribution!”",
+                "“These aren’t machines-they’re divine retribution!”",
             ],
             "upgrades": [
                 (f"{STAR_EMOJI}", "+15% normal attack crit rate"),
@@ -272,8 +272,8 @@ def _build_faction_embed(faction: str) -> discord.Embed:
         description="Select a hero from the dropdown to view lore, skills, and exclusive weapon details.",
         color=0x5865F2,
     )
-    lines = [f"• **{hero['name']}** — {_hero_type_line(hero)}" for hero in heroes]
-    embed.add_field(name="Available Heroes", value="\n".join(lines) if lines else "—", inline=False)
+    lines = [f"• **{hero['name']}** - {_hero_type_line(hero)}" for hero in heroes]
+    embed.add_field(name="Available Heroes", value="\n".join(lines) if lines else "-", inline=False)
     embed.set_footer(text="Home resets the codex menu.")
     return embed
 
@@ -287,7 +287,7 @@ def _add_sectioned_fields(
 ) -> None:
     if not lines:
         for title in titles:
-            embed.add_field(name=title, value="—", inline=False)
+            embed.add_field(name=title, value="-", inline=False)
         return
 
     section_count = len(titles)
@@ -303,7 +303,7 @@ def _add_sectioned_fields(
         lengths[index] += len(line) + (len(separator) if len(sections[index]) > 1 else 0)
 
     for title, chunk in zip(titles, sections):
-        value = separator.join(chunk) if chunk else "—"
+        value = separator.join(chunk) if chunk else "-"
         embed.add_field(name=title, value=value, inline=False)
 
 
@@ -352,7 +352,7 @@ def _build_hero_skills_embed(hero_key: str) -> tuple[discord.Embed, discord.File
     hero = HEROES[hero_key]
     embed = _hero_embed_base(hero, "Skill breakdown and scaling.")
     skill_lines = [
-        f"**{skill_name}** — {skill_text}" for skill_name, skill_text in hero["skills"]
+        f"**{skill_name}** - {skill_text}" for skill_name, skill_text in hero["skills"]
     ]
     _add_sectioned_fields(embed, ["Skill Array", "Skill Array • Phase 2", "Skill Array • Phase 3"], skill_lines, separator="\n")
     image_file = _attach_hero_image(embed, hero)

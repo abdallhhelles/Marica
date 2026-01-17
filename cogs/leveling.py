@@ -117,7 +117,7 @@ class Leveling(commands.Cog):
 
     @staticmethod
     def _format_metric(value: int | None) -> str:
-        return f"{value:,}" if isinstance(value, int) else "—"
+        return f"{value:,}" if isinstance(value, int) else "-"
 
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
@@ -347,8 +347,8 @@ class Leveling(commands.Cog):
         if snapshot and snapshot.get("scan_valid", 1):
             ingame = [
                 f"🪪 Name: {snapshot.get('player_name') or member.display_name}",
-                f"🏰 Alliance: {snapshot.get('alliance') or '—'}",
-                f"🌐 Server: {snapshot.get('server') or '—'}",
+                f"🏰 Alliance: {snapshot.get('alliance') or '-'}",
+                f"🌐 Server: {snapshot.get('server') or '-'}",
                 f"🎖️ VIP: {self._format_metric(snapshot.get('vip_level'))} | 👍 Likes: {self._format_metric(snapshot.get('likes'))}",
                 f"⚔️ CP: {self._format_metric(snapshot.get('cp'))} | ☠️ Kills: {self._format_metric(snapshot.get('kills'))}",
             ]
@@ -433,7 +433,7 @@ class Leveling(commands.Cog):
             description_lines = [
                 f"_{mishap_reason}_",
                 "",
-                f"📍 Zone: **{zone['name']}** — {zone['tagline']}",
+                f"📍 Zone: **{zone['name']}** - {zone['tagline']}",
                 f"🗂️ Contract: {contract}",
                 "",
                 field_report,
@@ -445,7 +445,7 @@ class Leveling(commands.Cog):
                 description="\n".join(description_lines),
                 color=0xe67e22,
             )
-            embed.add_field(name="Status", value="Mission scrubbed — no salvage recovered.", inline=False)
+            embed.add_field(name="Status", value="Mission scrubbed - no salvage recovered.", inline=False)
             xp_lines = [f"Recon data: +{mishap_xp} XP"]
             if momentum_xp:
                 xp_lines.append(f"Momentum chain: +{momentum_xp} XP")
@@ -501,13 +501,13 @@ class Leveling(commands.Cog):
         description_lines = [
             f"_{flavor}_",
             "",
-            f"📍 Zone: **{zone['name']}** — {zone['tagline']}",
+            f"📍 Zone: **{zone['name']}** - {zone['tagline']}",
             f"🗂️ Contract: {contract}",
             field_report,
             random.choice(MARCIA_QUOTES),
         ]
         if recent_run:
-            description_lines.insert(1, "⚡ Momentum maintained — drones pushed harder on this route.")
+            description_lines.insert(1, "⚡ Momentum maintained - drones pushed harder on this route.")
         if bonus_outcome:
             description_lines.insert(2, f"🎁 Bonus cache: {bonus_item} [{bonus_rarity}] was tucked under the rubble.")
             color_choices.append(RARITY_COLORS.get(bonus_rarity, 0x2b2d31))
@@ -628,7 +628,7 @@ class Leveling(commands.Cog):
                 member = guild.get_member(row["user_id"])
                 name = member.display_name if member else f"Unknown {row['user_id']}"
                 lines.append(
-                    f"**{idx}. {name}** — Level {row['level']} | {row['xp']:,} XP"
+                    f"**{idx}. {name}** - Level {row['level']} | {row['xp']:,} XP"
                 )
             embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
@@ -667,7 +667,7 @@ class Leveling(commands.Cog):
                     else ""
                 )
                 lines.append(
-                    f"**{idx}. {user_display}** — Level {row['level']} | {row['xp']:,} XP ({guild_name}{server_info})"
+                    f"**{idx}. {user_display}** - Level {row['level']} | {row['xp']:,} XP ({guild_name}{server_info})"
                 )
             embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
@@ -700,7 +700,7 @@ class Leveling(commands.Cog):
                 server_value = row["server"] if "server" in row.keys() else None
                 server_info = f" | Server {server_value}" if server_value else ""
                 lines.append(
-                    f"**{idx}.** {name} — {self._format_metric(row['value'])} ({guild_name}{server_info})"
+                    f"**{idx}.** {name} - {self._format_metric(row['value'])} ({guild_name}{server_info})"
                 )
             embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
@@ -725,7 +725,7 @@ class Leveling(commands.Cog):
         for idx, row in enumerate(rows, start=1):
             user = guild.get_member(row["user_id"])
             name = row["player_name"] or (user.display_name if user else f"User {row['user_id']}")
-            lines.append(f"**{idx}.** {name} — {self._format_metric(row['value'])}")
+            lines.append(f"**{idx}.** {name} - {self._format_metric(row['value'])}")
         embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
         embed.set_footer(
             text=f"Showing top {len(rows)} survivors. Use `/scan_profile` then `/leaderboard` to surface fresh scans."
@@ -744,7 +744,7 @@ class Leveling(commands.Cog):
                 break
             rendered.append(line)
             total += len(candidate)
-        return "\n".join(rendered) if rendered else "—"
+        return "\n".join(rendered) if rendered else "-"
 
     async def _export_leaderboard_data(
         self,
@@ -787,7 +787,7 @@ class Leveling(commands.Cog):
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.name if user else f"User {row['user_id']}"
                 snapshot = await get_profile_snapshot(row["guild_id"], row["user_id"])
-                server_num = snapshot.get("server") if snapshot and snapshot.get("scan_valid", 1) else "—"
+                server_num = snapshot.get("server") if snapshot and snapshot.get("scan_valid", 1) else "-"
                 lines.append(
                     "\t".join(
                         map(
@@ -811,7 +811,7 @@ class Leveling(commands.Cog):
                 user = self.bot.get_user(row["user_id"])
                 user_display = user.name if user else f"User {row['user_id']}"
                 name = row["player_name"] or user_display
-                server_num = row.get("server") or "—"
+                server_num = row.get("server") or "-"
                 lines.append(
                     "\t".join(map(str, [idx, name, row["value"], server_num, guild_name]))
                 )

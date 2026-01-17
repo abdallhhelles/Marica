@@ -81,7 +81,7 @@ class PatchNotesStore:
         """Return user-facing bullet text for each note."""
         bullets: List[str] = []
         for note in self.load():
-            suffix = f" — {note.author}" if note.author else ""
+            suffix = f" - {note.author}" if note.author else ""
             bullets.append(f"{note.note}{suffix}")
         return bullets
 

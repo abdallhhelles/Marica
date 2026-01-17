@@ -350,7 +350,7 @@ class DevServerManager(commands.Cog):
             )
         embed.add_field(name="Commands Logged", value=str(command_total), inline=False)
         if top_command_rows:
-            cmd_lines = [f"`{row['command_name']}` — {row['total']} runs" for row in top_command_rows]
+            cmd_lines = [f"`{row['command_name']}` - {row['total']} runs" for row in top_command_rows]
             embed.add_field(name="Top 5 Commands", value="\n".join(cmd_lines), inline=False)
         embed.add_field(
             name="Events Scheduled",

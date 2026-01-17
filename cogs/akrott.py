@@ -233,7 +233,7 @@ class AkrottControl(commands.Cog):
             user_display = user.mention if user else f"<@{row['user_id']}>"
             msg_ts = format_activity(row["last_msg_ts"])
             scav_ts = format_activity(row["last_scavenge_ts"])
-            base = f"{rank}. {user_display} — XP {row['xp']} | L{row['level']} | Msg {msg_ts} | Scav {scav_ts}"
+            base = f"{rank}. {user_display} - XP {row['xp']} | L{row['level']} | Msg {msg_ts} | Scav {scav_ts}"
             return f"{base} ({guild_name})" if include_guild else base
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -287,7 +287,7 @@ class AkrottControl(commands.Cog):
             for idx, row in enumerate(rows[:per_server_limit], start=1):
                 server_lines.append(format_entry(idx, row, guild_name, include_guild=False))
             embed.add_field(
-                name=f"{guild_name} — Server Leaderboard",
+                name=f"{guild_name} - Server Leaderboard",
                 value="\n".join(server_lines),
                 inline=False,
             )
@@ -396,7 +396,7 @@ class AkrottControl(commands.Cog):
             user = self.bot.get_user(row["user_id"])
             user_display = user.mention if user else f"<@{row['user_id']}>"
             lines.append(
-                f"{row['rarity']} — {row['item_id']} x{row['quantity']} | {user_display} ({guild_name})"
+                f"{row['rarity']} - {row['item_id']} x{row['quantity']} | {user_display} ({guild_name})"
             )
 
         embed.description = "\n".join(lines)
@@ -467,7 +467,7 @@ class AkrottControl(commands.Cog):
             )
             status = "✅ Stable" if configured_links >= 4 else "⚠️ Needs links"
             name = row["server_name"] or f"Guild {row['guild_id']}"
-            lines.append(f"{name} — {status} ({configured_links}/5 channels linked)")
+            lines.append(f"{name} - {status} ({configured_links}/5 channels linked)")
 
         embed.description = "\n".join(lines[:15])
         if len(lines) > 15:
@@ -480,7 +480,7 @@ class AkrottControl(commands.Cog):
         guild_rows = await top_guild_usage(limit=6)
 
         if top_rows:
-            command_lines = [f"• `{row['command_name']}` — {row['total']} uses" for row in top_rows]
+            command_lines = [f"• `{row['command_name']}` - {row['total']} uses" for row in top_rows]
             embed.add_field(name="Top Commands", value="\n".join(command_lines), inline=False)
         else:
             embed.add_field(name="Top Commands", value="No command usage logged yet.", inline=False)
@@ -490,7 +490,7 @@ class AkrottControl(commands.Cog):
             for row in guild_rows:
                 guild = self.bot.get_guild(row["guild_id"])
                 name = guild.name if guild else f"Guild {row['guild_id']}"
-                guild_lines.append(f"• {name} — {row['total']} uses")
+                guild_lines.append(f"• {name} - {row['total']} uses")
             embed.add_field(name="Most Active Servers", value="\n".join(guild_lines), inline=False)
         else:
             embed.add_field(name="Most Active Servers", value="No server usage logged yet.", inline=False)

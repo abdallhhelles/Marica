@@ -39,7 +39,7 @@ class OcrDiagnostics:
 
         easyocr_state = "ready" if self.easyocr_ready else "installed" if self.easyocr else "missing"
         if self.easyocr_failure:
-            easyocr_state += f" — {self.easyocr_failure}"
+            easyocr_state += f" - {self.easyocr_failure}"
         lines.append(f"EasyOCR: {easyocr_state}")
 
         if self.boxes_present:
