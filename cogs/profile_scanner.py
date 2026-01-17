@@ -13,6 +13,7 @@ import re
 import os
 import random
 from datetime import datetime, timezone
+from dataclasses import dataclass
 from pathlib import Path
 
 import discord
@@ -36,7 +37,7 @@ _CV2_SPEC = importlib.util.find_spec("cv2")
 _EASYOCR_SPEC = importlib.util.find_spec("easyocr")
 
 if _PIL_SPEC:
-    from PIL import Image
+    from PIL import Image, ImageFilter, ImageOps
 else:  # pragma: no cover - optional dependency guard
     Image = None
 
@@ -81,7 +82,19 @@ VERIFY_FIELDS = {"account_btn", "settings_btn"}
 VERIFY_MIN_CONF = 0.25
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
 OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
+OCR_SPACE_TIMEOUT = float(os.getenv("OCR_SPACE_TIMEOUT", "60"))
 SCAN_REVIEW_TIMEOUT = int(os.getenv("PROFILE_SCAN_REVIEW_TIMEOUT", "90"))
+SCAN_WORKER_COUNT = int(os.getenv("PROFILE_SCAN_WORKERS", "1"))
+
+
+@dataclass(slots=True)
+class ProfileScanJob:
+    kind: str
+    ctx: commands.Context | None
+    message: discord.Message | None
+    attachment: discord.Attachment
+    image_bytes: bytes
+    filename: str | None
 
 
 def _extract_number(chunk: str) -> int | None:
@@ -161,12 +174,24 @@ class ProfileScanner(commands.Cog):
         self._easyocr_failure_reason: str | None = None
         self._easyocr_lock = asyncio.Lock()
         self._pytesseract_missing = False
+        self._scan_queue: asyncio.Queue[ProfileScanJob] = asyncio.Queue()
+        self._scan_workers: list[asyncio.Task] = []
         self._scan_semaphore = asyncio.Semaphore(
             int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
         )
 
+    async def cog_load(self):
+        for idx in range(max(1, SCAN_WORKER_COUNT)):
+            self._scan_workers.append(
+                asyncio.create_task(self._scan_worker(idx), name=f"profile-scan-worker-{idx}")
+            )
+
     async def cog_unload(self):
-        pass
+        for task in self._scan_workers:
+            task.cancel()
+        if self._scan_workers:
+            await asyncio.gather(*self._scan_workers, return_exceptions=True)
+        self._scan_workers.clear()
 
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         interaction = getattr(ctx, "interaction", None)
@@ -229,34 +254,21 @@ class ProfileScanner(commands.Cog):
             self.log.warning("Could not read attachment: %s", exc)
             return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
 
-        cached_path = self._persist_profile_image(
-            ctx.guild.id, ctx.author.id, image_bytes, image.filename
+        job = ProfileScanJob(
+            kind="ctx",
+            ctx=ctx,
+            message=None,
+            attachment=image,
+            image_bytes=image_bytes,
+            filename=image.filename,
         )
-        parsed, raw_text, ocr_note = await self._perform_ocr(
-            image_bytes, filename=image.filename, persisted_path=cached_path
+        await self._scan_queue.put(job)
+        queued = self._scan_queue.qsize()
+        await self._safe_send(
+            ctx,
+            content=f"📡 Scan queued. Position: {queued}. I'll post the results shortly.",
+            ephemeral=True,
         )
-        payload = self._build_payload(
-            ctx.author, image.url, parsed, raw_text, cached_path
-        )
-        if payload.get("ownership_verified") is False:
-            return await self._safe_send(
-                ctx,
-                content=(
-                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
-                ),
-                ephemeral=True,
-            )
-        view = ProfileScanReviewView(
-            self,
-            ctx.guild.id,
-            ctx.author.id,
-            payload,
-            ocr_note,
-        )
-        embed = self._build_review_embed(payload, ocr_note)
-        message = await self._safe_send(ctx, embed=embed, view=view)
-        if isinstance(message, discord.Message):
-            view.bind_message(message)
 
     @commands.hybrid_command(
         name="profile_review",
@@ -317,50 +329,85 @@ class ProfileScanner(commands.Cog):
         if not attachment:
             return
 
-        asyncio.create_task(self._process_profile_upload(message, attachment))
-
-    async def _process_profile_upload(
-        self, message: discord.Message, attachment: discord.Attachment
-    ) -> None:
         try:
             image_bytes = await attachment.read()
         except Exception as exc:  # pragma: no cover - network edge
             self.log.warning("Could not read attachment: %s", exc)
             return
 
+        job = ProfileScanJob(
+            kind="message",
+            ctx=None,
+            message=message,
+            attachment=attachment,
+            image_bytes=image_bytes,
+            filename=attachment.filename,
+        )
+        await self._scan_queue.put(job)
+        if self._scan_queue.qsize() > 1:
+            try:
+                await message.add_reaction("⏳")
+            except Exception:  # pragma: no cover - permission edge
+                pass
+
+    async def _scan_worker(self, worker_id: int) -> None:
+        while True:
+            job = await self._scan_queue.get()
+            try:
+                await self._process_scan_job(job)
+            except Exception:
+                self.log.exception("Profile scan worker %s failed", worker_id)
+            finally:
+                self._scan_queue.task_done()
+
+    async def _process_scan_job(self, job: ProfileScanJob) -> None:
+        if job.kind == "ctx" and job.ctx is None:
+            return
+        if job.kind == "message" and job.message is None:
+            return
+
+        user = job.ctx.author if job.ctx else job.message.author
+        guild_id = job.ctx.guild.id if job.ctx else job.message.guild.id
+        image_url = job.attachment.url
         cached_path = self._persist_profile_image(
-            message.guild.id, message.author.id, image_bytes, attachment.filename
+            guild_id, user.id, job.image_bytes, job.filename
         )
         parsed, raw_text, ocr_note = await self._perform_ocr(
-            image_bytes, filename=attachment.filename, persisted_path=cached_path
+            job.image_bytes, filename=job.filename, persisted_path=cached_path
         )
         payload = self._build_payload(
-            message.author, attachment.url, parsed, raw_text, cached_path
+            user, image_url, parsed, raw_text, cached_path
         )
 
         if payload.get("ownership_verified") is False:
-            await message.reply(
+            target = job.ctx or job.message
+            await self._safe_send(
+                target,
                 content=(
                     "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
                 ),
-                mention_author=False,
+                ephemeral=bool(job.ctx),
             )
             return
 
         view = ProfileScanReviewView(
             self,
-            message.guild.id,
-            message.author.id,
+            guild_id,
+            user.id,
             payload,
             ocr_note,
         )
         embed = self._build_review_embed(payload, ocr_note)
         try:
-            reply = await message.reply(embed=embed, view=view, mention_author=False)
+            if job.ctx:
+                message = await self._safe_send(job.ctx, embed=embed, view=view)
+            else:
+                message = await job.message.reply(embed=embed, view=view, mention_author=False)
         except Exception:  # pragma: no cover - Discord edge
             self.log.exception("Failed to reply with profile review")
             return
-        view.bind_message(reply)
+        if isinstance(message, discord.Message):
+            view.bind_message(message)
 
     async def _perform_ocr(
         self,
@@ -439,7 +486,7 @@ class ProfileScanner(commands.Cog):
         files = {"file": (filename or "profile.png", image_bytes, "application/octet-stream")}
 
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(timeout=OCR_SPACE_TIMEOUT) as client:
                 resp = await client.post(
                     OCR_SPACE_ENDPOINT, headers=headers, data=data, files=files
                 )
@@ -477,7 +524,16 @@ class ProfileScanner(commands.Cog):
         def _scan() -> str:
             try:
                 with Image.open(io.BytesIO(image_bytes)) as img:
-                    return pytesseract.image_to_string(img)
+                    img = img.convert("L")
+                    img = ImageOps.autocontrast(img)
+                    img = img.resize(
+                        (int(img.width * 2), int(img.height * 2)),
+                        resample=Image.BICUBIC,
+                    )
+                    img = img.filter(ImageFilter.MedianFilter())
+                    return pytesseract.image_to_string(
+                        img, config="--oem 3 --psm 6"
+                    )
             except Exception as exc:
                 # Gracefully handle missing tesseract binaries instead of crashing the task
                 if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
@@ -627,9 +683,9 @@ class ProfileScanner(commands.Cog):
                     continue
 
                 if mapped in {"cp", "kills", "likes", "vip_level"}:
-                    cleaned = re.sub(r"[^\d]", "", best_text)
-                    if cleaned:
-                        results[mapped] = int(cleaned)
+                    value = _extract_number(best_text)
+                    if value is not None:
+                        results[mapped] = value
                 elif mapped == "server":
                     results[mapped] = best_text
                 else:
@@ -697,7 +753,8 @@ class ProfileScanner(commands.Cog):
     def _preprocess_crop(self, crop):
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
         gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        gray = cv2.bilateralFilter(gray, 7, 75, 75)
+        _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return gray
 
     def _build_payload(

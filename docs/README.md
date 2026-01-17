@@ -139,6 +139,22 @@ Clone the repo, create `.env`, install dependencies (include OCR if you need sca
 TOKEN=your_discord_bot_token_here
 ```
 
+**Mention replies (optional AI)**
+* `MARCIA_AI_API_KEY` — API key for a hosted LLM (tested with OpenRouter free-tier).
+* `MARCIA_AI_BASE_URL` — Defaults to `https://openrouter.ai/api/v1`.
+* `MARCIA_AI_MODEL` — Defaults to `meta-llama/llama-3.1-8b-instruct:free`.
+* `MARCIA_AI_APP_NAME` — Defaults to `Marcia OS` (sent as `X-Title`).
+* `MARCIA_AI_APP_URL` — Optional referer URL for provider analytics.
+* `MARCIA_MENTION_COOLDOWN` — Seconds between AI replies per user (default: `45`).
+* `MARCIA_BUSY_COOLDOWN` — Seconds between “busy” notices per user (default: `120`).
+* **Troubleshooting 404s:** OpenRouter returns `404 Not Found` when the model name is invalid. Set `MARCIA_AI_MODEL` to a model listed in your OpenRouter dashboard.
+
+**Profile scan tuning**
+* `PROFILE_SCAN_WORKERS` — Number of queued scan workers (default: `1`).
+* `PROFILE_SCAN_CONCURRENCY` — Max concurrent OCR jobs (default: `2`).
+* `PROFILE_SCAN_REVIEW_TIMEOUT` — Seconds before auto-accepting scan review (default: `90`).
+* `OCR_SPACE_TIMEOUT` — Seconds to wait on OCR.space (default: `60`).
+
 **Data persistence**
 * Default database: `data/marcia_os.db` (auto-created). Override with `MARCIA_DB_PATH` if your host mounts storage elsewhere.
 
