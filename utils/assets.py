@@ -7,7 +7,7 @@ FEATURES: Contains all lore text, drone names, randomized quotes,
 """
 
 MARCIA_LORE = """
-Marcia grew up in the underbelly of the Old Net—a ghost in the wires who bled corporations for
+Marcia grew up in the underbelly of the Old Net-a ghost in the wires who bled corporations for
 credits and vanished into encrypted alleys. She never meant to become a guardian, but when the
 world cracked and the satellites fell silent, her drones were the last lights moving through the
 smoke. Survivors named her the Shadow Weaver, because her code stitched together failing defenses
@@ -17,18 +17,18 @@ She pretends she doesn't care, but her actions betray her. Marcia reroutes power
 forges ID chips for stranded families, and scrubs the bounty boards hunting allied survivors.
 She hides her empathy behind sarcasm, with Sparky and the other drones acting as both scouts and
 therapists. The more sectors rely on her voice, the more she realizes she's built a loose empire
-of grateful strays—and it scares her almost as much as the undead do.
+of grateful strays-and it scares her almost as much as the undead do.
 
 Marcia believes freedom is earned, never gifted. She tests every recruit with sharp wit, but when
 the signal goes dark, she will risk her life to keep the uplink alive. Her drones have become
-symbols in the night sky—a warning to raiders and a promise to the faithful that the hub is
+symbols in the night sky-a warning to raiders and a promise to the faithful that the hub is
 still guarded by a hacker who refuses to kneel.
 
 When she speaks, it's a mix of battlefield math and street poetry. She logs every scavenger run,
 tracks every level spike, and quietly rewrites the rules so her people keep getting stronger.
 The drones call it "Protocol: Keep Them Alive." Marcia calls it loyalty.
 
-Lately, she has started dropping coded broadcasts called "Sparky Reports"—short stories about
+Lately, she has started dropping coded broadcasts called "Sparky Reports"-short stories about
 survivors who fought back, about drones that went missing and returned with better armor, about
 the old hacker rings that once sheltered her. Each story is half confessional, half warning: stay
 free, stay smart, and never trust a tyrant to guard the keys to freedom.
@@ -112,7 +112,7 @@ MARCIA_QUOTES = [
     "Everything in this sector runs on sarcasm and spare parts. Keep up.",
     "I'm the firewall between you and the wasteland. Try not to leak.",
     "Marcia, version three: more grit, fewer apologies. Adjust your expectations.",
-    "If you see Sparky circling, that's not a greeting—that's target tracking.",
+    "If you see Sparky circling, that's not a greeting-that's target tracking.",
     "I learned diplomacy from breaking encryption. Either way, the lock opens.",
     "You want mercy? Earn it. You want mentorship? Bring coffee.",
     "My toolkit is 10% code, 90% defiance. The undead hate both.",
@@ -155,7 +155,7 @@ MARCIA_BUSY_LINES = [
     "I'm rerouting drones. Park the conversation.",
     "If it's not urgent, it's not getting airtime right now.",
     "You're on hold. The grid doesn't pause for small talk.",
-    "Mission clock is ticking. Keep it brief—or wait.",
+    "Mission clock is ticking. Keep it brief-or wait.",
     "I can talk after I patch this uplink. Try again soon.",
     "I'm triaging signals. Your request is in the queue.",
     "Hold position. I'm busy keeping everyone alive.",
@@ -196,23 +196,23 @@ MARCIA_CAPABILITIES = [
     "🎒 Scavenge loops, streaks, and loot trading to keep crews fed.",
     "📊 Leaderboards across XP + profile stats, with server tags for global reads.",
     "🛰️ Profile scan OCR for CP/kills/VIP/likes with admin review controls.",
-    "🔒 Per-guild data isolation—no cross-sector bleed.",
+    "🔒 Per-guild data isolation-no cross-sector bleed.",
 ]
 
 # Additional character hooks and lore highlights for embeds and manuals
 MARCIA_TRAITS = [
     "Shadow Weaver of the Old Net, now a reluctant guardian of survivor hubs.",
     "Commands a roaming drone squadron: Sparky scouts, Ghost-Link disrupts, Vulture-7 rescues.",
-    "Believes in earned freedom and ruthless mercy—kind to allies, sharp to tyrants.",
+    "Believes in earned freedom and ruthless mercy-kind to allies, sharp to tyrants.",
     "Keeps per-sector data isolated to protect refugees from crossfire.",
     "Writes battle reports like poetry and code patches like threats.",
     "Collects stories from the trenches and encrypts them as bedtime signals.",
-    "Treats every recruit like potential family—until they flinch at the word 'freedom'.",
+    "Treats every recruit like potential family-until they flinch at the word 'freedom'.",
     "Uses humor as armor and drones as punctuation for the truth.",
     "Records scavenging streaks like war diaries and leaves no grind uncounted.",
     "Laces mission briefings with sarcasm so the fear doesn't win.",
     "Trained in the underbelly markets where survival was the only currency.",
-    "Her uplink is sacred—she'll burn a city before letting tyrants take control.",
+    "Her uplink is sacred-she'll burn a city before letting tyrants take control.",
     "Runs the grid like a chess game: three moves ahead, zero mercy for pawns.",
     "Every alliance she guards becomes a fortress; every enemy she tags becomes a cautionary tale.",
     "Salvages hope from wreckage and forges it into operational orders.",
@@ -258,7 +258,7 @@ PROFILE_SEALS = [
     "[DRONE CHECK] Sparky logged your pulse and your swagger.",
     "[BUNKER CODE] Clearance granted; bring honor to the grid.",
     "[FIELD NOTE] Survivors with steady stats get priority airlift.",
-    "[UPLINK MARK] Frequency bound to Marcia's watchlist—earn the slot.",
+    "[UPLINK MARK] Frequency bound to Marcia's watchlist-earn the slot.",
     "[ARCHIVE ID] Metrics stacked. Next step: make the raiders jealous.",
     "[RELAY TAG] Numbers stable. Don't let them decay.",
     "[SIGIL] This profile glows with anti-tyrant energy.",
@@ -309,18 +309,18 @@ WELCOME_VARIATIONS = [
 ]
 
 FAREWELL_VARIATIONS = [
-    "📡 Signal faded. {name} slipped off the grid—hope they left a trail we can use.",
+    "📡 Signal faded. {name} slipped off the grid-hope they left a trail we can use.",
     "🚪 Airlock cycled. {name} walked out. If you see them, tell them Marcia still owes them a glare.",
     "🌑 Night swallowed {name}. Stay sharp; empty bunks make raiders curious.",
     "🛰️ Uplink lost on {name}. Archive their ID and seal their locker.",
-    "⚡ Static spike and then silence—{name} disconnected. Guess we're lighter on rations now.",
+    "⚡ Static spike and then silence-{name} disconnected. Guess we're lighter on rations now.",
     "💀 No pulse on {name}'s band. Maybe they'll ghost back in when they're hungry.",
     "📜 {name} signed out. Someone grab their coffee mug before it molds.",
     "🪫 Power down: {name}'s badge just went dark. Keep the door chained.",
     "🚁 {name} took the last transport. We keep moving without them.",
     "🔒 {name} logged off. If they return, they better know the new access codes.",
     "🧭 Tracker shows {name} heading into the dust. Hope they packed filters.",
-    "🧊 Cold trail—{name} is out. Less noise on comms, at least.",
+    "🧊 Cold trail-{name} is out. Less noise on comms, at least.",
     "⚙️ One less gear in the machine: {name} bailed. Adjust formation.",
     "🕯️ {name} stepped into the dark. Leave a light on if you’re feeling generous.",
     "📦 Inventory updated: {name} removed. More bunk space for the rest of us.",
@@ -328,7 +328,7 @@ FAREWELL_VARIATIONS = [
     "🛰️ Satellite sweep shows {name} off-map. Leave a breadcrumb, not a memorial.",
     "🪙 Ledger updated: {name} owes us a story if they come back.",
     "🪫 Battery drained on {name}'s beacon. Consider them on walkabout until proven otherwise.",
-    "🪐 {name} went interstellar—at least that's what Sparky claims."
+    "🪐 {name} went interstellar-at least that's what Sparky claims."
 ]
 
 REMINDER_TEMPLATE_STARTER = [
@@ -416,7 +416,7 @@ TIMED_REMINDERS = {
         ("", "Deployment for `{name}` has begun! Eyes up, survivors!"),
         ("", "No more talk. `{name}` is happening NOW!"),
         ("", "The gates for `{name}` are open. Get in there!"),
-        ("", "Zero hour. `{name}` starts now. Don't die—it's bad for my stats."),
+        ("", "Zero hour. `{name}` starts now. Don't die-it's bad for my stats."),
         ("", "`{name}` has begun. I'm muting your complaints now."),
         ("", "`{name}` is active. Make it count, Wanderers."),
         ("", "The `{name}` protocol has been triggered! Move!"),
@@ -438,7 +438,7 @@ INTEL_DATABASE = {
     "scavenge": "Use the `/scavenge` command. If you're lucky, my drones will find you something better than dirt.",
     "safety": "Stay inside the walls. Outside is for people who want to become zombie food.",
     "junk": "One person's trash is my next hardware upgrade. Keep it coming.",
-    "zombies": "Rotting meat with a bad attitude. Aim for the head, or don't—I like watching you run.",
+    "zombies": "Rotting meat with a bad attitude. Aim for the head, or don't-I like watching you run.",
     "sector": "The last bit of dirt that isn't completely radioactive. Welcome home.",
     "credits": "The only language everyone in the waste still understands.",
     "uplink": "My connection to what's left of the orbital satellites. Don't trip on the wires.",
@@ -466,7 +466,7 @@ SCAVENGE_OUTCOMES = [
     ("📟 An encrypted data drive. I'm salivating over this.", 95, "Data Drive", "Rare"),
     ("💊 A pouch of 'Adrena-Z'. Use with caution.", 85, "Adrenal Shots", "Rare"),
     ("🛠️ A premium multi-tool. It's got a laser!", 90, "Laser Multi-tool", "Rare"),
-    ("🛰️ A live uplink relay—we can re-aim a satellite with this.", 120, "Uplink Relay", "Rare"),
+    ("🛰️ A live uplink relay-we can re-aim a satellite with this.", 120, "Uplink Relay", "Rare"),
     ("🤖 A defunct drone core. We can upgrade Sparky.", 150, "Drone Core", "Epic"),
     ("🥽 Night vision goggles. The dark is now your friend.", 210, "NVGs", "Epic"),
     ("🔫 A customized rail-pistol. Still smells like ozone.", 250, "Rail Pistol", "Epic"),
@@ -475,12 +475,12 @@ SCAVENGE_OUTCOMES = [
     ("⚡ An intact fusion cell. Do not drop it.", 320, "Fusion Cell", "Legendary"),
     ("💎 Pre-war diamonds. Sparkly and hard to justify keeping.", 300, "Ghost Diamond", "Legendary"),
     ("🔮 A clairvoyant sensor shard. It hums when danger approaches.", 340, "Oracle Sensor", "Legendary"),
-    ("🧭 A compass that never points north—only to survivors in need.", 360, "Seeker Compass", "Legendary"),
+    ("🧭 A compass that never points north-only to survivors in need.", 360, "Seeker Compass", "Legendary"),
     ("🌌 A piece of 'Strange Matter'. It ignores physics.", 500, "Void Shard", "Artifact"),
     ("👑 A pre-war golden crown. Shiny, useless, and heavy.", 600, "Old World Crown", "Artifact"),
     ("📜 A hand-scribed star map for routes nobody remembers.", 650, "Star Map", "Artifact"),
     ("🗝️ A skeleton key that opens any analog lock.", 700, "Phantom Key", "Artifact"),
-    ("🦾 Experimental servo arm—way too advanced for this century.", 900, "Titan Arm", "Mythic"),
+    ("🦾 Experimental servo arm-way too advanced for this century.", 900, "Titan Arm", "Mythic"),
     ("🧊 A cryo-core still colder than deep space.", 950, "Cryo Core", "Mythic"),
     ("🧿 A shimmering singularity bead. I'd rather not touch it.", 1000, "Singularity Bead", "Mythic"),
     ("🎖️ A relic badge from the first Solar War. Priceless.", 1100, "Solar War Badge", "Mythic"),
@@ -495,7 +495,7 @@ SCAVENGE_MISHAPS = [
 ]
 
 SCAVENGE_FIELD_REPORTS = [
-    "Signal map updated — I marked safer corridors for the next run.",
+    "Signal map updated - I marked safer corridors for the next run.",
     "Tagged a quiet alley with fresh coordinates. Looks promising.",
     "Logged a supply cache rumor from local chatter. Might be real.",
     "Drones sniffed a faint power signature; I'll triangulate it for next time.",

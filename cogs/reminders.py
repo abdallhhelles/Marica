@@ -76,8 +76,8 @@ class Reminders(commands.Cog):
             name="📅 Scheduling Options",
             value=(
                 "For new or template reminders:\n"
-                "• **Send now** — Leave the time field blank\n"
-                "• **Schedule for later** — Enter date/time in game time format:\n"
+                "• **Send now** - Leave the time field blank\n"
+                "• **Schedule for later** - Enter date/time in game time format:\n"
                 f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
             ),
             inline=False,
@@ -221,7 +221,7 @@ class Reminders(commands.Cog):
             if len(preview) > 70:
                 preview = preview[:67] + "…"
             lines.append(
-                f"• **{format_game(send_at)}** → {channel_label} — {preview}"
+                f"• **{format_game(send_at)}** → {channel_label} - {preview}"
             )
         embed.add_field(name="Scheduled", value="\n".join(lines), inline=False)
         embed.set_footer(text="Times shown in game time (UTC-2).")
@@ -320,7 +320,7 @@ class ReminderChannelModal(discord.ui.Modal):
         self.when = discord.ui.TextInput(
             label="Send at (game time)",
             required=False,
-            placeholder="YYYY-MM-DD HH:MM (UTC-2) — leave blank to send now",
+            placeholder="YYYY-MM-DD HH:MM (UTC-2) - leave blank to send now",
             max_length=32,
         )
         self.add_item(self.channel_input)
@@ -387,7 +387,7 @@ class ReminderModal(discord.ui.Modal):
         self.when = discord.ui.TextInput(
             label="Send at (game time)",
             required=False,
-            placeholder="YYYY-MM-DD HH:MM (UTC-2) — leave blank for now",
+            placeholder="YYYY-MM-DD HH:MM (UTC-2) - leave blank for now",
             max_length=32,
         )
         self.add_item(self.body)

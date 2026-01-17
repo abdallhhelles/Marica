@@ -170,7 +170,7 @@ class MarciaServer(commands.Cog):
         if history:
             return
         info_lines = [
-            "🛰️ **Marcia Server — About**",
+            "🛰️ **Marcia Server - About**",
             "This server exists to help survivors learn Marcia OS, follow updates, and give dev feedback.",
             "",
             "**Start here**",
@@ -268,7 +268,7 @@ class MarciaServer(commands.Cog):
             history = []
         if history:
             return
-        await channel.send("📣 **Events channel** — Marcia posts mission reminders here.")
+        await channel.send("📣 **Events channel** - Marcia posts mission reminders here.")
 
     def _build_analytics_embed(self, guild: discord.Guild, snapshot: dict, xp_rows, cp_rows, kill_rows) -> discord.Embed:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -289,7 +289,7 @@ class MarciaServer(commands.Cog):
             for idx, row in enumerate(xp_rows, start=1):
                 member = guild.get_member(row["user_id"])
                 name = member.display_name if member else f"User {row['user_id']}"
-                top_xp.append(f"{idx}. {name} — L{row['level']} | {row['xp']:,} XP")
+                top_xp.append(f"{idx}. {name} - L{row['level']} | {row['xp']:,} XP")
             embed.add_field(name="🏆 Top XP", value="\n".join(top_xp), inline=False)
 
         if cp_rows:
@@ -297,7 +297,7 @@ class MarciaServer(commands.Cog):
             for idx, row in enumerate(cp_rows, start=1):
                 member = guild.get_member(row["user_id"])
                 name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
-                top_cp.append(f"{idx}. {name} — {row['value']:,} CP")
+                top_cp.append(f"{idx}. {name} - {row['value']:,} CP")
             embed.add_field(name="⚔️ Top Combat Power", value="\n".join(top_cp), inline=False)
 
         if kill_rows:
@@ -305,7 +305,7 @@ class MarciaServer(commands.Cog):
             for idx, row in enumerate(kill_rows, start=1):
                 member = guild.get_member(row["user_id"])
                 name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
-                top_kills.append(f"{idx}. {name} — {row['value']:,} Kills")
+                top_kills.append(f"{idx}. {name} - {row['value']:,} Kills")
             embed.add_field(name="☠️ Top Kills", value="\n".join(top_kills), inline=False)
 
         embed.add_field(

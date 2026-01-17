@@ -62,7 +62,7 @@ async def db_remove_listing(guild_id, user_id, rarity, index, trade_type):
 def _summarize_listings(fid_list):
     labels = [format_fish_label(fid) for fid in fid_list]
     if not labels:
-        return "—"
+        return "-"
     if len(labels) > 8:
         visible = ", ".join(labels[:8])
         return f"{visible}, +{len(labels) - 8} more"

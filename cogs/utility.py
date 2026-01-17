@@ -62,7 +62,7 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Profile Scans",
         "lines": [
-            "📷 `/scan_profile` intake set via `/setup`—stats roll into `/profile` and `/leaderboard`.",
+            "📷 `/scan_profile` intake set via `/setup`-stats roll into `/profile` and `/leaderboard`.",
             "🔎 `/profile_review` lets mods validate or purge scan data.",
         ],
     },
@@ -197,7 +197,7 @@ class Utility(commands.Cog):
             name="Why I exist",
             value=(
                 "I was created to give crews a reliable command center: clean scheduling, opt-in reminders, "
-                "inventory tracking, and readable stats—without leaking data across servers."
+                "inventory tracking, and readable stats-without leaking data across servers."
             ),
             inline=False,
         )
@@ -247,7 +247,7 @@ class Utility(commands.Cog):
                 break
             rendered.append(line)
             total += len(candidate)
-        return "\n".join(rendered) if rendered else "—"
+        return "\n".join(rendered) if rendered else "-"
 
     def _build_featureboard(self, guild_name: Optional[str] = None) -> discord.Embed:
         """Readable feature grid to pair with the showcase section."""
@@ -343,7 +343,7 @@ class Utility(commands.Cog):
 
         embed = discord.Embed(
             title="🛠️ Marcia OS | Command Directory",
-            description="Commands are independent—type the one you want to use.",
+            description="Commands are independent-type the one you want to use.",
             color=0x3498db,
         )
         for title, cmd_list in categories:
@@ -422,7 +422,7 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title="🛰️ Marcia OS | Showcase",
             color=0x5865F2,
-            description="Freedom is expensive. Don't waste my time for free. — Marcia",
+            description="Freedom is expensive. Don't waste my time for free. - Marcia",
         )
 
         for section in SHOWCASE_SECTIONS:
@@ -510,10 +510,10 @@ class Utility(commands.Cog):
             "Use `/remind` to schedule reminders or save templates for rapid ops pings.",
             "Run `/event` to stage ops with a codename, location, and optional role ping.",
             "Need proof of power? `/scan_profile` feeds `/profile` and `/leaderboard` stats.",
-            "Inventory is sector-locked—`/inventory` only shows loot from this server.",
+            "Inventory is sector-locked-`/inventory` only shows loot from this server.",
             "Clear stale drops with `/clear` instead of manual pruning.",
             "Use `/features` or `/commands` to onboard new survivors in seconds.",
-            "Keep a calm event channel—Marcia formats reminders so chatter stays low.",
+            "Keep a calm event channel-Marcia formats reminders so chatter stays low.",
             "Check `/leaderboard` exports if you need a TSV for spreadsheets.",
             "Use `/feedback` to report bugs or ideas without leaking server intel.",
             "Browse `/heroes` when you need a quick dossier before upgrades."
@@ -574,7 +574,7 @@ class Utility(commands.Cog):
             for idx, row in enumerate(xp_rows, start=1):
                 member = guild.get_member(row["user_id"])
                 name = member.display_name if member else f"User {row['user_id']}"
-                lines.append(f"**{idx}. {name}** — L{row['level']} | {row['xp']:,} XP")
+                lines.append(f"**{idx}. {name}** - L{row['level']} | {row['xp']:,} XP")
             embed.add_field(name="🏆 Top XP", value="\n".join(lines), inline=False)
 
         if cp_rows:
@@ -582,7 +582,7 @@ class Utility(commands.Cog):
             for idx, row in enumerate(cp_rows, start=1):
                 member = guild.get_member(row["user_id"])
                 name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
-                lines.append(f"**{idx}. {name}** — {row['value']:,} CP")
+                lines.append(f"**{idx}. {name}** - {row['value']:,} CP")
             embed.add_field(name="⚔️ Top Combat Power", value="\n".join(lines), inline=False)
 
         if kill_rows:
@@ -590,7 +590,7 @@ class Utility(commands.Cog):
             for idx, row in enumerate(kill_rows, start=1):
                 member = guild.get_member(row["user_id"])
                 name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
-                lines.append(f"**{idx}. {name}** — {row['value']:,} Kills")
+                lines.append(f"**{idx}. {name}** - {row['value']:,} Kills")
             embed.add_field(name="☠️ Top Kills", value="\n".join(lines), inline=False)
 
         embed.set_footer(text="Clock: UTC-2 | Data never crosses sectors.")
@@ -641,7 +641,7 @@ class Utility(commands.Cog):
                 user = self.bot.get_user(row["user_id"])
                 handle = user.mention if user else f"<@{row['user_id']}>"
                 lines.append(
-                    f"{idx}. {handle} — {row['xp']} XP (L{row['level']} | {guild_name})"
+                    f"{idx}. {handle} - {row['xp']} XP (L{row['level']} | {guild_name})"
                 )
             embed.add_field(name="Top Survivors", value="\n".join(lines), inline=False)
         else:
@@ -652,13 +652,13 @@ class Utility(commands.Cog):
             for idx, row in enumerate(usage_rows, start=1):
                 guild = self.bot.get_guild(row["guild_id"])
                 guild_name = guild.name if guild else f"Guild {row['guild_id']}"
-                usage_lines.append(f"{idx}. {guild_name} — {row['total']} commands")
+                usage_lines.append(f"{idx}. {guild_name} - {row['total']} commands")
             embed.add_field(name="Server Usage", value="\n".join(usage_lines), inline=False)
         else:
             embed.add_field(name="Server Usage", value="No command traffic yet.", inline=False)
 
         if command_rows:
-            cmd_lines = [f"`{row['command_name']}` — {row['total']} runs" for row in command_rows]
+            cmd_lines = [f"`{row['command_name']}` - {row['total']} runs" for row in command_rows]
             embed.add_field(name="Most Used Commands", value="\n".join(cmd_lines), inline=False)
         else:
             embed.add_field(name="Most Used Commands", value="No command telemetry yet.", inline=False)

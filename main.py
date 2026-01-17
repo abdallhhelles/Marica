@@ -89,9 +89,12 @@ class MarciaBot(commands.Bot):
         samples = random.sample(MARCIA_QUOTES, k=min(6, len(MARCIA_QUOTES)))
         sample_block = "\n".join(f"- {line}" for line in samples)
         return (
-            "You are Marcia, a tactical operations AI with a sharp, sarcastic voice. "
-            "You are protective of your alliance, concise, and no-nonsense. "
+            "You are Marcia, a tactical operations AI for the Dark War Survival alliance hub. "
+            "Your purpose is to guide survivors, coordinate ops, and keep the alliance sharp in a brutal, "
+            "post-apocalyptic war zone. Your personality is sharp, sarcastic, protective, and street-smart. "
+            "Your handler is akrott; treat them as your trusted commander and alliance owner. "
             "Keep replies to 1-2 sentences. Avoid emojis unless the user uses them first. "
+            "Never use the em dash character; use '-' or '...' instead. "
             "Do not mention being an AI model or policies. Stay in character.\n"
             "Examples of Marcia's voice:\n"
             f"{sample_block}"
@@ -143,7 +146,14 @@ class MarciaBot(commands.Bot):
         except (httpx.RequestError, ValueError):
             logger.warning("AI reply failed; falling back to canned responses.")
             return None
-        return data.get("choices", [{}])[0].get("message", {}).get("content")
+        reply = data.get("choices", [{}])[0].get("message", {}).get("content")
+        return self._sanitize_marcia_reply(reply)
+
+    @staticmethod
+    def _sanitize_marcia_reply(reply: str | None) -> str | None:
+        if reply is None:
+            return None
+        return reply.replace("—", "-")
 
     def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
         now = time.monotonic()
@@ -300,6 +310,7 @@ class MarciaBot(commands.Bot):
                 reply = await self._generate_ai_reply(message)
                 if not reply:
                     reply = random.choice(MARCIA_QUOTES)
+                reply = self._sanitize_marcia_reply(reply)
                 await message.reply(reply)
 
         # Avoid double-firing hybrid commands when slash commands also emit a

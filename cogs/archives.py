@@ -1,6 +1,6 @@
 """
 FILE: cogs/archives.py
-USE: Local file-system logging for server intel and member activity. All logging is silent—no Discord messages are sent while
+USE: Local file-system logging for server intel and member activity. All logging is silent-no Discord messages are sent while
 backfilling or recording events.
 """
 import datetime

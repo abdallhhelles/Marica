@@ -259,7 +259,7 @@ class Settings(commands.Cog):
         label = feature_labels.get(feature_key, "Feature")
 
         await interaction.response.send_message(
-            f"📡 **{label}** — mention it here, paste an ID, or type `clear` to unset.",
+            f"📡 **{label}** - mention it here, paste an ID, or type `clear` to unset.",
             ephemeral=True,
         )
 

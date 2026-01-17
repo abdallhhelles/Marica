@@ -161,7 +161,7 @@ def _parse_profile_text(text: str) -> dict:
 
 
 def _format_metric(value: int | None) -> str:
-    return f"{value:,}" if isinstance(value, int) else "—"
+    return f"{value:,}" if isinstance(value, int) else "-"
 
 
 class ProfileScanner(commands.Cog):
@@ -808,8 +808,8 @@ class ProfileScanner(commands.Cog):
         ingame = [
             f"🎖️ VIP: {_format_metric(payload.get('vip_level'))} | 👍 Likes: {_format_metric(payload.get('likes'))}",
             f"⚔️ CP: {_format_metric(payload.get('cp'))} | ☠️ Kills: {_format_metric(payload.get('kills'))}",
-            f"🏰 Alliance: {payload.get('alliance') or '—'}",
-            f"🌐 Server: {payload.get('server') or '—'}",
+            f"🏰 Alliance: {payload.get('alliance') or '-'}",
+            f"🌐 Server: {payload.get('server') or '-'}",
         ]
         if payload.get("ownership_verified") is not None:
             status = "✅ Self-view detected" if payload["ownership_verified"] else "⚠️ Ownership unverified"
@@ -838,8 +838,8 @@ class ProfileScanner(commands.Cog):
         ingame = [
             f"🎖️ VIP: {_format_metric(payload.get('vip_level'))} | 👍 Likes: {_format_metric(payload.get('likes'))}",
             f"⚔️ CP: {_format_metric(payload.get('cp'))} | ☠️ Kills: {_format_metric(payload.get('kills'))}",
-            f"🏰 Alliance: {payload.get('alliance') or '—'}",
-            f"🌐 Server: {payload.get('server') or '—'}",
+            f"🏰 Alliance: {payload.get('alliance') or '-'}",
+            f"🌐 Server: {payload.get('server') or '-'}",
         ]
         if payload.get("ownership_verified") is not None:
             status = "✅ Self-view detected" if payload["ownership_verified"] else "⚠️ Could not confirm this is your own profile"
@@ -991,7 +991,7 @@ class ProfileReviewView(discord.ui.View):
             member = guild.get_member(user_id) if guild else None
             name = row.get("player_name") or (member.display_name if member else f"User {user_id}")
             status = "✅" if row.get("scan_valid", 1) else "⚠️"
-            details = f"{status} CP {row.get('cp') or '—'} • Kills {row.get('kills') or '—'}"
+            details = f"{status} CP {row.get('cp') or '-'} • Kills {row.get('kills') or '-'}"
             options.append(
                 discord.SelectOption(
                     label=name[:100],
@@ -1028,8 +1028,8 @@ class ProfileReviewView(discord.ui.View):
             description=f"Scan status: **{status}**",
             color=0x3498db if snapshot.get("scan_valid", 1) else 0xe74c3c,
         )
-        embed.add_field(name="🏰 Alliance", value=snapshot.get("alliance") or "—", inline=True)
-        embed.add_field(name="🌐 Server", value=snapshot.get("server") or "—", inline=True)
+        embed.add_field(name="🏰 Alliance", value=snapshot.get("alliance") or "-", inline=True)
+        embed.add_field(name="🌐 Server", value=snapshot.get("server") or "-", inline=True)
         embed.add_field(
             name="🎖️ VIP / Likes",
             value=f"{_format_metric(snapshot.get('vip_level'))} / {_format_metric(snapshot.get('likes'))}",
