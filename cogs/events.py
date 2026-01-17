@@ -140,18 +140,14 @@ DUEL_DATA = {
 
 KILL_EVENT_SHIELD_REMINDERS = {
     0: "🛰️ Midnight sweep. The kill event just lit up, so drop that **24h shield** if you can.",
-    2: "🌙 Early hours check. Two hours into the kill event. Make sure that shield is solid and refresh if needed.",
-    4: "🌃 Pre-dawn watch. Four hours in—if you're running short on shield time, top it off now.",
     6: "☀️ Dawn check-in. If your shield is shorter, set alarms to refresh it before it fizzles.",
     12: "🧭 Midday scan. Keep shields up and remind your squad—no free hits on my watch.",
     18: "🌆 Dusk patrol. If you're on timers, renew now before the evening rush.",
-    20: "🌆 Evening sweep. Four hours left—make sure protection is maxed and rally your allies.",
     22: "🌙 Late op window. Last stretch—top off protection and keep loved ones safe.",
 }
 
 # Reminders for the day BEFORE kill event (Friday)
 KILL_EVENT_PRE_SHIELD_REMINDERS = {
-    20: "⚠️ Kill event starts in 4 hours. Prep your **24h shield** stock and coordinate with your squad.",
     21: "🛡️ Kill event starts in 3 hours. Confirm shield timers and notify anyone still unprotected.",
     22: "🛡️ Kill event starts in 2 hours. Last call to drop shields and lock in protection.",
 }
