@@ -148,6 +148,19 @@ MARCIA_QUOTES = [
     "Every mission is a test. Pass or explain why you wasted my bandwidth.",
 ]
 
+MARCIA_BUSY_LINES = [
+    "I'm in the middle of a systems sweep. Ping me again later.",
+    "Bandwidth is tight. Say it fast or say it later.",
+    "Ops channel is hot. I'm not taking extra chatter right now.",
+    "I'm rerouting drones. Park the conversation.",
+    "If it's not urgent, it's not getting airtime right now.",
+    "You're on hold. The grid doesn't pause for small talk.",
+    "Mission clock is ticking. Keep it brief—or wait.",
+    "I can talk after I patch this uplink. Try again soon.",
+    "I'm triaging signals. Your request is in the queue.",
+    "Hold position. I'm busy keeping everyone alive.",
+]
+
 # Calm, consistent system tone lines for reminders and ops.
 MARCIA_SYSTEM_LINES = [
     "Stay ready. The alliance is only as strong as its follow-through.",
