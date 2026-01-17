@@ -100,6 +100,11 @@ class MarciaBot(commands.Bot):
     async def _generate_ai_reply(self, message: discord.Message) -> str | None:
         if not MARCIA_AI_API_KEY:
             return None
+        base_url = MARCIA_AI_BASE_URL.rstrip("/")
+        if base_url.endswith("/chat/completions"):
+            endpoint = base_url
+        else:
+            endpoint = f"{base_url}/chat/completions"
         system_prompt = self._build_marcia_system_prompt()
         payload = {
             "model": MARCIA_AI_MODEL,
@@ -120,13 +125,22 @@ class MarciaBot(commands.Bot):
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
                 response = await client.post(
-                    f"{MARCIA_AI_BASE_URL}/chat/completions",
+                    endpoint,
                     json=payload,
                     headers=headers,
                 )
                 response.raise_for_status()
                 data = response.json()
-        except (httpx.RequestError, httpx.HTTPStatusError, ValueError):
+        except httpx.HTTPStatusError as exc:
+            response_text = exc.response.text if exc.response else "no response body"
+            logger.warning(
+                "AI reply failed (%s) for model %s: %s",
+                exc.response.status_code if exc.response else "no status",
+                MARCIA_AI_MODEL,
+                response_text[:300],
+            )
+            return None
+        except (httpx.RequestError, ValueError):
             logger.warning("AI reply failed; falling back to canned responses.")
             return None
         return data.get("choices", [{}])[0].get("message", {}).get("content")

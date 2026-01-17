@@ -147,6 +147,7 @@ TOKEN=your_discord_bot_token_here
 * `MARCIA_AI_APP_URL` — Optional referer URL for provider analytics.
 * `MARCIA_MENTION_COOLDOWN` — Seconds between AI replies per user (default: `45`).
 * `MARCIA_BUSY_COOLDOWN` — Seconds between “busy” notices per user (default: `120`).
+* **Troubleshooting 404s:** OpenRouter returns `404 Not Found` when the model name is invalid. Set `MARCIA_AI_MODEL` to a model listed in your OpenRouter dashboard.
 
 **Profile scan tuning**
 * `PROFILE_SCAN_WORKERS` — Number of queued scan workers (default: `1`).
