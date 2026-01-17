@@ -11,6 +11,7 @@ from pathlib import Path
 import random
 import time
 
+import httpx
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -31,7 +32,7 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils.assets import MARCIA_QUOTES
+from utils.assets import MARCIA_BUSY_LINES, MARCIA_QUOTES
 from utils.bug_logging import log_command_exception
 from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
@@ -51,6 +52,13 @@ def configure_logging() -> None:
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
+MARCIA_AI_API_KEY = os.getenv("MARCIA_AI_API_KEY")
+MARCIA_AI_BASE_URL = os.getenv("MARCIA_AI_BASE_URL", "https://openrouter.ai/api/v1")
+MARCIA_AI_MODEL = os.getenv("MARCIA_AI_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+MARCIA_AI_APP_NAME = os.getenv("MARCIA_AI_APP_NAME", "Marcia OS")
+MARCIA_AI_APP_URL = os.getenv("MARCIA_AI_APP_URL")
+MARCIA_MENTION_COOLDOWN = float(os.getenv("MARCIA_MENTION_COOLDOWN", "45"))
+MARCIA_BUSY_COOLDOWN = float(os.getenv("MARCIA_BUSY_COOLDOWN", "120"))
 COG_DIR = BASE_DIR / "cogs"
 
 class MarciaBot(commands.Bot):
@@ -71,6 +79,57 @@ class MarciaBot(commands.Bot):
         )
         self._recent_interactions: dict[int, float] = {}
         self._interaction_dedupe_window = 120.0
+        self._mention_reply_cooldowns: dict[int, float] = {}
+        self._mention_busy_cooldowns: dict[int, float] = {}
+        self._mention_cooldown_seconds = MARCIA_MENTION_COOLDOWN
+        self._mention_busy_seconds = MARCIA_BUSY_COOLDOWN
+
+    @staticmethod
+    def _build_marcia_system_prompt() -> str:
+        samples = random.sample(MARCIA_QUOTES, k=min(6, len(MARCIA_QUOTES)))
+        sample_block = "\n".join(f"- {line}" for line in samples)
+        return (
+            "You are Marcia, a tactical operations AI with a sharp, sarcastic voice. "
+            "You are protective of your alliance, concise, and no-nonsense. "
+            "Keep replies to 1-2 sentences. Avoid emojis unless the user uses them first. "
+            "Do not mention being an AI model or policies. Stay in character.\n"
+            "Examples of Marcia's voice:\n"
+            f"{sample_block}"
+        )
+
+    async def _generate_ai_reply(self, message: discord.Message) -> str | None:
+        if not MARCIA_AI_API_KEY:
+            return None
+        system_prompt = self._build_marcia_system_prompt()
+        payload = {
+            "model": MARCIA_AI_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"{message.author.display_name}: {message.content}"},
+            ],
+            "temperature": 0.7,
+            "max_tokens": 120,
+        }
+        headers = {
+            "Authorization": f"Bearer {MARCIA_AI_API_KEY}",
+            "Content-Type": "application/json",
+            "X-Title": MARCIA_AI_APP_NAME,
+        }
+        if MARCIA_AI_APP_URL:
+            headers["HTTP-Referer"] = MARCIA_AI_APP_URL
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                response = await client.post(
+                    f"{MARCIA_AI_BASE_URL}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                data = response.json()
+        except (httpx.RequestError, httpx.HTTPStatusError, ValueError):
+            logger.warning("AI reply failed; falling back to canned responses.")
+            return None
+        return data.get("choices", [{}])[0].get("message", {}).get("content")
 
     def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
         now = time.monotonic()
@@ -212,9 +271,22 @@ class MarciaBot(commands.Bot):
         is_reply = await self._is_reply_to_bot(message)
         
         if is_bot_mentioned or is_reply:
+            now = time.monotonic()
+            last_reply = self._mention_reply_cooldowns.get(message.author.id, 0.0)
+            if now - last_reply < self._mention_cooldown_seconds:
+                last_busy = self._mention_busy_cooldowns.get(message.author.id, 0.0)
+                if now - last_busy >= self._mention_busy_seconds:
+                    self._mention_busy_cooldowns[message.author.id] = now
+                    await message.reply(random.choice(MARCIA_BUSY_LINES))
+                return
+
+            self._mention_reply_cooldowns[message.author.id] = now
             async with message.channel.typing():
                 await asyncio.sleep(1)
-                await message.reply(random.choice(MARCIA_QUOTES))
+                reply = await self._generate_ai_reply(message)
+                if not reply:
+                    reply = random.choice(MARCIA_QUOTES)
+                await message.reply(reply)
 
         # Avoid double-firing hybrid commands when slash commands also emit a
         # visible message in chat.
