@@ -15,6 +15,13 @@ from discord.ext import commands
 import httpx
 
 from utils.assets import (
+    EMOJI_ADORE,
+    EMOJI_ANGRY,
+    EMOJI_APPROVE,
+    EMOJI_CONFIDENT,
+    EMOJI_IDEA,
+    EMOJI_LAUGH,
+    EMOJI_SMUG,
     MARCIA_CAPABILITIES,
     MARCIA_TRAITS,
 )
@@ -46,39 +53,39 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Ops & Reminders",
         "lines": [
-            "📡 `/event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
-            "⏱️ `/remind` opens a control deck for new reminders, templates, and scheduled blasts.",
-            "📆 `/remindme` sets personal DM timers for solo tasks.",
+            f"{EMOJI_IDEA} `/event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
+            f"{EMOJI_CONFIDENT} `/remind` opens a control deck for new reminders, templates, and scheduled blasts.",
+            f"{EMOJI_APPROVE} `/remindme` sets personal DM timers for solo tasks.",
         ],
     },
     {
         "name": "Trading & Progression",
         "lines": [
-            "🎣 Fish-Link trading terminal: `/setup_trade` anchors the hub; buttons drive listings.",
-            "🛰️ `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
-            "🏆 `/leaderboard` + `/profile` surface XP and scan stats; `/inventory` tracks drops.",
+            f"{EMOJI_ADORE} Fish-Link trading terminal: `/setup_trade` anchors the hub; buttons drive listings.",
+            f"{EMOJI_CONFIDENT} `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
+            f"{EMOJI_APPROVE} `/leaderboard` + `/profile` surface XP and scan stats; `/inventory` tracks drops.",
         ],
     },
     {
         "name": "Profile Scans",
         "lines": [
-            "📷 `/scan_profile` intake set via `/setup`-stats roll into `/profile` and `/leaderboard`.",
-            "🔎 `/profile_review` lets mods validate or purge scan data.",
+            f"{EMOJI_SMUG} `/scan_profile` intake set via `/setup`-stats roll into `/profile` and `/leaderboard`.",
+            f"{EMOJI_IDEA} `/profile_review` lets mods validate or purge scan data.",
         ],
     },
     {
         "name": "Community & Safety",
         "lines": [
-            "🎯 `/commands`, `/features`, `/about`, and `/heroes` onboard new survivors fast.",
-            "🛡️ `/feedback` routes reports to the handler without leaking server data.",
-            "🚫 Channel ignore keeps silenced rooms dark; analytics stay locked to each server.",
+            f"{EMOJI_LAUGH} `/commands`, `/features`, `/about`, and `/heroes` onboard new survivors fast.",
+            f"{EMOJI_APPROVE} `/feedback` routes reports to the handler without leaking server data.",
+            f"{EMOJI_ANGRY} Channel ignore keeps silenced rooms dark; analytics stay locked to each server.",
         ],
     },
     {
         "name": "Admin Toolkit",
         "lines": [
-            "⚙️ `/setup` links channels + auto-role; `/refresh_commands` re-syncs slash commands.",
-            "📊 `/analytics` gives per-server usage snapshots and trading depth.",
+            f"{EMOJI_CONFIDENT} `/setup` links channels + auto-role; `/refresh_commands` re-syncs slash commands.",
+            f"{EMOJI_IDEA} `/analytics` gives per-server usage snapshots and trading depth.",
         ],
     },
 ]
@@ -253,39 +260,41 @@ class Utility(commands.Cog):
         """Readable feature grid to pair with the showcase section."""
         scope = guild_name or "your sector"
         embed = discord.Embed(
-            title="🗄️ Marcia OS | Featureboard",
-            description="Quick, easy-to-read menu of everything Marcia does. Tap any section to explore.",
+            title=f"{EMOJI_CONFIDENT} Marcia OS | Featureboard",
+            description=(
+                f"Quick, easy-to-read menu of everything Marcia does. Tap any section to explore {EMOJI_ADORE}"
+            ),
             color=0x5865F2,
         )
         embed.add_field(
             name="Operations",
             value="\n".join([
-                "• `/event` (with upcoming ops + removal) for UTC-2 planning",
-                "• `/remind` with templates, schedule, and immediate blasts",
-                "• `/analytics` for usage, wiring, and activity snapshots",
+                f"• {EMOJI_IDEA} `/event` (with upcoming ops + removal) for UTC-2 planning",
+                f"• {EMOJI_CONFIDENT} `/remind` with templates, schedule, and immediate blasts",
+                f"• {EMOJI_APPROVE} `/analytics` for usage, wiring, and activity snapshots",
             ]),
             inline=False,
         )
         embed.add_field(
             name="Community & Safety",
             value="\n".join([
-                "• Channel ignore keeps blacked-out rooms fully silent",
-                "• `/commands`, `/features`, `/about` to onboard crews",
-                "• `/feedback` to ping my handler without leaking server data",
+                f"• {EMOJI_ANGRY} Channel ignore keeps blacked-out rooms fully silent",
+                f"• {EMOJI_LAUGH} `/commands`, `/features`, `/about` to onboard crews",
+                f"• {EMOJI_APPROVE} `/feedback` to ping my handler without leaking server data",
             ]),
             inline=False,
         )
         embed.add_field(
             name="Economy & Progression",
             value="\n".join([
-                "• Trading terminal with persistent Fish-Link inventory",
-                "• `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
-                "• Profile scans: `/scan_profile` (configure intake via `/setup`); caches uploads",
-                "• Per-guild analytics; nothing crosses sectors",
+                f"• {EMOJI_ADORE} Trading terminal with persistent Fish-Link inventory",
+                f"• {EMOJI_CONFIDENT} `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
+                f"• {EMOJI_SMUG} Profile scans: `/scan_profile` (configure intake via `/setup`); caches uploads",
+                f"• {EMOJI_ANGRY} Per-guild analytics; nothing crosses sectors",
             ]),
             inline=False,
         )
-        embed.set_footer(text=f"Sector: {scope} | Clock: UTC-2 | Personality: spicy")
+        embed.set_footer(text=f"Sector: {scope} | Clock: UTC-2 | Personality: spicy {EMOJI_SMUG}")
         return embed
 
     def _build_command_directory(self, guild_name: Optional[str] = None) -> discord.Embed:
