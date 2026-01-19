@@ -386,6 +386,12 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(description="Scavenge in the Discord mini game (1h cooldown).")
     async def scavenge(self, ctx):
         """Deploy a drone to find loot and XP. (1 Hour Cooldown)"""
+        if not ctx.guild:
+            return await self._safe_send(
+                ctx,
+                content="🚁 Scavenging is only available inside servers.",
+                ephemeral=True,
+            )
         drone_name = random.choice(DRONE_NAMES)
 
         # Momentum bonus if the survivor keeps scavenging within 90 minutes of the last run
