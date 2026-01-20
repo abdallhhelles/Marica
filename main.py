@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import random
 import time
+from datetime import timedelta
 
 import httpx
 BASE_DIR = Path(__file__).resolve().parent
@@ -281,9 +282,40 @@ class MarciaBot(commands.Bot):
             return False
         return referenced.author.id == self.user.id
 
+    async def _has_recent_bot_dm(self, channel: discord.DMChannel, window_seconds: int = 600, limit: int = 6) -> bool:
+        """Return True if the bot recently posted in the DM channel (prompted response)."""
+        cutoff = discord.utils.utcnow() - timedelta(seconds=window_seconds)
+        async for recent in channel.history(limit=limit):
+            if recent.author.id != self.user.id:
+                continue
+            if recent.content.startswith("I can't answer direct DMs."):
+                continue
+            if recent.created_at and recent.created_at >= cutoff:
+                return True
+        return False
+
     async def on_message(self, message):
         """Centralized message handling and personality logic."""
-        if message.author.bot or not message.guild:
+        if message.author.bot:
+            return
+
+        if not message.guild:
+            if getattr(message, "interaction_metadata", None):
+                return
+            if message.type is not discord.MessageType.default:
+                return
+            ctx = await self.get_context(message)
+            if ctx.valid:
+                await self.process_commands(message)
+                return
+            if await self._is_reply_to_bot(message):
+                return
+            if await self._has_recent_bot_dm(message.channel):
+                return
+            await message.reply(
+                "I can't answer direct DMs. Please head to the bot server and use `/feedback`, "
+                "or add a handler there for your concern. Official server: https://discord.gg/tuWX4sVR4Y"
+            )
             return
 
         # Ignore interaction-backed system messages (e.g., slash command notices)
