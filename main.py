@@ -83,6 +83,8 @@ class MarciaBot(commands.Bot):
         self._mention_busy_cooldowns: dict[int, float] = {}
         self._mention_cooldown_seconds = MARCIA_MENTION_COOLDOWN
         self._mention_busy_seconds = MARCIA_BUSY_COOLDOWN
+        self._signature_sync_lock = asyncio.Lock()
+        self._last_signature_sync_at = 0.0
 
     @staticmethod
     def _build_marcia_system_prompt() -> str:
@@ -443,8 +445,57 @@ class MarciaBot(commands.Bot):
             return
         try:
             await self.tree._call(interaction)
+        except app_commands.CommandSignatureMismatch:
+            await self._handle_signature_mismatch(interaction)
         except Exception:
             logger.exception("Application command dispatch failed")
+
+    async def _handle_signature_mismatch(self, interaction: discord.Interaction) -> None:
+        command_name = interaction.data.get("name") if interaction.data else "unknown"
+        now = time.time()
+        if now - self._last_signature_sync_at < 300:
+            await self._safe_interaction_reply(
+                interaction,
+                content="📡 Command uplink is refreshing. Please retry in a moment.",
+                ephemeral=True,
+            )
+            logger.warning(
+                "Command signature mismatch for %s; resync suppressed (cooldown).",
+                command_name,
+            )
+            return
+
+        async with self._signature_sync_lock:
+            now = time.time()
+            if now - self._last_signature_sync_at < 300:
+                await self._safe_interaction_reply(
+                    interaction,
+                    content="📡 Command uplink is refreshing. Please retry in a moment.",
+                    ephemeral=True,
+                )
+                logger.warning(
+                    "Command signature mismatch for %s; resync suppressed (cooldown).",
+                    command_name,
+                )
+                return
+
+            self._last_signature_sync_at = now
+            try:
+                synced = await self.tree.sync()
+                logger.info(
+                    "✔ Slash commands re-synced after signature mismatch (%d registered).",
+                    len(synced),
+                )
+                message = "📡 Command uplink refreshed. Please retry your command."
+            except Exception:
+                logger.exception("✘ Slash command resync failed after signature mismatch")
+                message = "⚠️ Command uplink failed to refresh. Please try again or run /refresh_commands."
+
+            await self._safe_interaction_reply(
+                interaction,
+                content=message,
+                ephemeral=True,
+            )
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""
