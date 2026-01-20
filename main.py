@@ -283,7 +283,24 @@ class MarciaBot(commands.Bot):
 
     async def on_message(self, message):
         """Centralized message handling and personality logic."""
-        if message.author.bot or not message.guild:
+        if message.author.bot:
+            return
+
+        if not message.guild:
+            if getattr(message, "interaction_metadata", None):
+                return
+            if message.type is not discord.MessageType.default:
+                return
+            ctx = await self.get_context(message)
+            if ctx.valid:
+                await self.process_commands(message)
+                return
+            if await self._is_reply_to_bot(message):
+                return
+            await message.reply(
+                "I can't answer direct DMs. Please head to the bot server and use `/feedback`, "
+                "or add a handler there for your concern. Official server: https://discord.gg/z9pdDMDgak"
+            )
             return
 
         # Ignore interaction-backed system messages (e.g., slash command notices)
