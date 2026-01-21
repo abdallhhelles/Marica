@@ -299,6 +299,7 @@ class ProfileScanner(commands.Cog):
         self._scan_queue: asyncio.Queue[ScanJob] = asyncio.Queue()
         self._scan_workers: list[asyncio.Task] = []
         self._scan_menu_cooldowns: dict[int, float] = {}
+        self._scan_menu_locks: dict[int, asyncio.Lock] = {}
         self._scan_semaphore = asyncio.Semaphore(bot.config.profile_scan_concurrency)
 
     async def cog_load(self):
@@ -372,38 +373,40 @@ class ProfileScanner(commands.Cog):
                 ephemeral=True,
             )
 
-        now = time.monotonic()
-        last_sent = self._scan_menu_cooldowns.get(ctx.author.id)
-        if last_sent and (now - last_sent) < 5:
+        lock = self._scan_menu_locks.setdefault(ctx.author.id, asyncio.Lock())
+        async with lock:
+            now = time.monotonic()
+            last_sent = self._scan_menu_cooldowns.get(ctx.author.id)
+            if last_sent and (now - last_sent) < 5:
+                return await self._safe_send(
+                    ctx,
+                    content="📨 Scan menu already sent. Check your DMs to finish the scan.",
+                    ephemeral=True,
+                )
+
+            embed = discord.Embed(
+                title="🛰️ Scan menu",
+                description="Pick a scan type and send your screenshot here.",
+                color=0x3498DB,
+            )
+            embed.add_field(
+                name="Profile scan",
+                value="Capture stats from a profile screenshot.",
+                inline=False,
+            )
+            embed.add_field(
+                name="Duel score scan",
+                value="Capture Duel Week off-day scores.",
+                inline=False,
+            )
+            view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
+            await dm_channel.send(embed=embed, view=view)
+            self._scan_menu_cooldowns[ctx.author.id] = now
             return await self._safe_send(
                 ctx,
-                content="📨 Scan menu already sent. Check your DMs to finish the scan.",
+                content="📨 Check your DMs to finish the scan.",
                 ephemeral=True,
             )
-
-        embed = discord.Embed(
-            title="🛰️ Scan menu",
-            description="Pick a scan type and send your screenshot here.",
-            color=0x3498DB,
-        )
-        embed.add_field(
-            name="Profile scan",
-            value="Capture stats from a profile screenshot.",
-            inline=False,
-        )
-        embed.add_field(
-            name="Duel score scan",
-            value="Capture Duel Week off-day scores.",
-            inline=False,
-        )
-        view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
-        await dm_channel.send(embed=embed, view=view)
-        self._scan_menu_cooldowns[ctx.author.id] = now
-        return await self._safe_send(
-            ctx,
-            content="📨 Check your DMs to finish the scan.",
-            ephemeral=True,
-        )
 
     @commands.hybrid_command(
         name="profile_review",
