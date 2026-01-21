@@ -445,7 +445,7 @@ INTEL_DATABASE = {
     "rules": "Protocol is simple: Respect the crew, follow the chain, and don't touch my drones.",
     "marcia": "I'm the hacker who keeps this place running while you're all sleeping.",
     "drones": "Sparky and his friends. They're smarter than you and they don't ask stupid questions.",
-    "scavenge": "Use the `/scavenge` command. If you're lucky, my drones will find you something better than dirt.",
+    "scavenge": "Use the `/gyper scavenge` command. If you're lucky, my drones will find you something better than dirt.",
     "safety": "Stay inside the walls. Outside is for people who want to become zombie food.",
     "junk": "One person's trash is my next hardware upgrade. Keep it coming.",
     "zombies": "Rotting meat with a bad attitude. Aim for the head, or don't-I like watching you run.",
