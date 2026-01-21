@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 import random
 import time
-import weakref
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -90,9 +89,7 @@ class MarciaBot(commands.Bot):
         self._mention_cooldown_seconds = config.mention_cooldown
         self._mention_busy_seconds = config.busy_cooldown
         self._metrics_task: asyncio.Task | None = None
-        self._interaction_started_at: weakref.WeakKeyDictionary[
-            discord.Interaction, float
-        ] = weakref.WeakKeyDictionary()
+        self._interaction_started_at: dict[int, float] = {}
 
     async def close(self):
         if self._metrics_task:
@@ -487,13 +484,14 @@ class MarciaBot(commands.Bot):
         setattr(ctx, "_marcia_started_at", time.monotonic())
 
     def _mark_interaction_started(self, interaction: discord.Interaction) -> None:
-        try:
-            self._interaction_started_at[interaction] = time.monotonic()
-        except TypeError:
-            logger.debug("Unable to store interaction start time for %s", interaction)
+        if interaction.id is None:
+            return
+        self._interaction_started_at[interaction.id] = time.monotonic()
 
     def _get_interaction_started(self, interaction: discord.Interaction) -> float | None:
-        return self._interaction_started_at.get(interaction)
+        if interaction.id is None:
+            return None
+        return self._interaction_started_at.get(interaction.id)
 
     async def on_interaction(self, interaction: discord.Interaction):
         if (
@@ -622,7 +620,9 @@ class MarciaBot(commands.Bot):
         *,
         success: bool,
     ) -> None:
-        started_at = self._get_interaction_started(interaction)
+        if interaction.id is None:
+            return
+        started_at = self._interaction_started_at.pop(interaction.id, None)
         if started_at is None:
             return
         duration_ms = (time.monotonic() - started_at) * 1000
