@@ -2,7 +2,7 @@
 
 > "Freedom is expensive. Don't waste my time for free." — Marcia
 
-A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. Marcia speaks in-character, runs your ops clock, manages trading, and keeps survivor data isolated per server.
+A lore-driven, UTC-2–anchored command AI for **Dark War Survival** alliances. Marcia stays in-character, runs the ops clock, manages trading, and keeps survivor data isolated per server.
 
 ## Ops & Reminders
 - `/event` schedules ops with UTC-2 timing, role pings, and upcoming mission lists.

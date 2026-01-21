@@ -1,6 +1,6 @@
 # Contributing to Marcia OS
 
-Thank you for your interest in contributing to Marcia OS! This guide will help you understand the codebase structure and best practices.
+Thank you for your interest in contributing to Marcia OS! This guide outlines the codebase structure and best practices.
 
 ## Code Organization
 

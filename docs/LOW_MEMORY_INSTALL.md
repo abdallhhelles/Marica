@@ -1,6 +1,6 @@
 # Low-memory installation (≤512 MB RAM)
 
-Tiny game panels often get OOM-killed when torch or EasyOCR wheels are built on-device. Use one of these approaches to deploy Marica without live-compiling heavy dependencies.
+Tiny game panels often get OOM-killed when torch or EasyOCR wheels are built on-device. Use one of these paths to deploy Marica without live-compiling heavy dependencies.
 
 ## Option A: Skip OCR entirely
 * Install the lightweight requirements: `pip install -r requirements-lite.txt`

@@ -1,7 +1,7 @@
 # Privacy Policy for Marcia OS
 **Last Updated: March 2026**
 
-Marcia OS ("the bot") is operated privately for the Helles Hub Alliance by its owner. It is not offered for public installation or third-party hosting. This policy explains what data is collected and how it is used.
+Marcia OS ("the bot") is privately operated for the Helles Hub Alliance by its owner. It is not offered for public installation or third-party hosting. This policy summarizes what data is collected and how it is used.
 
 ### 1. Data We Collect
 * **Discord identifiers:** User IDs, guild IDs, and role IDs to deliver leveling, inventories, reminders, and Fish-Link matches.
