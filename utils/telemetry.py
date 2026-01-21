@@ -75,6 +75,7 @@ def record_command_latency(
     guild_id: int | None,
     user_id: int | None,
     source: str,
+    invocation_id: str | None = None,
 ) -> None:
     METRICS.observe("command_latency_ms", duration_ms)
     METRICS.inc("command_success" if success else "command_error")
@@ -86,6 +87,7 @@ def record_command_latency(
         guild_id=guild_id,
         user_id=user_id,
         source=source,
+        invocation_id=invocation_id,
     )
 
 

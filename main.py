@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import random
 import time
+import uuid
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -84,12 +85,14 @@ class MarciaBot(commands.Bot):
         )
         self._recent_interactions: dict[int, float] = {}
         self._interaction_dedupe_window = 120.0
+        self._recent_message_commands: dict[int, float] = {}
+        self._message_command_dedupe_window = 30.0
         self._mention_reply_cooldowns: dict[int, float] = {}
         self._mention_busy_cooldowns: dict[int, float] = {}
         self._mention_cooldown_seconds = config.mention_cooldown
         self._mention_busy_seconds = config.busy_cooldown
         self._metrics_task: asyncio.Task | None = None
-        self._interaction_started_at: dict[int, float] = {}
+        self._interaction_started_at: dict[int, tuple[float, str]] = {}
 
     async def close(self):
         if self._metrics_task:
@@ -200,6 +203,17 @@ class MarciaBot(commands.Bot):
         if interaction.id in self._recent_interactions:
             return False
         self._recent_interactions[interaction.id] = now
+        return True
+
+    def _should_process_message_command(self, message: discord.Message) -> bool:
+        now = time.monotonic()
+        cutoff = now - self._message_command_dedupe_window
+        stale = [key for key, ts in self._recent_message_commands.items() if ts < cutoff]
+        for key in stale:
+            self._recent_message_commands.pop(key, None)
+        if message.id in self._recent_message_commands:
+            return False
+        self._recent_message_commands[message.id] = now
         return True
 
     async def setup_hook(self):
@@ -336,6 +350,20 @@ class MarciaBot(commands.Bot):
                 return
             ctx = await self.get_context(message)
             if ctx.valid:
+                invocation_id = uuid.uuid4().hex
+                if not self._should_process_message_command(message):
+                    logger.warning(
+                        "Skipped duplicate message command dispatch message_id=%s invocation_id=%s",
+                        message.id,
+                        invocation_id,
+                    )
+                    return
+                setattr(message, "_marcia_invocation_id", invocation_id)
+                logger.info(
+                    "Command dispatch start source=message-command message_id=%s invocation_id=%s",
+                    message.id,
+                    invocation_id,
+                )
                 await self.process_commands(message)
                 return
             if await self._is_reply_to_bot(message):
@@ -360,6 +388,20 @@ class MarciaBot(commands.Bot):
 
         ctx = await self.get_context(message)
         if ctx.valid:
+            invocation_id = uuid.uuid4().hex
+            if not self._should_process_message_command(message):
+                logger.warning(
+                    "Skipped duplicate message command dispatch message_id=%s invocation_id=%s",
+                    message.id,
+                    invocation_id,
+                )
+                return
+            setattr(message, "_marcia_invocation_id", invocation_id)
+            logger.info(
+                "Command dispatch start source=message-command message_id=%s invocation_id=%s",
+                message.id,
+                invocation_id,
+            )
             await self.process_commands(message)
             if message.content.startswith("/"):
                 await asyncio.sleep(2)
@@ -423,6 +465,8 @@ class MarciaBot(commands.Bot):
         """Handles common command errors gracefully."""
         if getattr(error, "handled", False):
             return
+        if ctx.interaction is not None:
+            return
         if isinstance(error, commands.CommandNotFound):
             return
         if isinstance(error, commands.MissingPermissions):
@@ -466,6 +510,8 @@ class MarciaBot(commands.Bot):
 
     async def on_command_completion(self, ctx):
         """Log message-command usage for analytics dashboards."""
+        if ctx.interaction is not None:
+            return
         try:
             await increment_command_usage(getattr(ctx.guild, "id", None), ctx.command.qualified_name)
         except Exception:
@@ -482,16 +528,23 @@ class MarciaBot(commands.Bot):
 
     async def on_command(self, ctx):
         setattr(ctx, "_marcia_started_at", time.monotonic())
+        invocation_id = getattr(ctx.message, "_marcia_invocation_id", None)
+        if invocation_id is None:
+            invocation_id = uuid.uuid4().hex
+        setattr(ctx, "_marcia_invocation_id", invocation_id)
 
-    def _mark_interaction_started(self, interaction: discord.Interaction) -> None:
+    def _mark_interaction_started(self, interaction: discord.Interaction, invocation_id: str) -> None:
         if interaction.id is None:
             return
-        self._interaction_started_at[interaction.id] = time.monotonic()
+        self._interaction_started_at[interaction.id] = (time.monotonic(), invocation_id)
 
     def _get_interaction_started(self, interaction: discord.Interaction) -> float | None:
         if interaction.id is None:
             return None
-        return self._interaction_started_at.get(interaction.id)
+        entry = self._interaction_started_at.get(interaction.id)
+        if entry is None:
+            return None
+        return entry[0]
 
     async def on_interaction(self, interaction: discord.Interaction):
         if (
@@ -506,7 +559,13 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.autocomplete,
             discord.InteractionType.modal_submit,
         ):
-            self._mark_interaction_started(interaction)
+            invocation_id = uuid.uuid4().hex
+            logger.info(
+                "Command dispatch start source=app-command interaction_id=%s invocation_id=%s",
+                interaction.id,
+                invocation_id,
+            )
+            self._mark_interaction_started(interaction, invocation_id)
             if not self._should_process_interaction(interaction):
                 return
             try:
@@ -603,6 +662,7 @@ class MarciaBot(commands.Bot):
         started_at = getattr(ctx, "_marcia_started_at", None)
         if started_at is None:
             return
+        invocation_id = getattr(ctx, "_marcia_invocation_id", None)
         duration_ms = (time.monotonic() - started_at) * 1000
         record_command_latency(
             command=getattr(getattr(ctx, "command", None), "qualified_name", "unknown"),
@@ -611,6 +671,7 @@ class MarciaBot(commands.Bot):
             guild_id=getattr(getattr(ctx, "guild", None), "id", None),
             user_id=getattr(getattr(ctx, "author", None), "id", None),
             source=source,
+            invocation_id=invocation_id,
         )
 
     def _record_app_command_result(
@@ -622,9 +683,10 @@ class MarciaBot(commands.Bot):
     ) -> None:
         if interaction.id is None:
             return
-        started_at = self._interaction_started_at.pop(interaction.id, None)
-        if started_at is None:
+        entry = self._interaction_started_at.pop(interaction.id, None)
+        if entry is None:
             return
+        started_at, invocation_id = entry
         duration_ms = (time.monotonic() - started_at) * 1000
         record_command_latency(
             command=getattr(command, "qualified_name", "unknown"),
@@ -633,6 +695,7 @@ class MarciaBot(commands.Bot):
             guild_id=getattr(getattr(interaction, "guild", None), "id", None),
             user_id=getattr(getattr(interaction, "user", None), "id", None),
             source="app-command",
+            invocation_id=invocation_id,
         )
 
     async def _load_cogs(self):
