@@ -285,7 +285,7 @@ class Settings(commands.Cog):
                 return await msg.reply("✅ Auto-role cleared.")
             role = _role_from_message(msg, interaction.guild)
             if not role:
-            return await msg.reply("❌ Couldn't find that role. Try `/gyper setup` again.")
+                return await msg.reply("❌ Couldn't find that role. Try `/gyper setup` again.")
             await update_setting(interaction.guild.id, "auto_role_id", role.id, interaction.guild.name)
             return await msg.reply(f"✅ Auto-role set to **{role.name}**.")
 

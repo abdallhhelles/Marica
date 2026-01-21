@@ -29,6 +29,7 @@ from database import (
     set_rsvp_status,
     upsert_rsvp_prompt,
 )
+from utils.async_utils import create_tracked_task
 
 logger = logging.getLogger('MarciaOS.Events')
 JOIN_EVENT_EMOJI = "🤝"
@@ -551,7 +552,11 @@ class Events(commands.Cog):
         self.running_tasks = {}
         self.cycle_status.start()
         self.check_duel_reset.start()
-        self.bot.loop.create_task(self.recover_missions())
+        create_tracked_task(
+            self.recover_missions(),
+            name="recover-missions",
+            logger=logger,
+        )
 
     def cog_unload(self):
         self.cycle_status.cancel()
@@ -593,7 +598,7 @@ class Events(commands.Cog):
                 utc_dt = datetime.fromisoformat(m['target_utc']).astimezone(timezone.utc)
                 if utc_dt > datetime.now(timezone.utc):
                     task_key = f"{m['guild_id']}_{m['codename']}"
-                    self.running_tasks[task_key] = self.bot.loop.create_task(
+                    self.running_tasks[task_key] = create_tracked_task(
                         self.manage_reminders(
                             m['codename'],
                             m['description'],
@@ -601,7 +606,9 @@ class Events(commands.Cog):
                             m['guild_id'],
                             location=m.get('location'),
                             ping_role_id=m.get('ping_role_id'),
-                        )
+                        ),
+                        name=f"mission-reminder-{task_key}",
+                        logger=logger,
                     )
                 else:
                     await delete_mission(m['guild_id'], m['codename'])
@@ -878,8 +885,11 @@ class Events(commands.Cog):
                 notes=None,
             )
             await increment_activity_metric(ctx.guild.id, "events_scheduled")
-            self.running_tasks[f"{ctx.guild.id}_{name}"] = self.bot.loop.create_task(
-                self.manage_reminders(name, desc, utc_dt, ctx.guild.id, location, ping_role_id)
+            task_key = f"{ctx.guild.id}_{name}"
+            self.running_tasks[task_key] = create_tracked_task(
+                self.manage_reminders(name, desc, utc_dt, ctx.guild.id, location, ping_role_id),
+                name=f"mission-reminder-{task_key}",
+                logger=logger,
             )
 
             preview = self._build_event_embed(ctx.guild, name, desc, utc_dt, location, ping_role_id)

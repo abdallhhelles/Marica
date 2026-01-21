@@ -129,6 +129,8 @@ Notes:
 ### Local development
 Clone the repo, create `.env`, install dependencies (include OCR if you need scanning), and run `python main.py` from the repo root. The bot pins its working directory automatically.
 
+**Pinned installs:** Use `pip install -r requirements.lock` if you want exact versions aligned with the latest stable deploy.
+
 ---
 
 ## Local configuration
@@ -138,6 +140,9 @@ Clone the repo, create `.env`, install dependencies (include OCR if you need sca
 ```env
 TOKEN=your_discord_bot_token_here
 ```
+
+**Token alias**
+* `DISCORD_TOKEN` is accepted for legacy setups but `TOKEN` is the source of truth.
 
 **Mention replies (optional AI)**
 * `MARCIA_AI_API_KEY` — API key for a hosted LLM (tested with OpenRouter free-tier).
@@ -149,14 +154,26 @@ TOKEN=your_discord_bot_token_here
 * `MARCIA_BUSY_COOLDOWN` — Seconds between “busy” notices per user (default: `120`).
 * **Troubleshooting 404s:** OpenRouter returns `404 Not Found` when the model name is invalid. Set `MARCIA_AI_MODEL` to a model listed in your OpenRouter dashboard.
 
+**HTTP guardrails**
+* `MARCIA_HTTP_TIMEOUT` — Default timeout in seconds for external calls (default: `10`).
+* `MARCIA_HTTP_RETRIES` — Retry attempts for safe calls (default: `2`).
+* `MARCIA_HTTP_BACKOFF` — Base backoff seconds for retries (default: `0.6`).
+* `MARCIA_HTTP_BREAKER_FAILURES` — Failures before opening the circuit (default: `3`).
+* `MARCIA_HTTP_BREAKER_RESET` — Seconds before a circuit resets (default: `30`).
+
 **Profile scan tuning**
 * `PROFILE_SCAN_WORKERS` — Number of queued scan workers (default: `1`).
 * `PROFILE_SCAN_CONCURRENCY` — Max concurrent OCR jobs (default: `2`).
 * `PROFILE_SCAN_REVIEW_TIMEOUT` — Seconds before auto-accepting scan review (default: `90`).
+* `OCR_SPACE_API_KEY` — Optional OCR.space key for fallback.
 * `OCR_SPACE_TIMEOUT` — Seconds to wait on OCR.space (default: `60`).
+
+**Metrics**
+* `MARCIA_METRICS_INTERVAL` — Seconds between metrics snapshots (default: `120`).
 
 **Data persistence**
 * Default database: `data/marcia_os.db` (auto-created). Override with `MARCIA_DB_PATH` if your host mounts storage elsewhere.
+* `MARCIA_DB_CACHE_TTL` — Seconds to cache settings/ignore lists (default: `30`).
 
 **Moderation logging**
 * For the moderated guild (`1403997721962086480`), transcripts live under `archives/<ServerName>_<ServerID>/`, one `<channel>_<channel_id>.log` per text channel or thread.

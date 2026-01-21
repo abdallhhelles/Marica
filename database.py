@@ -24,6 +24,9 @@ _ENV_PATH = os.getenv("MARCIA_DB_PATH")
 _REPO_DATA_DIR = _BASE_DIR / "data"
 _REPO_DATA_PATH = _REPO_DATA_DIR / "marcia_os.db"
 _FEEDBACK_LOG_FILE = _REPO_DATA_DIR / "feedback.log"
+_CACHE_TTL = float(os.getenv("MARCIA_DB_CACHE_TTL", "30"))
+_SETTINGS_CACHE: dict[int, tuple[float, dict]] = {}
+_IGNORED_CACHE: dict[int, tuple[float, set[int]]] = {}
 
 # Legacy locations we may need to hoist into the repo copy when upgrading from older deployments.
 _OLD_HOME_STATE = Path.home() / ".local" / "share" / "marcia_os" / "marcia_os.db"
@@ -777,11 +780,18 @@ async def get_fish_inventory(guild_id: int, user_id: int) -> list[aiosqlite.Row]
 # --- SERVER SETTINGS HELPERS ---
 
 async def get_settings(guild_id: int) -> dict | None:
+    now = time.monotonic()
+    cached = _SETTINGS_CACHE.get(guild_id)
+    if cached and now - cached[0] <= _CACHE_TTL:
+        return cached[1]
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM settings WHERE guild_id = ?", (guild_id,)) as cursor:
             row = await cursor.fetchone()
-            return dict(row) if row else None
+            result = dict(row) if row else None
+            if result is not None:
+                _SETTINGS_CACHE[guild_id] = (now, result)
+            return result
 
 async def update_setting(guild_id: int, column: str, value: int | str | None, server_name: str | None = None) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -793,25 +803,41 @@ async def update_setting(guild_id: int, column: str, value: int | str | None, se
                 server_name = COALESCE(excluded.server_name, settings.server_name)
         ''', (guild_id, server_name, value))
         await db.commit()
+    _SETTINGS_CACHE.pop(guild_id, None)
 
 
 async def get_ignored_channels(guild_id: int) -> list[int]:
+    now = time.monotonic()
+    cached = _IGNORED_CACHE.get(guild_id)
+    if cached and now - cached[0] <= _CACHE_TTL:
+        return sorted(cached[1])
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT channel_id FROM ignored_channels WHERE guild_id = ?",
             (guild_id,),
         ) as cursor:
             rows = await cursor.fetchall()
-            return [r[0] for r in rows]
+            channels = {r[0] for r in rows}
+            _IGNORED_CACHE[guild_id] = (now, channels)
+            return sorted(channels)
 
 
 async def is_channel_ignored(guild_id: int, channel_id: int) -> bool:
+    now = time.monotonic()
+    cached = _IGNORED_CACHE.get(guild_id)
+    if cached and now - cached[0] <= _CACHE_TTL:
+        return channel_id in cached[1]
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT 1 FROM ignored_channels WHERE guild_id = ? AND channel_id = ?",
             (guild_id, channel_id),
         ) as cursor:
-            return await cursor.fetchone() is not None
+            exists = await cursor.fetchone() is not None
+            if exists:
+                channels = cached[1] if cached else set()
+                channels.add(channel_id)
+                _IGNORED_CACHE[guild_id] = (now, channels)
+            return exists
 
 
 async def add_ignored_channel(guild_id: int, channel_id: int) -> None:
@@ -824,6 +850,7 @@ async def add_ignored_channel(guild_id: int, channel_id: int) -> None:
             (guild_id, channel_id),
         )
         await db.commit()
+    _IGNORED_CACHE.pop(guild_id, None)
 
 
 async def remove_ignored_channel(guild_id: int, channel_id: int) -> None:
@@ -833,6 +860,7 @@ async def remove_ignored_channel(guild_id: int, channel_id: int) -> None:
             (guild_id, channel_id),
         )
         await db.commit()
+    _IGNORED_CACHE.pop(guild_id, None)
 
 # --- PROFILE SNAPSHOT HELPERS ---
 
