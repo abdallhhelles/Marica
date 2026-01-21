@@ -489,7 +489,13 @@ class ProfileScanner(commands.Cog):
 
         if job.scan_type == "duel":
             loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(None, self._duel_score_extract, job.image_bytes)
+            use_easyocr = await self._ensure_easyocr()
+            result = await loop.run_in_executor(
+                None,
+                self._duel_score_extract,
+                job.image_bytes,
+                use_easyocr,
+            )
             if not result["valid"]:
                 error = result.get("error", "unknown")
                 if error == "not_duel_week":
@@ -526,8 +532,10 @@ class ProfileScanner(commands.Cog):
             if isinstance(message, discord.Message):
                 view.bind_message(message)
 
-    def _duel_score_extract(self, image_bytes: bytes) -> dict:
-        if not (cv2 and pytesseract and np):
+    def _duel_score_extract(self, image_bytes: bytes, use_easyocr: bool = False) -> dict:
+        if not (cv2 and np):
+            return {"valid": False, "error": "ocr_missing"}
+        if not use_easyocr and not pytesseract:
             return {"valid": False, "error": "ocr_missing"}
 
         arr = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -536,22 +544,28 @@ class ProfileScanner(commands.Cog):
             return {"valid": False, "error": "image_load_failed"}
 
         duel_week_confirmed = False
+        duel_week_text = ""
         try:
-            duel_week_confirmed = _is_duel_week(image)
+            duel_week_text = self._duel_read_text(
+                image, DUEL_WEEK_ROI, use_easyocr=use_easyocr
+            )
+            compact = re.sub(r"[^a-z]", "", duel_week_text.lower())
+            duel_week_confirmed = "duelweek" in compact
         except Exception as exc:  # pragma: no cover - dependency edge
-            if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
+            if pytesseract and hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
                 exc, pytesseract.TesseractNotFoundError
             ):
                 return {"valid": False, "error": "tesseract_missing"}
             raise
 
-        name = _ocr_duel_text(_prep_duel_image(_crop_norm(image, OWNER_NAME_ROI)), psm=7)
+        name = self._duel_read_text(image, OWNER_NAME_ROI, use_easyocr=use_easyocr)
         name = re.sub(r"\s+", " ", name).strip()
 
-        raw_score = _ocr_duel_text(
-            _prep_duel_image(_crop_norm(image, OWNER_SCORE_ROI)),
-            psm=7,
+        raw_score = self._duel_read_text(
+            image,
+            OWNER_SCORE_ROI,
             whitelist="0123456789.MK",
+            use_easyocr=use_easyocr,
         )
         score_text, score_int = _parse_duel_score(raw_score)
 
@@ -568,6 +582,23 @@ class ProfileScanner(commands.Cog):
             "raw_score_ocr": raw_score,
             "duel_week_confirmed": duel_week_confirmed,
         }
+
+    def _duel_read_text(
+        self,
+        image,
+        roi: tuple[float, float, float, float],
+        *,
+        whitelist: str | None = None,
+        use_easyocr: bool = False,
+    ) -> str:
+        crop = _crop_norm(image, roi)
+        if use_easyocr and self._easyocr_reader:
+            proc = self._preprocess_crop(crop)
+            detections = self._easyocr_reader.readtext(proc)
+            if detections:
+                detections.sort(key=lambda item: item[2], reverse=True)
+                return detections[0][1].strip()
+        return _ocr_duel_text(_prep_duel_image(crop), psm=7, whitelist=whitelist)
 
     async def _perform_ocr(
         self,
