@@ -250,6 +250,20 @@ async def init_db():
         ''')
 
         await db.execute('''
+            CREATE TABLE IF NOT EXISTS duel_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER,
+                user_id INTEGER,
+                week_key TEXT,
+                player_name TEXT,
+                score_text TEXT,
+                score_int INTEGER,
+                raw_ocr TEXT,
+                created_at INTEGER
+            )
+        ''')
+
+        await db.execute('''
             CREATE TABLE IF NOT EXISTS reminder_template_seed (
                 guild_id INTEGER PRIMARY KEY
             )
@@ -415,6 +429,8 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_transfers_guild ON inventory_transfers(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_duel_scores_guild_week ON duel_scores(guild_id, week_key)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_duel_scores_user ON duel_scores(guild_id, user_id)")
 
         async with db.execute("PRAGMA table_info(user_stats)") as cursor:
             existing_columns = {row[1] async for row in cursor}
@@ -1029,6 +1045,116 @@ async def top_global_profile_stat(column: str, limit: int = 10):
             (limit,),
         ) as cursor:
             return await cursor.fetchall()
+
+# --- DUEL SCORE HELPERS ---
+
+
+async def add_duel_score(
+    guild_id: int,
+    user_id: int,
+    *,
+    week_key: str,
+    player_name: str | None = None,
+    score_text: str | None = None,
+    score_int: int | None = None,
+    raw_ocr: str | None = None,
+) -> None:
+    now_ts = int(time.time())
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO duel_scores (
+                guild_id, user_id, week_key, player_name, score_text, score_int, raw_ocr, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                guild_id,
+                user_id,
+                week_key,
+                player_name,
+                score_text,
+                score_int,
+                raw_ocr,
+                now_ts,
+            ),
+        )
+        await db.commit()
+
+
+async def get_latest_duel_score(guild_id: int, user_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT guild_id, user_id, week_key, player_name, score_text, score_int, raw_ocr, created_at
+            FROM duel_scores
+            WHERE guild_id = ? AND user_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (guild_id, user_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def get_duel_scores_for_user(
+    guild_id: int, user_id: int, limit: int = 10
+) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT guild_id, user_id, week_key, player_name, score_text, score_int, raw_ocr, created_at
+            FROM duel_scores
+            WHERE guild_id = ? AND user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (guild_id, user_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def get_latest_duel_week(guild_id: int) -> str | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT week_key
+            FROM duel_scores
+            WHERE guild_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+
+async def get_duel_leaderboard(
+    guild_id: int, week_key: str, limit: int = 10
+) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT user_id,
+                   player_name,
+                   MAX(score_int) AS score_int,
+                   MAX(score_text) AS score_text
+            FROM duel_scores
+            WHERE guild_id = ? AND week_key = ?
+            GROUP BY user_id, player_name
+            ORDER BY score_int DESC
+            LIMIT ?
+            """,
+            (guild_id, week_key, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
 # --- LEVELING HELPERS ---
 

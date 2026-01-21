@@ -69,7 +69,7 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Profile Scans",
         "lines": [
-            f"{EMOJI_SMUG} `/scan_profile` intake set via `/setup`-stats roll into `/profile` and `/leaderboard`.",
+                f"{EMOJI_SMUG} `/scan` opens the scan menu; profile intake set via `/setup` rolls into `/profile` and `/leaderboard`.",
             f"{EMOJI_IDEA} `/profile_review` lets mods validate or purge scan data.",
         ],
     },
@@ -289,7 +289,7 @@ class Utility(commands.Cog):
             value="\n".join([
                 f"• {EMOJI_ADORE} Trading terminal with persistent Fish-Link inventory",
                 f"• {EMOJI_CONFIDENT} `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
-                f"• {EMOJI_SMUG} Profile scans: `/scan_profile` (configure intake via `/setup`); caches uploads",
+                f"• {EMOJI_SMUG} Profile scans: `/scan` (configure intake via `/setup`); caches uploads",
                 f"• {EMOJI_ANGRY} Per-guild analytics; nothing crosses sectors",
             ]),
             inline=False,
@@ -329,7 +329,7 @@ class Utility(commands.Cog):
             (
                 "Profile scans",
                 [
-                    "`/scan_profile` • scan a screenshot",
+                    "`/scan` • scan a screenshot",
                     "`/leaderboard` • XP + CP/Kills with export",
                 ],
             ),
@@ -518,7 +518,7 @@ class Utility(commands.Cog):
             "Pin Fish-Link with `/setup_trade` so traders can move fast without spam.",
             "Use `/remind` to schedule reminders or save templates for rapid ops pings.",
             "Run `/event` to stage ops with a codename, location, and optional role ping.",
-            "Need proof of power? `/scan_profile` feeds `/profile` and `/leaderboard` stats.",
+            "Need proof of power? `/scan` feeds `/profile` and `/leaderboard` stats.",
             "Inventory is sector-locked-`/inventory` only shows loot from this server.",
             "Clear stale drops with `/clear` instead of manual pruning.",
             "Use `/features` or `/commands` to onboard new survivors in seconds.",

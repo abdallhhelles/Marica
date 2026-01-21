@@ -561,7 +561,7 @@ class Settings(commands.Cog):
         )
         embed.add_field(
             name="🛰️ Profile scan intake",
-            value="Where `/scan_profile` screenshots are read and logged.",
+            value="Where `/scan` screenshots are read and logged.",
             inline=False,
         )
         if self.is_marcia_server:
