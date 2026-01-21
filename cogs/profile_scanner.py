@@ -68,9 +68,9 @@ LABEL_HINTS = {
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state", "world"),
 }
-DUEL_WEEK_ROI = (0.393814, 0.212381, 0.226804, 0.042857)
-OWNER_NAME_ROI = (0.329897, 0.742857, 0.278351, 0.029524)
-OWNER_SCORE_ROI = (0.690722, 0.742857, 0.214433, 0.054286)
+DUEL_WEEK_ROI = (0.362887, 0.211429, 0.278351, 0.049524)
+OWNER_NAME_ROI = (0.331959, 0.737143, 0.25567, 0.035238)
+OWNER_SCORE_ROI = (0.690722, 0.740952, 0.197938, 0.058095)
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
 EASYOCR_LANGS = ["en"]
