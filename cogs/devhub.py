@@ -13,6 +13,7 @@ import discord
 from discord.ext import commands, tasks
 
 from database import activity_metric_totals, command_usage_totals, top_commands, total_active_missions
+from utils.async_utils import create_tracked_task
 from utils.patch_notes import PatchNotesStore
 
 DEV_GUILD_ID = 1455313963507257486
@@ -145,7 +146,11 @@ class DevServerManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.patch_notes = PatchNotesStore()
-        self._bootstrap_task = self.bot.loop.create_task(self._bootstrap())
+        self._bootstrap_task = create_tracked_task(
+            self._bootstrap(),
+            name="devhub-bootstrap",
+            logger=logger,
+        )
 
     def cog_unload(self):
         if self._bootstrap_task:
