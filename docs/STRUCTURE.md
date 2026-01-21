@@ -1,6 +1,6 @@
 # Marcia OS | Project Structure
 
-Brief, single-source map of the repository so operators and contributors can find systems fast.
+Brief, single-source map of the repository so operators and contributors can find systems quickly.
 
 ```
 Marica/

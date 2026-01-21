@@ -2,8 +2,7 @@
 
 ## Added
 - `/heroes` command with the new hero codex menu and Marcia hero profile (image, skills, scaling).
-- Marcia Server automation (server ID `1454704176662843525`): auto-creates rules, events, feedback-suggestions, and global-analytics channels; auto-links them in `/setup`.
-- Hourly global analytics pulse for the Marcia Server with fun stats and activity notes.
+- Marcia Server automation (server ID `1454704176662843525`): auto-creates **about**, **rules**, and **events** channels; auto-links them in `/setup`.
 - Setup dropdown flow so admins can configure one feature at a time.
 
 ## Changed
@@ -31,7 +30,6 @@
 - Trading by direct item handoff (`/trade_item`) is no longer supported.
 
 ## Marcia Server Notes (ID: 1454704176662843525)
-- Marcia will auto-create missing channels: `#rules`, `#events`, `#feedback-suggestions`, and `#global-analytics`.
-- `#rules`, `#events`, and `#global-analytics` are enforced as read-only for members.
-- The global analytics channel updates hourly with live stats and activity notes.
+- Marcia will auto-create missing channels: `#about`, `#rules`, and `#events`.
+- `#about`, `#rules`, and `#events` are enforced as read-only for members.
 - `/setup` is auto-linked with the required channels; manual edits are still respected.

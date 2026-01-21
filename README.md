@@ -6,7 +6,7 @@
 
 > *"Freedom is expensive. Don't waste my time for free."* — **Marcia**
 
-Marica is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
+Marica is the tactical operations bot for the **Helles Hub Alliance**. She runs ops, translations, trading, and player progression with production-grade reliability. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
@@ -61,7 +61,7 @@ Marica is the tactical operations bot for the **Helles Hub Alliance**. She orche
 
 * Use the lightweight install to skip OCR: `pip install -r requirements-lite.txt` (scanning stays disabled, everything else works).
 * If you need OCR, prebuild wheels on a bigger machine and upload them to the host. Install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
-* 512 MB RAM panels almost always OOM on torch. Preload wheels instead of live installing (see [Low-memory install guide](docs/LOW_MEMORY_INSTALL.md)).
+* 512 MB RAM panels almost always OOM on torch; preload wheels instead of live installing (see [Low-memory install guide](docs/LOW_MEMORY_INSTALL.md)).
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:

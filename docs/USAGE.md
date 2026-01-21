@@ -2,11 +2,11 @@
 
 **Private-use notice:** This guide documents the owner-operated instance and is not intended for public distribution or third-party hosting.
 
-Concise guidance for the commands operators use most. Times use the in-game clock (UTC-2) unless noted.
+Fast guidance for the commands operators use most. Times use the in-game clock (UTC-2) unless noted.
 
 ## Server owner quick guide
 ### 1) Core setup (admins/mods)
-- **Run setup:** `/setup` and use the dropdown to link event, chat, welcome, rules, verify, auto-role, and profile scan intake channels.
+- **Run setup:** `/setup` and link only the channels you actually use. For a lean server, start with **rules** and **events**.
 - **Review links:** The `/setup` panel shows each linked channel and its status.
 - **Profile scan intake:** `/setup` → **Profile scan intake** to pick where screenshots are ingested.
 - **Trading terminal:** `/setup_trade` in the trade channel to anchor the Fish-Link UI.

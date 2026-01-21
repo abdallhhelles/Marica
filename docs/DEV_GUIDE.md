@@ -1,12 +1,12 @@
 # Marcia Developer Guide
 
-This document covers how the bot is organized, how to run it locally, and how automation keeps the DevHub/test guilds and patch notes in sync. Use it as the single place to onboard new contributors.
+This guide explains how the bot is organized, how to run it locally, and how automation keeps the DevHub/test guilds and patch notes aligned. Use it as the onboarding source of truth.
 
 ## Quickstart
 1. Create a virtual environment with Python 3.11+ and install dependencies: `pip install -r requirements.txt`.
 2. Copy your Discord token into the environment (`export TOKEN=...`).
-3. Run the bot locally with `python main.py`. The `DevServerManager` cog will self-start and maintain guild layout plus info boards.
-4. Run a cheap sanity check before pushing: `python -m compileall .`.
+3. Run the bot locally with `python main.py`. The `DevServerManager` cog self-starts and manages guild layout plus info boards.
+4. Run a quick sanity check before pushing: `python -m compileall .`.
 
 ## Repository layout
 - `main.py`: entrypoint that loads all cogs.
@@ -27,7 +27,7 @@ This document covers how the bot is organized, how to run it locally, and how au
 
 ## Test guild layout automation (ID: 1454704176662843525)
 - Categories/channels from `docs/TEST_SERVER_PLAYBOOK.md` are created if missing and moved into the right category when the playbook changes.
-- Channels with onboarding text (`#readme`, `#usage-guide`, `#changelog`, etc.) are seeded once per marker so the bot will not spam duplicates. Each seeded message ends with a marker like ``seed:readme:v1`` so you can bump the marker to force a reseed.
+- Channels with onboarding text (for example `#readme` and `#rules`) are seeded once per marker so the bot does not spam duplicates. Each seeded message ends with a marker like ``seed:readme:v1`` so you can bump the marker to force a reseed.
 - Update the strings in `cogs/devhub.py` under `TEST_LAYOUT` when the playbook changes; bump the related marker to reseed.
 
 ## Info panel refresh

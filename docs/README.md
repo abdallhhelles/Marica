@@ -8,7 +8,7 @@
 
 **Private-use notice:** Marcia is a personal, owner-operated bot. It is **not** intended for public installation, third-party hosting, or redistribution.
 
-Marcia is the tactical operations bot for the **Helles Hub Alliance**. She orchestrates ops, translations, trading, and player progression with the reliability expected from production-grade services. For hands-on usage, see [USAGE.md](USAGE.md).
+Marcia is the tactical operations bot for the **Helles Hub Alliance**. She coordinates ops, translations, trading, and player progression with a production-grade workflow. For hands-on usage, see [USAGE.md](USAGE.md).
 
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
