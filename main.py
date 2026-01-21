@@ -75,7 +75,7 @@ class MarciaBot(commands.Bot):
             allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True),
         )
         self.config = config
-        self.http = HttpClient(
+        self.http_client = HttpClient(
             timeout=config.http_timeout,
             retries=config.http_retries,
             backoff=config.http_backoff,
@@ -93,7 +93,7 @@ class MarciaBot(commands.Bot):
     async def close(self):
         if self._metrics_task:
             self._metrics_task.cancel()
-        await self.http.aclose()
+        await self.http_client.aclose()
         await super().close()
 
     @staticmethod
@@ -156,7 +156,7 @@ class MarciaBot(commands.Bot):
         if self.config.ai_app_url:
             headers["HTTP-Referer"] = self.config.ai_app_url
         try:
-            response = await self.http.request(
+            response = await self.http_client.request(
                 "ai",
                 "POST",
                 endpoint,

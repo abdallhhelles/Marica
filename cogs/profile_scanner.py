@@ -761,7 +761,7 @@ class ProfileScanner(commands.Cog):
         files = {"file": (filename or "profile.png", image_bytes, "application/octet-stream")}
 
         try:
-            resp = await self.bot.http.request(
+            resp = await self.bot.http_client.request(
                 "ocr_space",
                 "POST",
                 OCR_SPACE_ENDPOINT,

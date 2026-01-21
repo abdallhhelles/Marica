@@ -123,7 +123,7 @@ class Utility(commands.Cog):
         }
 
         try:
-            response = await self.bot.http.request(
+            response = await self.bot.http_client.request(
                 "translate",
                 "GET",
                 "https://translate.googleapis.com/translate_a/single",
