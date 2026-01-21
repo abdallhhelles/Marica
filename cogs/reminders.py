@@ -56,7 +56,7 @@ class Reminders(commands.Cog):
         settings = await get_settings(ctx.guild.id)
         if not settings or not settings.get("event_channel_id"):
             return await ctx.send(
-                "📌 Set an events channel first with `/setup` so I know where to post reminders."
+                "📌 Set an events channel first with `/gyper setup` so I know where to post reminders."
             )
 
         view = ReminderMenuView(self, ctx, settings["event_channel_id"])
@@ -410,7 +410,7 @@ class ReminderModal(discord.ui.Modal):
             )
             if not channel:
                 await interaction.followup.send(
-                    "📌 Set an events channel first with `/setup` so I know where to post reminders.",
+                    "📌 Set an events channel first with `/gyper setup` so I know where to post reminders.",
                     ephemeral=True,
                 )
                 return

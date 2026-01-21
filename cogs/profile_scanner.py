@@ -12,6 +12,7 @@ import logging
 import re
 import os
 import random
+import time
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
@@ -215,15 +216,68 @@ def _is_duel_week(image) -> bool:
     return "duelweek" in compact
 
 
+def _normalize_duel_score_text(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = text.upper()
+    cleaned = cleaned.translate(str.maketrans({"O": "0", "Q": "0", "I": "1", "L": "1", "S": "5"}))
+    return cleaned.replace(" ", "")
+
+
+def _format_duel_score_text(score_int: int, suffix: str | None, raw_number: str) -> str:
+    if suffix:
+        return f"{raw_number}{suffix}"
+    return f"{score_int:,}"
+
+
 def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
-    cleaned = text.upper().replace(" ", "")
-    match = re.search(r"(\d+(?:\.\d+)?)([MK]?)", cleaned)
-    if not match:
+    cleaned = _normalize_duel_score_text(text)
+    if not cleaned:
         return None, None
-    value = float(match.group(1))
-    unit = match.group(2)
-    multiplier = 1_000_000 if unit == "M" else 1_000 if unit == "K" else 1
-    return f"{match.group(1)}{unit}", int(value * multiplier)
+
+    candidates: list[dict[str, int | str | bool]] = []
+    for match in re.finditer(r"(\d[\d,\.]*)([KMB]?)", cleaned):
+        number = match.group(1)
+        suffix = match.group(2)
+        raw = number.replace(",", "")
+        if raw.count(".") > 1:
+            parts = raw.split(".")
+            raw = parts[0] + "." + "".join(parts[1:])
+        try:
+            value = float(raw)
+        except ValueError:
+            continue
+        multiplier = 1
+        if suffix == "K":
+            multiplier = 1_000
+        elif suffix == "M":
+            multiplier = 1_000_000
+        elif suffix == "B":
+            multiplier = 1_000_000_000
+        score_int = int(value * multiplier)
+        if score_int <= 0:
+            continue
+        candidates.append(
+            {
+                "score_int": score_int,
+                "score_text": _format_duel_score_text(score_int, suffix or None, raw),
+                "has_suffix": bool(suffix),
+                "digits": len(re.sub(r"\\D", "", raw)),
+            }
+        )
+
+    if not candidates:
+        return None, None
+
+    best = max(
+        candidates,
+        key=lambda item: (
+            bool(item["has_suffix"]),
+            int(item["score_int"]),
+            int(item["digits"]),
+        ),
+    )
+    return str(best["score_text"]), int(best["score_int"])
 
 
 def _duel_week_key(dt: datetime) -> str:
@@ -244,6 +298,7 @@ class ProfileScanner(commands.Cog):
         self._pending_scans: dict[int, PendingScan] = {}
         self._scan_queue: asyncio.Queue[ScanJob] = asyncio.Queue()
         self._scan_workers: list[asyncio.Task] = []
+        self._scan_menu_cooldowns: dict[int, float] = {}
         self._scan_semaphore = asyncio.Semaphore(
             int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
         )
@@ -303,7 +358,7 @@ class ProfileScanner(commands.Cog):
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
-                content="Run `/scan` inside a server so I can link the scan to your guild.",
+                content="Run `/gyper scan` inside a server so I can link the scan to your guild.",
                 ephemeral=True,
             )
 
@@ -312,7 +367,16 @@ class ProfileScanner(commands.Cog):
         except Exception:  # pragma: no cover - Discord edge
             return await self._safe_send(
                 ctx,
-                content="I couldn't open your DMs. Enable DMs and try `/scan` again.",
+                content="I couldn't open your DMs. Enable DMs and try `/gyper scan` again.",
+                ephemeral=True,
+            )
+
+        now = time.monotonic()
+        last_sent = self._scan_menu_cooldowns.get(ctx.author.id)
+        if last_sent and (now - last_sent) < 5:
+            return await self._safe_send(
+                ctx,
+                content="📨 Scan menu already sent. Check your DMs to finish the scan.",
                 ephemeral=True,
             )
 
@@ -333,6 +397,7 @@ class ProfileScanner(commands.Cog):
         )
         view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
         await dm_channel.send(embed=embed, view=view)
+        self._scan_menu_cooldowns[ctx.author.id] = now
         return await self._safe_send(
             ctx,
             content="📨 Check your DMs to finish the scan.",
@@ -598,7 +663,15 @@ class ProfileScanner(commands.Cog):
             if detections:
                 detections.sort(key=lambda item: item[2], reverse=True)
                 return detections[0][1].strip()
-        return _ocr_duel_text(_prep_duel_image(crop), psm=7, whitelist=whitelist)
+        processed = _prep_duel_image(crop)
+        candidates = []
+        for psm in (7, 6):
+            text = _ocr_duel_text(processed, psm=psm, whitelist=whitelist)
+            if text:
+                candidates.append(text.strip())
+        if not candidates:
+            return ""
+        return max(candidates, key=lambda value: sum(ch.isdigit() for ch in value))
 
     async def _perform_ocr(
         self,
@@ -1021,7 +1094,7 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/profile` shows your dossier; `/leaderboard` compares XP and scan stats side by side."
+                "`/gyper profile` shows your dossier; `/gyper leaderboard` compares XP and scan stats side by side."
             ),
             color=0x3498db,
         )
@@ -1074,7 +1147,7 @@ class ProfileScanner(commands.Cog):
     def _build_duel_confirmation_embed(self, payload: dict) -> discord.Embed:
         embed = discord.Embed(
             title="⚔️ Duel score logged",
-            description="Score saved. Use `/leaderboard` to compare duel results.",
+            description="Score saved. Use `/gyper leaderboard` to compare duel results.",
             color=0xE67E22,
         )
         embed.add_field(name="Player", value=payload.get("player_name") or "Unknown", inline=False)

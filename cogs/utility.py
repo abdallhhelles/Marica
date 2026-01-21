@@ -53,39 +53,39 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Ops & Reminders",
         "lines": [
-            f"{EMOJI_IDEA} `/event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
-            f"{EMOJI_CONFIDENT} `/remind` opens a control deck for new reminders, templates, and scheduled blasts.",
-            f"{EMOJI_APPROVE} `/remindme` sets personal DM timers for solo tasks.",
+            f"{EMOJI_IDEA} `/gyper event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
+            f"{EMOJI_CONFIDENT} `/gyper remind` opens a control deck for new reminders, templates, and scheduled blasts.",
+            f"{EMOJI_APPROVE} `/gyper remindme` sets personal DM timers for solo tasks.",
         ],
     },
     {
         "name": "Trading & Progression",
         "lines": [
-            f"{EMOJI_ADORE} Fish-Link trading terminal: `/setup_trade` anchors the hub; buttons drive listings.",
-            f"{EMOJI_CONFIDENT} `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
-            f"{EMOJI_APPROVE} `/leaderboard` + `/profile` surface XP and scan stats; `/inventory` tracks drops.",
+            f"{EMOJI_ADORE} Fish-Link trading terminal: `/gyper setup_trade` anchors the hub; buttons drive listings.",
+            f"{EMOJI_CONFIDENT} `/gyper scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
+            f"{EMOJI_APPROVE} `/gyper leaderboard` + `/gyper profile` surface XP and scan stats; `/gyper inventory` tracks drops.",
         ],
     },
     {
         "name": "Profile Scans",
         "lines": [
-            f"{EMOJI_SMUG} `/scan` DMs you scan options; upload screenshots there to update `/profile` and `/leaderboard`.",
-            f"{EMOJI_IDEA} `/profile_review` lets mods validate or purge scan data.",
+            f"{EMOJI_SMUG} `/gyper scan` DMs you scan options; upload screenshots there to update `/gyper profile` and `/gyper leaderboard`.",
+            f"{EMOJI_IDEA} `/gyper profile_review` lets mods validate or purge scan data.",
         ],
     },
     {
         "name": "Community & Safety",
         "lines": [
-            f"{EMOJI_LAUGH} `/commands`, `/features`, `/about`, and `/heroes` onboard new survivors fast.",
-            f"{EMOJI_APPROVE} `/feedback` routes reports to the handler without leaking server data.",
+            f"{EMOJI_LAUGH} `/gyper commands`, `/gyper features`, `/gyper about`, and `/gyper heroes` onboard new survivors fast.",
+            f"{EMOJI_APPROVE} `/gyper feedback` routes reports to the handler without leaking server data.",
             f"{EMOJI_ANGRY} Channel ignore keeps silenced rooms dark; analytics stay locked to each server.",
         ],
     },
     {
         "name": "Admin Toolkit",
         "lines": [
-            f"{EMOJI_CONFIDENT} `/setup` links channels + auto-role; `/refresh_commands` re-syncs slash commands.",
-            f"{EMOJI_IDEA} `/analytics` gives per-server usage snapshots and trading depth.",
+            f"{EMOJI_CONFIDENT} `/gyper setup` links channels + auto-role; `/gyper refresh_commands` re-syncs slash commands.",
+            f"{EMOJI_IDEA} `/gyper analytics` gives per-server usage snapshots and trading depth.",
         ],
     },
 ]
@@ -222,7 +222,7 @@ class Utility(commands.Cog):
             name="Signals & Support",
             value=(
                 f"Owner: {owner_label}\n"
-                "Contact: use `/feedback` or DM the owner\n"
+                "Contact: use `/gyper feedback` or DM the owner\n"
                 f"Invite link: {self._share_link}\n"
                 "Support station (keeps the uptime running): https://www.buymeacoffee.com/akrot\n"
                 "Official server: https://discord.gg/tuWX4sVR4Y"
@@ -269,9 +269,9 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Operations",
             value="\n".join([
-                f"• {EMOJI_IDEA} `/event` (with upcoming ops + removal) for UTC-2 planning",
-                f"• {EMOJI_CONFIDENT} `/remind` with templates, schedule, and immediate blasts",
-                f"• {EMOJI_APPROVE} `/analytics` for usage, wiring, and activity snapshots",
+                f"• {EMOJI_IDEA} `/gyper event` (with upcoming ops + removal) for UTC-2 planning",
+                f"• {EMOJI_CONFIDENT} `/gyper remind` with templates, schedule, and immediate blasts",
+                f"• {EMOJI_APPROVE} `/gyper analytics` for usage, wiring, and activity snapshots",
             ]),
             inline=False,
         )
@@ -279,8 +279,8 @@ class Utility(commands.Cog):
             name="Community & Safety",
             value="\n".join([
                 f"• {EMOJI_ANGRY} Channel ignore keeps blacked-out rooms fully silent",
-                f"• {EMOJI_LAUGH} `/commands`, `/features`, `/about` to onboard crews",
-                f"• {EMOJI_APPROVE} `/feedback` to ping my handler without leaking server data",
+                f"• {EMOJI_LAUGH} `/gyper commands`, `/gyper features`, `/gyper about` to onboard crews",
+                f"• {EMOJI_APPROVE} `/gyper feedback` to ping my handler without leaking server data",
             ]),
             inline=False,
         )
@@ -288,8 +288,8 @@ class Utility(commands.Cog):
             name="Economy & Progression",
             value="\n".join([
                 f"• {EMOJI_ADORE} Trading terminal with persistent Fish-Link inventory",
-                f"• {EMOJI_CONFIDENT} `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
-                f"• {EMOJI_SMUG} Profile scans: `/scan` in DMs to log profile/duel stats",
+                f"• {EMOJI_CONFIDENT} `/gyper scavenge`, `/gyper inventory`, `/gyper leaderboard` (10/25/50/100 rows + export)",
+                f"• {EMOJI_SMUG} Profile scans: `/gyper scan` in DMs to log profile/duel stats",
                 f"• {EMOJI_ANGRY} Per-guild analytics; nothing crosses sectors",
             ]),
             inline=False,
@@ -303,25 +303,25 @@ class Utility(commands.Cog):
             (
                 "Quick start",
                 [
-                    "`/scavenge` • deploy a drone",
-                    "`/inventory` • check your stash",
-                    "`/event` • see what's scheduled",
-                    "`/profile` | `/leaderboard`",
+                    "`/gyper scavenge` • deploy a drone",
+                    "`/gyper inventory` • check your stash",
+                    "`/gyper event` • see what's scheduled",
+                    "`/gyper profile` | `/gyper leaderboard`",
                 ],
             ),
             (
                 "Events & ops",
                 [
-                    "`/event` • plan ops + upcoming list + removal",
-                    "`/remind` • channel reminder",
-                    "`/remindme` • DM timer",
-                    "`/analytics` • usage snapshot",
+                    "`/gyper event` • plan ops + upcoming list + removal",
+                    "`/gyper remind` • channel reminder",
+                    "`/gyper remindme` • DM timer",
+                    "`/gyper analytics` • usage snapshot",
                 ],
             ),
             (
                 "Trading",
                 [
-                    "`/setup_trade` • deploy Fish-Link",
+                    "`/gyper setup_trade` • deploy Fish-Link",
                     "Buttons: Spares / Find listings",
                     "Per-server inventory; no cross-bleed",
                 ],
@@ -329,23 +329,23 @@ class Utility(commands.Cog):
             (
                 "Profile scans",
                 [
-                    "`/scan` • scan a screenshot in DMs",
-                    "`/leaderboard` • XP + CP/Kills with export",
+                    "`/gyper scan` • scan a screenshot in DMs",
+                    "`/gyper leaderboard` • XP + CP/Kills with export",
                 ],
             ),
             (
                 "Utility & safety",
                 [
-                    "`/features` + `/about` + `/heroes`",
-                    "`/feedback` • ping handler",
-                    "`/clear` • purge",
+                    "`/gyper features` + `/gyper about` + `/gyper heroes`",
+                    "`/gyper feedback` • ping handler",
+                    "`/gyper clear` • purge",
                 ],
             ),
             (
                 "Admin (UTC-2 clock)",
                 [
-                    "`/setup` • channel links + setup help",
-                    "`/refresh_commands` • resync slash",
+                    "`/gyper setup` • channel links + setup help",
+                    "`/gyper refresh_commands` • resync slash",
                 ],
             ),
         ]
@@ -513,19 +513,19 @@ class Utility(commands.Cog):
     async def tips(self, ctx):
         """Random survival tips and bot tricks."""
         tips_list = [
-            "Use `/remindme 60 Prepare for War` to get a DM in one hour.",
+            "Use `/gyper remindme 60 Prepare for War` to get a DM in one hour.",
             "Mission timers run on Dark War Survival time (UTC-2).",
-            "Pin Fish-Link with `/setup_trade` so traders can move fast without spam.",
-            "Use `/remind` to schedule reminders or save templates for rapid ops pings.",
-            "Run `/event` to stage ops with a codename, location, and optional role ping.",
-            "Need proof of power? `/scan` DMs you scan options to update `/profile` and `/leaderboard` stats.",
-            "Inventory is sector-locked-`/inventory` only shows loot from this server.",
-            "Clear stale drops with `/clear` instead of manual pruning.",
-            "Use `/features` or `/commands` to onboard new survivors in seconds.",
+            "Pin Fish-Link with `/gyper setup_trade` so traders can move fast without spam.",
+            "Use `/gyper remind` to schedule reminders or save templates for rapid ops pings.",
+            "Run `/gyper event` to stage ops with a codename, location, and optional role ping.",
+            "Need proof of power? `/gyper scan` DMs you scan options to update `/gyper profile` and `/gyper leaderboard` stats.",
+            "Inventory is sector-locked-`/gyper inventory` only shows loot from this server.",
+            "Clear stale drops with `/gyper clear` instead of manual pruning.",
+            "Use `/gyper features` or `/gyper commands` to onboard new survivors in seconds.",
             "Keep a calm event channel-Marcia formats reminders so chatter stays low.",
-            "Check `/leaderboard` exports if you need a TSV for spreadsheets.",
-            "Use `/feedback` to report bugs or ideas without leaking server intel.",
-            "Browse `/heroes` when you need a quick dossier before upgrades."
+            "Check `/gyper leaderboard` exports if you need a TSV for spreadsheets.",
+            "Use `/gyper feedback` to report bugs or ideas without leaking server intel.",
+            "Browse `/gyper heroes` when you need a quick dossier before upgrades."
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
 
@@ -725,7 +725,7 @@ class Utility(commands.Cog):
         for i in range(len(options)):
             await poll_message.add_reaction(reactions[i])
 
-    @commands.hybrid_command(description="DM reminder after X minutes. /remindme 10 Wake up")
+    @commands.hybrid_command(description="DM reminder after X minutes. /gyper remindme 10 Wake up")
     async def remindme(self, ctx, minutes: int, *, task: str):
         """Set a reminder. !remindme 10 Wake Up"""
         await self._safe_send(ctx, content=f"⏰ Affirmative. Reminder set for `{task}`.")

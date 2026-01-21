@@ -151,11 +151,11 @@ class MarciaServer(commands.Cog):
             "",
             "**Start here**",
             "• Read **#rules** to stay aligned.",
-            "• Use `/commands` for the full command list and quick-starts.",
-            "• Ask questions in **#general** or ping `/feedback` with issues.",
+            "• Use `/gyper commands` for the full command list and quick-starts.",
+            "• Ask questions in **#general** or ping `/gyper feedback` with issues.",
             "",
             "**Feedback lane**",
-            "• Use `/feedback` for bugs and feature ideas (auto-routed to the handler).",
+            "• Use `/gyper feedback` for bugs and feature ideas (auto-routed to the handler).",
         ]
         await channel.send("\n".join(info_lines))
 
@@ -170,7 +170,7 @@ class MarciaServer(commands.Cog):
             "📜 **Marcia Server Rules**",
             "1) Respect the squad. No harassment, hate speech, or personal attacks.",
             "2) Keep chat readable. No spam, scams, or walls of text.",
-            "3) Use `/feedback` for bugs and feature requests.",
+            "3) Use `/gyper feedback` for bugs and feature requests.",
             "4) Keep feedback actionable (steps, screenshots, expected vs actual).",
             "5) English preferred so everyone can coordinate.",
         ]

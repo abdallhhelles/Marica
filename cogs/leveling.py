@@ -134,7 +134,7 @@ class Leveling(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await self._safe_send(
                 ctx,
-                content="❌ Missing required info. Check `/commands` for the full syntax list.",
+                content="❌ Missing required info. Check `/gyper commands` for the full syntax list.",
                 ephemeral=True,
             )
             error.handled = True
@@ -372,7 +372,7 @@ class Leveling(commands.Cog):
         else:
             embed.add_field(
                 name="Profile Scan",
-                value="No valid profile scan stats stored yet. Run `/scan` to capture your card.",
+                value="No valid profile scan stats stored yet. Run `/gyper scan` to capture your card.",
                 inline=False,
             )
 
@@ -606,7 +606,7 @@ class Leveling(commands.Cog):
         if not rows:
             return await self._safe_send(
                 ctx,
-                content="🎒 Your stash is empty. Deploy a drone with `/scavenge` to find gear!",
+                content="🎒 Your stash is empty. Deploy a drone with `/gyper scavenge` to find gear!",
             )
 
         # Sort items by rarity (Mythics first)
@@ -675,7 +675,7 @@ class Leveling(commands.Cog):
                 return discord.Embed(
                     title="🌐 Network Leaderboard",
                     description=(
-                        "No global data yet. Start chatting and running `/scavenge` to claim the top slots."
+                        "No global data yet. Start chatting and running `/gyper scavenge` to claim the top slots."
                     ),
                     color=0x5865F2,
                 )
@@ -704,7 +704,7 @@ class Leveling(commands.Cog):
                 )
             embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
-                text=f"Showing top {len(rows)} survivors. Run your alliance like a war machine. /scavenge and climb."
+                text=f"Showing top {len(rows)} survivors. Run your alliance like a war machine. /gyper scavenge and climb."
             )
             return embed
 
@@ -720,7 +720,7 @@ class Leveling(commands.Cog):
             if not week_key:
                 return discord.Embed(
                     title="⚔️ Duel Score Leaderboard",
-                    description="No duel score scans recorded yet. Use `/scan` to capture scores.",
+                    description="No duel score scans recorded yet. Use `/gyper scan` to capture scores.",
                     color=0xE67E22,
                 )
 
@@ -759,7 +759,7 @@ class Leveling(commands.Cog):
             if not rows:
                 return discord.Embed(
                     title=f"{emoji} {stat_label} Leaderboard",
-                    description="No scanned profiles yet. Run `/scan` and try again.",
+                    description="No scanned profiles yet. Run `/gyper scan` and try again.",
                     color=0x5865F2,
                 )
 
@@ -790,7 +790,7 @@ class Leveling(commands.Cog):
         if not rows:
             return discord.Embed(
                 title=f"{emoji} {stat_label} Leaderboard",
-                description="No scanned profiles yet. Run `/scan` and try again.",
+                description="No scanned profiles yet. Run `/gyper scan` and try again.",
                 color=0x5865F2,
             )
 
@@ -806,7 +806,7 @@ class Leveling(commands.Cog):
             lines.append(f"**{idx}.** {name} - {self._format_metric(row['value'])}")
         embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
         embed.set_footer(
-            text=f"Showing top {len(rows)} survivors. Use `/scan` then `/leaderboard` to surface fresh scans."
+            text=f"Showing top {len(rows)} survivors. Use `/gyper scan` then `/gyper leaderboard` to surface fresh scans."
         )
         return embed
 
