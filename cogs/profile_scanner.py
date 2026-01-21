@@ -17,14 +17,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import discord
-from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
 import httpx
 
 from database import (
-    get_profile_channel,
-    get_profile_snapshot,
     get_profile_snapshots,
     delete_profile_snapshot,
     set_profile_scan_valid,
@@ -97,10 +94,18 @@ SCAN_WORKER_COUNT = int(os.getenv("PROFILE_SCAN_WORKERS", "1"))
 
 
 @dataclass(slots=True)
-class ProfileScanJob:
-    kind: str
-    ctx: commands.Context | None
-    message: discord.Message | None
+class PendingScan:
+    scan_type: str
+    guild_id: int
+    requested_at: datetime
+
+
+@dataclass(slots=True)
+class ScanJob:
+    scan_type: str
+    guild_id: int
+    user: discord.User | discord.Member
+    message: discord.Message
     attachment: discord.Attachment
     image_bytes: bytes
     filename: str | None
@@ -236,7 +241,8 @@ class ProfileScanner(commands.Cog):
         self._easyocr_failure_reason: str | None = None
         self._easyocr_lock = asyncio.Lock()
         self._pytesseract_missing = False
-        self._scan_queue: asyncio.Queue[ProfileScanJob] = asyncio.Queue()
+        self._pending_scans: dict[int, PendingScan] = {}
+        self._scan_queue: asyncio.Queue[ScanJob] = asyncio.Queue()
         self._scan_workers: list[asyncio.Task] = []
         self._scan_semaphore = asyncio.Semaphore(
             int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
@@ -293,194 +299,45 @@ class ProfileScanner(commands.Cog):
         name="scan",
         description="Open the scan menu.",
     )
-    @app_commands.choices(
-        scan_type=[
-            app_commands.Choice(name="Profile scan", value="profile"),
-            app_commands.Choice(name="Duel score scan", value="duel"),
-        ]
-    )
-    async def scan(
-        self,
-        ctx,
-        scan_type: str | None = None,
-        image: discord.Attachment | None = None,
-    ):
+    async def scan(self, ctx):
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
-                content="Scans only work inside servers.",
+                content="Run `/scan` inside a server so I can link the scan to your guild.",
                 ephemeral=True,
             )
-
-        if not scan_type:
-            embed = discord.Embed(
-                title="🛰️ Scan menu",
-                description="Choose what you want to scan.",
-                color=0x3498DB,
-            )
-            embed.add_field(
-                name="Profile scan",
-                value="Capture stats from a profile screenshot.",
-                inline=False,
-            )
-            embed.add_field(
-                name="Duel score scan",
-                value="Capture duel week scores (testing enabled).",
-                inline=False,
-            )
-            view = ScanMenuView(self, ctx.author.id)
-            return await self._safe_send(ctx, embed=embed, view=view, ephemeral=True)
-
-        if scan_type == "profile":
-            if not image:
-                channel_id = await get_profile_channel(ctx.guild.id)
-                if channel_id:
-                    channel = ctx.guild.get_channel(channel_id)
-                    if channel:
-                        location = f"Upload your profile screenshot in {channel.mention} or use `/scan` here with an image."
-                    else:
-                        location = "Use `/scan` with your screenshot."
-                else:
-                    location = "Use `/scan` with your screenshot. Configure intake via `/setup` if needed."
-                return await self._safe_send(
-                    ctx,
-                    content=f"🛰️ Profile scans are ready. {location}",
-                    ephemeral=True,
-                )
-
-            return await self._handle_profile_scan(ctx, image)
-
-        if scan_type == "duel":
-            if not image:
-                return await self._safe_send(
-                    ctx,
-                    content="⚔️ Upload a duel score screenshot to run the scan.",
-                    ephemeral=True,
-                )
-            return await self._handle_duel_scan(ctx, image)
-
-        return await self._safe_send(
-            ctx,
-            content="Unknown scan type. Use `/scan` to select an option.",
-            ephemeral=True,
-        )
-
-    async def _handle_profile_scan(self, ctx, image: discord.Attachment):
-        if not ctx.guild:
-            return await self._safe_send(
-                ctx,
-                content="Profiles only work inside servers.",
-                ephemeral=True,
-            )
-
-        if not self._is_image_attachment(image):
-            return await self._safe_send(
-                ctx,
-                content="Please upload a PNG, JPEG, or WEBP screenshot.",
-                ephemeral=True,
-            )
-
-        await self._safe_defer(ctx, ephemeral=True)
 
         try:
-            image_bytes = await image.read()
-        except Exception as exc:  # pragma: no cover - network edge
-            self.log.warning("Could not read attachment: %s", exc)
-            return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
-
-        job = ProfileScanJob(
-            kind="ctx",
-            ctx=ctx,
-            message=None,
-            attachment=image,
-            image_bytes=image_bytes,
-            filename=image.filename,
-        )
-        await self._scan_queue.put(job)
-        queued = self._scan_queue.qsize()
-        await self._safe_send(
-            ctx,
-            content=f"📡 Scan queued. Position: {queued}. I'll post the results shortly.",
-            ephemeral=True,
-        )
-
-    async def _handle_duel_scan(self, ctx, image: discord.Attachment):
-        if not ctx.guild:
+            dm_channel = await ctx.author.create_dm()
+        except Exception:  # pragma: no cover - Discord edge
             return await self._safe_send(
                 ctx,
-                content="Duel score scans only work inside servers.",
+                content="I couldn't open your DMs. Enable DMs and try `/scan` again.",
                 ephemeral=True,
             )
-
-        if not self._is_image_attachment(image):
-            return await self._safe_send(
-                ctx,
-                content="Please upload a PNG, JPEG, or WEBP screenshot.",
-                ephemeral=True,
-            )
-
-        if not (cv2 and pytesseract and np):
-            return await self._safe_send(
-                ctx,
-                content=(
-                    "Duel score scan unavailable. Install Tesseract + pytesseract and OpenCV to enable OCR."
-                ),
-                ephemeral=True,
-            )
-
-        await self._safe_defer(ctx, ephemeral=True)
-
-        try:
-            image_bytes = await image.read()
-        except Exception as exc:  # pragma: no cover - network edge
-            self.log.warning("Could not read attachment: %s", exc)
-            return await self._safe_send(ctx, content="I couldn't read that image.", ephemeral=True)
-
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, self._duel_score_extract, image_bytes)
-
-        if not result["valid"]:
-            error = result.get("error", "unknown")
-            if error == "not_duel_week":
-                message = "That screenshot doesn't look like the Duel Week off-day screen."
-            elif error == "tesseract_missing":
-                message = (
-                    "Duel score scan unavailable. Install the Tesseract binary to enable OCR."
-                )
-            else:
-                message = "I couldn't read that duel score screenshot."
-            return await self._safe_send(ctx, content=message, ephemeral=True)
-
-        week_key = _duel_week_key(now_game())
-        await add_duel_score(
-            ctx.guild.id,
-            ctx.author.id,
-            week_key=week_key,
-            player_name=result.get("player_name") or ctx.author.display_name,
-            score_text=result.get("score_text"),
-            score_int=result.get("score_int"),
-            raw_ocr=result.get("raw_score_ocr"),
-        )
 
         embed = discord.Embed(
-            title="⚔️ Duel score scan",
-            color=0xE67E22,
+            title="🛰️ Scan menu",
+            description="Pick a scan type and send your screenshot here.",
+            color=0x3498DB,
         )
         embed.add_field(
-            name="Player",
-            value=result.get("player_name") or "Unknown",
+            name="Profile scan",
+            value="Capture stats from a profile screenshot.",
             inline=False,
         )
-        score_text = result.get("score_text") or "-"
-        score_int = result.get("score_int")
-        score_value = f"{score_text}"
-        if score_int is not None:
-            score_value = f"{score_text} ({score_int:,})"
-        embed.add_field(name="Score", value=score_value, inline=False)
-        embed.add_field(name="Week", value=week_key, inline=False)
-        if result.get("raw_score_ocr"):
-            embed.set_footer(text=f"OCR raw: {result['raw_score_ocr']}")
-        await self._safe_send(ctx, embed=embed, ephemeral=True)
+        embed.add_field(
+            name="Duel score scan",
+            value="Capture Duel Week off-day scores.",
+            inline=False,
+        )
+        view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
+        await dm_channel.send(embed=embed, view=view)
+        return await self._safe_send(
+            ctx,
+            content="📨 Check your DMs to finish the scan.",
+            ephemeral=True,
+        )
 
     @commands.hybrid_command(
         name="profile_review",
@@ -514,24 +371,17 @@ class ProfileScanner(commands.Cog):
     # --------------------
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or not message.guild:
+        if message.author.bot:
             return
 
-        if getattr(message, "interaction_metadata", None):
+        if message.guild:
             return
 
         if message.type is not discord.MessageType.default:
             return
 
-        # Ignore messages that are already being handled as bot commands to avoid
-        # double-processing an uploaded screenshot (e.g., when invoking the hybrid
-        # command with an attachment).
-        ctx = await self.bot.get_context(message)
-        if ctx.valid:
-            return
-
-        channel_id = await get_profile_channel(message.guild.id)
-        if not channel_id or message.channel.id != channel_id:
+        pending = self._pending_scans.get(message.author.id)
+        if not pending:
             return
 
         attachment = next(
@@ -539,28 +389,53 @@ class ProfileScanner(commands.Cog):
             None,
         )
         if not attachment:
+            await message.reply(
+                "Send a PNG, JPEG, or WEBP screenshot to continue the scan."
+            )
+            return
+
+        if pending.scan_type == "duel" and not (cv2 and pytesseract and np):
+            await message.reply(
+                "Duel score scan unavailable. Install Tesseract + pytesseract and OpenCV to enable OCR."
+            )
+            self._pending_scans.pop(message.author.id, None)
             return
 
         try:
             image_bytes = await attachment.read()
         except Exception as exc:  # pragma: no cover - network edge
             self.log.warning("Could not read attachment: %s", exc)
+            await message.reply("I couldn't read that image.")
             return
 
-        job = ProfileScanJob(
-            kind="message",
-            ctx=None,
+        if pending.scan_type == "profile" and cv2 and pytesseract and np:
+            try:
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if image is not None and _is_duel_week(image):
+                    await message.reply(
+                        "That looks like a Duel Week off-day screenshot. Pick Duel score scan and resend."
+                    )
+                    return
+            except Exception:  # pragma: no cover - best-effort hint
+                pass
+
+        job = ScanJob(
+            scan_type=pending.scan_type,
+            guild_id=pending.guild_id,
+            user=message.author,
             message=message,
             attachment=attachment,
             image_bytes=image_bytes,
             filename=attachment.filename,
         )
         await self._scan_queue.put(job)
-        if self._scan_queue.qsize() > 1:
-            try:
-                await message.add_reaction("⏳")
-            except Exception:  # pragma: no cover - permission edge
-                pass
+        position = self._scan_queue.qsize()
+        queue_note = f"Global queue position: {position}."
+        await message.reply(
+            f"📡 Scan queued for **{pending.scan_type}**. {queue_note} I'll DM results when ready."
+        )
+        self._pending_scans.pop(message.author.id, None)
 
     async def _scan_worker(self, worker_id: int) -> None:
         while True:
@@ -572,54 +447,84 @@ class ProfileScanner(commands.Cog):
             finally:
                 self._scan_queue.task_done()
 
-    async def _process_scan_job(self, job: ProfileScanJob) -> None:
-        if job.kind == "ctx" and job.ctx is None:
-            return
-        if job.kind == "message" and job.message is None:
-            return
+    async def _process_scan_job(self, job: ScanJob) -> None:
+        guild = self.bot.get_guild(job.guild_id)
+        member = guild.get_member(job.user.id) if guild else None
+        user = member or job.user
 
-        user = job.ctx.author if job.ctx else job.message.author
-        guild_id = job.ctx.guild.id if job.ctx else job.message.guild.id
-        image_url = job.attachment.url
-        cached_path = self._persist_profile_image(
-            guild_id, user.id, job.image_bytes, job.filename
-        )
-        parsed, raw_text, ocr_note = await self._perform_ocr(
-            job.image_bytes, filename=job.filename, persisted_path=cached_path
-        )
-        payload = self._build_payload(
-            user, image_url, parsed, raw_text, cached_path
-        )
-
-        if payload.get("ownership_verified") is False:
-            target = job.ctx or job.message
-            await self._safe_send(
-                target,
-                content=(
-                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
-                ),
-                ephemeral=bool(job.ctx),
+        if job.scan_type == "profile":
+            image_url = job.attachment.url
+            cached_path = self._persist_profile_image(
+                job.guild_id, user.id, job.image_bytes, job.filename
             )
+            parsed, raw_text, ocr_note = await self._perform_ocr(
+                job.image_bytes, filename=job.filename, persisted_path=cached_path
+            )
+            payload = self._build_payload(
+                user, image_url, parsed, raw_text, cached_path
+            )
+
+            if payload.get("ownership_verified") is False:
+                await job.message.reply(
+                    "🚫 Those aren't your buttons. Snap your own profile before trying to flex."
+                )
+                return
+
+            view = ProfileScanReviewView(
+                self,
+                job.guild_id,
+                user.id,
+                payload,
+                ocr_note,
+            )
+            embed = self._build_review_embed(payload, ocr_note)
+            try:
+                message = await job.message.reply(embed=embed, view=view, mention_author=False)
+            except Exception:  # pragma: no cover - Discord edge
+                self.log.exception("Failed to reply with profile review")
+                return
+            if isinstance(message, discord.Message):
+                view.bind_message(message)
             return
 
-        view = ProfileScanReviewView(
-            self,
-            guild_id,
-            user.id,
-            payload,
-            ocr_note,
-        )
-        embed = self._build_review_embed(payload, ocr_note)
-        try:
-            if job.ctx:
-                message = await self._safe_send(job.ctx, embed=embed, view=view)
-            else:
+        if job.scan_type == "duel":
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, self._duel_score_extract, job.image_bytes)
+            if not result["valid"]:
+                error = result.get("error", "unknown")
+                if error == "not_duel_week":
+                    message = "That screenshot doesn't look like the Duel Week off-day screen."
+                elif error == "ocr_missing":
+                    message = (
+                        "Duel score scan unavailable. Install Tesseract + pytesseract and OpenCV to enable OCR."
+                    )
+                elif error == "tesseract_missing":
+                    message = (
+                        "Duel score scan unavailable. Install the Tesseract binary to enable OCR."
+                    )
+                else:
+                    message = "I couldn't read that duel score screenshot."
+                await job.message.reply(message)
+                return
+
+            week_key = _duel_week_key(now_game())
+            payload = {
+                "player_name": result.get("player_name") or user.display_name,
+                "score_text": result.get("score_text"),
+                "score_int": result.get("score_int"),
+                "raw_score_ocr": result.get("raw_score_ocr"),
+                "week_key": week_key,
+                "duel_week_confirmed": result.get("duel_week_confirmed", False),
+            }
+            embed = self._build_duel_review_embed(payload)
+            view = DuelScanReviewView(self, job.guild_id, user.id, payload)
+            try:
                 message = await job.message.reply(embed=embed, view=view, mention_author=False)
-        except Exception:  # pragma: no cover - Discord edge
-            self.log.exception("Failed to reply with profile review")
-            return
-        if isinstance(message, discord.Message):
-            view.bind_message(message)
+            except Exception:  # pragma: no cover - Discord edge
+                self.log.exception("Failed to reply with duel scan review")
+                return
+            if isinstance(message, discord.Message):
+                view.bind_message(message)
 
     def _duel_score_extract(self, image_bytes: bytes) -> dict:
         if not (cv2 and pytesseract and np):
@@ -630,9 +535,9 @@ class ProfileScanner(commands.Cog):
         if image is None:
             return {"valid": False, "error": "image_load_failed"}
 
+        duel_week_confirmed = False
         try:
-            if not _is_duel_week(image):
-                return {"valid": False, "error": "not_duel_week"}
+            duel_week_confirmed = _is_duel_week(image)
         except Exception as exc:  # pragma: no cover - dependency edge
             if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
                 exc, pytesseract.TesseractNotFoundError
@@ -650,12 +555,18 @@ class ProfileScanner(commands.Cog):
         )
         score_text, score_int = _parse_duel_score(raw_score)
 
+        if not score_text and score_int is None:
+            if not duel_week_confirmed:
+                return {"valid": False, "error": "not_duel_week"}
+            return {"valid": False, "error": "score_missing"}
+
         return {
             "valid": True,
             "player_name": name or None,
             "score_text": score_text,
             "score_int": score_int,
             "raw_score_ocr": raw_score,
+            "duel_week_confirmed": duel_week_confirmed,
         }
 
     async def _perform_ocr(
@@ -1008,7 +919,7 @@ class ProfileScanner(commands.Cog):
 
     def _build_payload(
         self,
-        member: discord.Member,
+        member: discord.User | discord.Member,
         image_url: str,
         parsed: dict[str, str | int | None],
         raw_text: str,
@@ -1105,6 +1016,48 @@ class ProfileScanner(commands.Cog):
             embed.set_footer(text=footer)
         return embed
 
+    def _build_duel_review_embed(self, payload: dict) -> discord.Embed:
+        embed = discord.Embed(
+            title="⚔️ Duel score scan",
+            description="Review the result and accept, decline, or rescan.",
+            color=0xE67E22,
+        )
+        embed.add_field(name="Player", value=payload.get("player_name") or "Unknown", inline=False)
+        score_text = payload.get("score_text") or "-"
+        score_int = payload.get("score_int")
+        score_value = f"{score_text}"
+        if score_int is not None:
+            score_value = f"{score_text} ({score_int:,})"
+        embed.add_field(name="Score", value=score_value, inline=False)
+        embed.add_field(name="Week", value=payload.get("week_key") or "-", inline=False)
+        if not payload.get("duel_week_confirmed", True):
+            embed.add_field(
+                name="Header check",
+                value="⚠️ Duel Week header not confirmed. Make sure this is the off-day screen.",
+                inline=False,
+            )
+        if payload.get("raw_score_ocr"):
+            embed.set_footer(text=f"OCR raw: {payload['raw_score_ocr']}")
+        return embed
+
+    def _build_duel_confirmation_embed(self, payload: dict) -> discord.Embed:
+        embed = discord.Embed(
+            title="⚔️ Duel score logged",
+            description="Score saved. Use `/leaderboard` to compare duel results.",
+            color=0xE67E22,
+        )
+        embed.add_field(name="Player", value=payload.get("player_name") or "Unknown", inline=False)
+        score_text = payload.get("score_text") or "-"
+        score_int = payload.get("score_int")
+        score_value = f"{score_text}"
+        if score_int is not None:
+            score_value = f"{score_text} ({score_int:,})"
+        embed.add_field(name="Score", value=score_value, inline=False)
+        embed.add_field(name="Week", value=payload.get("week_key") or "-", inline=False)
+        if payload.get("raw_score_ocr"):
+            embed.set_footer(text=f"OCR raw: {payload['raw_score_ocr']}")
+        return embed
+
     @staticmethod
     def _append_unique(notes: list[str], text: str) -> None:
         if text and text not in notes:
@@ -1136,10 +1089,11 @@ class ProfileReviewSelect(discord.ui.Select):
 
 
 class ScanMenuView(discord.ui.View):
-    def __init__(self, cog: ProfileScanner, author_id: int):
+    def __init__(self, cog: ProfileScanner, author_id: int, guild_id: int):
         super().__init__(timeout=120)
         self.cog = cog
         self.author_id = author_id
+        self.guild_id = guild_id
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.author_id:
@@ -1153,40 +1107,24 @@ class ScanMenuView(discord.ui.View):
 
     @discord.ui.button(label="Profile scan", style=discord.ButtonStyle.primary, emoji="🛰️")
     async def profile_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.guild:
-            await interaction.response.send_message(
-                "Profiles only work inside servers.",
-                ephemeral=True,
-            )
-            return
-
-        channel_id = await get_profile_channel(interaction.guild.id)
-        if channel_id:
-            channel = interaction.guild.get_channel(channel_id)
-            if channel:
-                location = f"Upload your profile screenshot in {channel.mention} or use `/scan` here with your image."
-            else:
-                location = "Use `/scan` with your screenshot."
-        else:
-            location = "Use `/scan` with your screenshot. Configure intake via `/setup` if needed."
-
+        self.cog._pending_scans[interaction.user.id] = PendingScan(
+            scan_type="profile",
+            guild_id=self.guild_id,
+            requested_at=datetime.now(timezone.utc),
+        )
         await interaction.response.send_message(
-            f"🛰️ Profile scans are ready. {location}",
-            ephemeral=True,
+            "🛰️ Profile scan selected. Upload your profile screenshot here to continue.",
         )
 
     @discord.ui.button(label="Duel score scan", style=discord.ButtonStyle.secondary, emoji="⚔️")
     async def duel_score_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.guild:
-            await interaction.response.send_message(
-                "Duel score scans only work inside servers.",
-                ephemeral=True,
-            )
-            return
-
+        self.cog._pending_scans[interaction.user.id] = PendingScan(
+            scan_type="duel",
+            guild_id=self.guild_id,
+            requested_at=datetime.now(timezone.utc),
+        )
         await interaction.response.send_message(
-            "⚔️ Ready for duel scores. Upload your screenshot with `/scan` and pick Duel score scan.",
-            ephemeral=True,
+            "⚔️ Duel score scan selected. Upload the Duel Week off-day screenshot here to continue.",
         )
 
 
@@ -1241,16 +1179,35 @@ class ProfileScanReviewView(discord.ui.View):
     async def confirm_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._finalize(interaction=interaction, auto=False)
 
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def decline_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self._finalized:
+            return
+        self._finalized = True
+        embed = discord.Embed(
+            title="🗑️ Scan declined",
+            description="Result discarded. Send a fresh screenshot if you want to try again.",
+            color=0xe74c3c,
+        )
+        try:
+            await interaction.response.edit_message(embed=embed, view=None)
+        except Exception:  # pragma: no cover - Discord edge
+            self.cog.log.exception("Failed to decline profile scan")
+
     @discord.ui.button(label="Rescan", style=discord.ButtonStyle.secondary, emoji="🔁")
     async def rescan_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self._finalized:
             return
         self._finalized = True
+        self.cog._pending_scans[self.user_id] = PendingScan(
+            scan_type="profile",
+            guild_id=self.guild_id,
+            requested_at=datetime.now(timezone.utc),
+        )
         embed = discord.Embed(
             title="🔁 Rescan requested",
             description=(
-                "Upload a fresh profile screenshot here or run `/scan` again. "
-                "This scan was not saved."
+                "Upload a fresh profile screenshot here. This scan was not saved."
             ),
             color=0x95a5a6,
         )
@@ -1261,6 +1218,93 @@ class ProfileScanReviewView(discord.ui.View):
 
     async def on_timeout(self) -> None:
         await self._finalize(auto=True)
+
+
+class DuelScanReviewView(discord.ui.View):
+    def __init__(self, cog: ProfileScanner, guild_id: int, user_id: int, payload: dict):
+        super().__init__(timeout=SCAN_REVIEW_TIMEOUT)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.payload = payload
+        self.message: discord.Message | None = None
+        self._finalized = False
+
+    def bind_message(self, message: discord.Message) -> None:
+        self.message = message
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "🔒 Only the uploader can approve or rescan this duel score.",
+            ephemeral=True,
+        )
+        return False
+
+    async def _finalize(self, *, interaction: discord.Interaction | None = None) -> None:
+        if self._finalized:
+            return
+        self._finalized = True
+        await add_duel_score(
+            self.guild_id,
+            self.user_id,
+            week_key=self.payload.get("week_key"),
+            player_name=self.payload.get("player_name"),
+            score_text=self.payload.get("score_text"),
+            score_int=self.payload.get("score_int"),
+            raw_ocr=self.payload.get("raw_score_ocr"),
+        )
+        embed = self.cog._build_duel_confirmation_embed(self.payload)
+        try:
+            if interaction:
+                await interaction.response.edit_message(content="✅ Duel score saved.", embed=embed, view=None)
+            elif self.message:
+                await self.message.edit(content="✅ Duel score saved.", embed=embed, view=None)
+        except Exception:  # pragma: no cover - Discord edge
+            self.cog.log.exception("Failed to finalize duel scan")
+
+    @discord.ui.button(label="Accept", style=discord.ButtonStyle.success, emoji="✅")
+    async def accept_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._finalize(interaction=interaction)
+
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def decline_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self._finalized:
+            return
+        self._finalized = True
+        embed = discord.Embed(
+            title="🗑️ Duel score declined",
+            description="Result discarded. Send a new screenshot if you want to try again.",
+            color=0xe74c3c,
+        )
+        try:
+            await interaction.response.edit_message(embed=embed, view=None)
+        except Exception:  # pragma: no cover - Discord edge
+            self.cog.log.exception("Failed to decline duel scan")
+
+    @discord.ui.button(label="Rescan", style=discord.ButtonStyle.secondary, emoji="🔁")
+    async def rescan_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self._finalized:
+            return
+        self._finalized = True
+        self.cog._pending_scans[self.user_id] = PendingScan(
+            scan_type="duel",
+            guild_id=self.guild_id,
+            requested_at=datetime.now(timezone.utc),
+        )
+        embed = discord.Embed(
+            title="🔁 Rescan requested",
+            description="Upload a fresh duel screenshot here. This scan was not saved.",
+            color=0x95a5a6,
+        )
+        try:
+            await interaction.response.edit_message(embed=embed, view=None)
+        except Exception:  # pragma: no cover - Discord edge
+            self.cog.log.exception("Failed to update duel rescan message")
+
+    async def on_timeout(self) -> None:
+        self._finalized = True
 
 
 class ProfileReviewView(discord.ui.View):
