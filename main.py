@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import random
 import time
+import uuid
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -84,6 +85,8 @@ class MarciaBot(commands.Bot):
         )
         self._recent_interactions: dict[int, float] = {}
         self._interaction_dedupe_window = 120.0
+        self._recent_message_commands: dict[int, float] = {}
+        self._message_command_dedupe_window = 30.0
         self._mention_reply_cooldowns: dict[int, float] = {}
         self._mention_busy_cooldowns: dict[int, float] = {}
         self._mention_cooldown_seconds = config.mention_cooldown
@@ -200,6 +203,17 @@ class MarciaBot(commands.Bot):
         if interaction.id in self._recent_interactions:
             return False
         self._recent_interactions[interaction.id] = now
+        return True
+
+    def _should_process_message_command(self, message: discord.Message) -> bool:
+        now = time.monotonic()
+        cutoff = now - self._message_command_dedupe_window
+        stale = [key for key, ts in self._recent_message_commands.items() if ts < cutoff]
+        for key in stale:
+            self._recent_message_commands.pop(key, None)
+        if message.id in self._recent_message_commands:
+            return False
+        self._recent_message_commands[message.id] = now
         return True
 
     async def setup_hook(self):
@@ -336,6 +350,19 @@ class MarciaBot(commands.Bot):
                 return
             ctx = await self.get_context(message)
             if ctx.valid:
+                invocation_id = uuid.uuid4().hex
+                if not self._should_process_message_command(message):
+                    logger.warning(
+                        "Skipped duplicate message command dispatch message_id=%s invocation_id=%s",
+                        message.id,
+                        invocation_id,
+                    )
+                    return
+                logger.info(
+                    "Command dispatch start source=message-command message_id=%s invocation_id=%s",
+                    message.id,
+                    invocation_id,
+                )
                 await self.process_commands(message)
                 return
             if await self._is_reply_to_bot(message):
@@ -360,6 +387,19 @@ class MarciaBot(commands.Bot):
 
         ctx = await self.get_context(message)
         if ctx.valid:
+            invocation_id = uuid.uuid4().hex
+            if not self._should_process_message_command(message):
+                logger.warning(
+                    "Skipped duplicate message command dispatch message_id=%s invocation_id=%s",
+                    message.id,
+                    invocation_id,
+                )
+                return
+            logger.info(
+                "Command dispatch start source=message-command message_id=%s invocation_id=%s",
+                message.id,
+                invocation_id,
+            )
             await self.process_commands(message)
             if message.content.startswith("/"):
                 await asyncio.sleep(2)
@@ -506,6 +546,12 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.autocomplete,
             discord.InteractionType.modal_submit,
         ):
+            invocation_id = uuid.uuid4().hex
+            logger.info(
+                "Command dispatch start source=app-command interaction_id=%s invocation_id=%s",
+                interaction.id,
+                invocation_id,
+            )
             self._mark_interaction_started(interaction)
             if not self._should_process_interaction(interaction):
                 return
