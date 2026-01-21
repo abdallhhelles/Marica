@@ -28,6 +28,7 @@ from database import (
     add_to_inventory,
     get_duel_leaderboard,
     get_duel_scores_for_user,
+    get_duel_weeks,
     get_inventory,
     get_latest_duel_score,
     get_latest_duel_week,
@@ -632,6 +633,8 @@ class Leveling(commands.Cog):
         scope: str,
         metric: str,
         limit: int = 10,
+        *,
+        week_key: str | None = None,
     ) -> discord.Embed:
         """Generate a leaderboard embed for the requested data slice."""
 
@@ -716,7 +719,9 @@ class Leveling(commands.Cog):
                     color=0xE67E22,
                 )
 
-            week_key = await get_latest_duel_week(guild.id)
+            resolved_week = week_key or await get_latest_duel_week(guild.id)
+            if week_key is None:
+                week_key = resolved_week
             if not week_key:
                 return discord.Embed(
                     title="⚔️ Duel Score Leaderboard",
@@ -830,6 +835,8 @@ class Leveling(commands.Cog):
         scope: str,
         metric: str,
         limit: int,
+        *,
+        week_key: str | None = None,
     ) -> tuple[io.StringIO, str, str] | None:
         if not guild:
             return None
@@ -842,7 +849,8 @@ class Leveling(commands.Cog):
         if metric == "duel":
             if scope == "global":
                 return None
-            week_key = await get_latest_duel_week(guild.id)
+            if not week_key:
+                week_key = await get_latest_duel_week(guild.id)
             if not week_key:
                 return None
             rows = await get_duel_leaderboard(guild.id, week_key, limit)
@@ -1277,6 +1285,77 @@ class LeaderboardMetricSelect(discord.ui.Select):
             )
 
         self.parent_view.metric = self.values[0]
+        if self.parent_view.metric == "duel":
+            self.parent_view.duel_week = None
+        for option in self.options:
+            option.default = option.value == self.values[0]
+        await self.parent_view.refresh(interaction)
+
+
+class LeaderboardWeekSelect(discord.ui.Select):
+    def __init__(self, parent_view: "LeaderboardView"):
+        self.parent_view = parent_view
+        options = [
+            discord.SelectOption(
+                label="No duel weeks yet",
+                value="none",
+                default=True,
+            )
+        ]
+        super().__init__(
+            placeholder="Pick a duel week",
+            options=options,
+            min_values=1,
+            max_values=1,
+            disabled=True,
+        )
+
+    def update_options(self, weeks: list[str], selected: str | None, enabled: bool) -> None:
+        if not enabled:
+            self.disabled = True
+            self.options = [
+                discord.SelectOption(
+                    label="Switch to Duel to pick a week",
+                    value="none",
+                    default=True,
+                )
+            ]
+            return
+
+        if not weeks:
+            self.disabled = True
+            self.options = [
+                discord.SelectOption(
+                    label="No duel weeks yet",
+                    value="none",
+                    default=True,
+                )
+            ]
+            return
+
+        self.disabled = False
+        self.placeholder = "Pick a duel week"
+        self.options = [
+            discord.SelectOption(
+                label=f"Week {week}",
+                value=week,
+                default=week == selected,
+            )
+            for week in weeks
+        ]
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.parent_view.requester_id:
+            return await interaction.response.send_message(
+                "Only the original requester can change this menu.", ephemeral=True
+            )
+
+        if self.values[0] == "none":
+            return await interaction.response.send_message(
+                "No duel weeks are available yet.", ephemeral=True
+            )
+
+        self.parent_view.duel_week = self.values[0]
         for option in self.options:
             option.default = option.value == self.values[0]
         await self.parent_view.refresh(interaction)
@@ -1321,6 +1400,7 @@ class ExportLeaderboardButton(discord.ui.Button):
             self.parent_view.scope,
             self.parent_view.metric,
             self.parent_view.limit,
+            week_key=self.parent_view.duel_week,
         )
         if not export:
             return await interaction.response.send_message(
@@ -1361,9 +1441,12 @@ class LeaderboardView(discord.ui.View):
         self.scope = scope
         self.metric = metric
         self.limit = limit if limit in LEADERBOARD_LIMITS else LEADERBOARD_LIMITS[0]
+        self.duel_week: str | None = None
         self.message: discord.Message | None = None
         self.add_item(LeaderboardScopeSelect(self))
         self.add_item(LeaderboardMetricSelect(self))
+        self.week_select = LeaderboardWeekSelect(self)
+        self.add_item(self.week_select)
         self.add_item(LeaderboardLimitSelect(self))
         self.add_item(ExportLeaderboardButton(self))
 
@@ -1371,8 +1454,23 @@ class LeaderboardView(discord.ui.View):
         self.message = message
 
     async def refresh(self, interaction: discord.Interaction | None = None):
+        if self.metric == "duel":
+            weeks = await get_duel_weeks(self.guild.id)
+            if weeks:
+                if self.duel_week not in weeks:
+                    self.duel_week = weeks[0]
+            else:
+                self.duel_week = None
+            self.week_select.update_options(weeks, self.duel_week, enabled=True)
+        else:
+            self.week_select.update_options([], None, enabled=False)
+
         embed = await self.cog._build_leaderboard_embed(
-            self.guild, self.scope, self.metric, self.limit
+            self.guild,
+            self.scope,
+            self.metric,
+            self.limit,
+            week_key=self.duel_week,
         )
         if interaction:
             await interaction.response.edit_message(embed=embed, view=self)

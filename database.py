@@ -1162,6 +1162,23 @@ async def get_latest_duel_week(guild_id: int) -> str | None:
             return row[0] if row else None
 
 
+async def get_duel_weeks(guild_id: int, limit: int = 12) -> list[str]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT week_key, MAX(created_at) AS latest_scan
+            FROM duel_scores
+            WHERE guild_id = ?
+            GROUP BY week_key
+            ORDER BY latest_scan DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+
+
 async def get_duel_leaderboard(
     guild_id: int, week_key: str, limit: int = 10
 ) -> list[dict]:

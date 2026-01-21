@@ -53,39 +53,39 @@ SHOWCASE_SECTIONS = [
     {
         "name": "Ops & Reminders",
         "lines": [
-            f"{EMOJI_IDEA} `/gyper event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
-            f"{EMOJI_CONFIDENT} `/gyper remind` opens a control deck for new reminders, templates, and scheduled blasts.",
-            f"{EMOJI_APPROVE} `/gyper remindme` sets personal DM timers for solo tasks.",
+            f"{EMOJI_IDEA} `/event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
+            f"{EMOJI_CONFIDENT} `/remind` manages reminders with templates and scheduled blasts.",
+            f"{EMOJI_APPROVE} `/remindme` sets personal DM timers for solo tasks.",
         ],
     },
     {
         "name": "Trading & Progression",
         "lines": [
-            f"{EMOJI_ADORE} Fish-Link trading terminal: `/gyper setup_trade` anchors the hub; buttons drive listings.",
-            f"{EMOJI_CONFIDENT} `/gyper scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
-            f"{EMOJI_APPROVE} `/gyper leaderboard` + `/gyper profile` surface XP and scan stats; `/gyper inventory` tracks drops.",
+            f"{EMOJI_ADORE} Fish-Link trading terminal: `/setup_trade` anchors the hub; buttons drive listings.",
+            f"{EMOJI_CONFIDENT} `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
+            f"{EMOJI_APPROVE} `/leaderboard`, `/profile`, and `/inventory` show XP, scans, and drops.",
         ],
     },
     {
         "name": "Profile Scans",
         "lines": [
-            f"{EMOJI_SMUG} `/gyper scan` DMs you scan options; upload screenshots there to update `/gyper profile` and `/gyper leaderboard`.",
-            f"{EMOJI_IDEA} `/gyper profile_review` lets mods validate or purge scan data.",
+            f"{EMOJI_SMUG} `/scan` DMs scan options; upload screenshots to update `/profile` and `/leaderboard`.",
+            f"{EMOJI_IDEA} `/profile_review` lets mods validate or purge scan data.",
         ],
     },
     {
         "name": "Community & Safety",
         "lines": [
-            f"{EMOJI_LAUGH} `/gyper commands`, `/gyper features`, `/gyper about`, and `/gyper heroes` onboard new survivors fast.",
-            f"{EMOJI_APPROVE} `/gyper feedback` routes reports to the handler without leaking server data.",
+            f"{EMOJI_LAUGH} `/commands`, `/features`, `/about`, and `/heroes` onboard new survivors fast.",
+            f"{EMOJI_APPROVE} `/feedback` routes reports to the handler without leaking server data.",
             f"{EMOJI_ANGRY} Channel ignore keeps silenced rooms dark; analytics stay locked to each server.",
         ],
     },
     {
         "name": "Admin Toolkit",
         "lines": [
-            f"{EMOJI_CONFIDENT} `/gyper setup` links channels + auto-role; `/gyper refresh_commands` re-syncs slash commands.",
-            f"{EMOJI_IDEA} `/gyper analytics` gives per-server usage snapshots and trading depth.",
+            f"{EMOJI_CONFIDENT} `/setup` links channels + auto-role; `/refresh_commands` re-syncs slash commands.",
+            f"{EMOJI_IDEA} `/analytics` gives per-server usage snapshots and trading depth.",
         ],
     },
 ]
@@ -269,35 +269,35 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title=f"{EMOJI_CONFIDENT} Marcia OS | Featureboard",
             description=(
-                f"Quick, easy-to-read menu of everything Marcia does. Tap any section to explore {EMOJI_ADORE}"
+                f"Quick, easy-to-read menu of what Marcia does. Tap any section to explore {EMOJI_ADORE}"
             ),
             color=0x5865F2,
         )
         embed.add_field(
             name="Operations",
             value="\n".join([
-                f"• {EMOJI_IDEA} `/gyper event` (with upcoming ops + removal) for UTC-2 planning",
-                f"• {EMOJI_CONFIDENT} `/gyper remind` with templates, schedule, and immediate blasts",
-                f"• {EMOJI_APPROVE} `/gyper analytics` for usage, wiring, and activity snapshots",
+                f"• {EMOJI_IDEA} `/event` to plan ops, view upcoming missions, and remove entries",
+                f"• {EMOJI_CONFIDENT} `/remind` for reminder templates, schedules, and instant blasts",
+                f"• {EMOJI_APPROVE} `/analytics` for server usage and activity snapshots",
             ]),
             inline=False,
         )
         embed.add_field(
             name="Community & Safety",
             value="\n".join([
-                f"• {EMOJI_ANGRY} Channel ignore keeps blacked-out rooms fully silent",
-                f"• {EMOJI_LAUGH} `/gyper commands`, `/gyper features`, `/gyper about` to onboard crews",
-                f"• {EMOJI_APPROVE} `/gyper feedback` to ping my handler without leaking server data",
+                f"• {EMOJI_ANGRY} Channel ignore keeps muted rooms fully silent",
+                f"• {EMOJI_LAUGH} `/commands`, `/features`, `/about` to onboard crews fast",
+                f"• {EMOJI_APPROVE} `/feedback` to ping my handler without leaking server data",
             ]),
             inline=False,
         )
         embed.add_field(
             name="Economy & Progression",
             value="\n".join([
-                f"• {EMOJI_ADORE} Trading terminal with persistent Fish-Link inventory",
-                f"• {EMOJI_CONFIDENT} `/gyper scavenge`, `/gyper inventory`, `/gyper leaderboard` (10/25/50/100 rows + export)",
-                f"• {EMOJI_SMUG} Profile scans: `/gyper scan` in DMs to log profile/duel stats",
-                f"• {EMOJI_ANGRY} Per-guild analytics; nothing crosses sectors",
+                f"• {EMOJI_ADORE} Fish-Link trading terminal with persistent listings",
+                f"• {EMOJI_CONFIDENT} `/scavenge`, `/inventory`, `/leaderboard` (10/25/50/100 rows + export)",
+                f"• {EMOJI_SMUG} `/scan` in DMs to log profile and duel stats",
+                f"• {EMOJI_ANGRY} Per-guild data isolation; nothing crosses sectors",
             ]),
             inline=False,
         )
@@ -310,49 +310,53 @@ class Utility(commands.Cog):
             (
                 "Quick start",
                 [
-                    "`/gyper scavenge` • deploy a drone",
-                    "`/gyper inventory` • check your stash",
-                    "`/gyper event` • see what's scheduled",
-                    "`/gyper profile` | `/gyper leaderboard`",
+                    "`/commands` • full command list",
+                    "`/features` • what Marcia can do",
+                    "`/about` • bot mission and uptime info",
+                    "`/heroes` • hero codex",
                 ],
             ),
             (
-                "Events & ops",
+                "Operations & reminders",
                 [
-                    "`/gyper event` • plan ops + upcoming list + removal",
-                    "`/gyper remind` • channel reminder",
-                    "`/gyper remindme` • DM timer",
-                    "`/gyper analytics` • usage snapshot",
+                    "`/event` • plan ops + upcoming list + removal",
+                    "`/remind` • reminder templates + scheduling",
+                    "`/remindme` • personal DM timer",
+                    "`/poll` • quick polls",
                 ],
             ),
             (
-                "Trading",
+                "Progression & profiles",
                 [
-                    "`/gyper setup_trade` • deploy Fish-Link",
-                    "Buttons: Spares / Find listings",
-                    "Per-server inventory; no cross-bleed",
+                    "`/scavenge` • deploy a drone",
+                    "`/inventory` • check your stash",
+                    "`/profile` • your dossier",
+                    "`/leaderboard` • XP + scan stats",
                 ],
             ),
             (
-                "Profile scans",
+                "Scans & reviews",
                 [
-                    "`/gyper scan` • scan a screenshot in DMs",
-                    "`/gyper leaderboard` • XP + CP/Kills with export",
+                    "`/scan` • scan a screenshot in DMs",
+                    "`/profile_review` • validate or purge scans",
                 ],
             ),
             (
-                "Utility & safety",
+                "Analytics & network",
                 [
-                    "`/gyper features` + `/gyper about` + `/gyper heroes`",
-                    "`/gyper feedback` • ping handler",
-                    "`/gyper clear` • purge",
+                    "`/analytics` • server usage snapshot",
+                    "`/network` • global stats pulse",
+                    "`/feedback` • report bugs or ideas",
+                    "`/tips` • random survival tips",
                 ],
             ),
             (
-                "Admin (UTC-2 clock)",
+                "Trading & admin",
                 [
-                    "`/gyper setup` • channel links + setup help",
-                    "`/gyper refresh_commands` • resync slash",
+                    "`/setup_trade` • deploy Fish-Link",
+                    "`/setup` • channel links + setup help",
+                    "`/refresh_commands` • resync slash",
+                    "`/clear` • purge messages",
                 ],
             ),
         ]
