@@ -6,6 +6,7 @@ FEATURES: Guild-scoped template archive, default starter prompts, and ignore-lis
 
 from datetime import datetime, timezone
 import asyncio
+import logging
 import random
 
 import discord
@@ -23,13 +24,19 @@ from database import (
     is_channel_ignored,
 )
 from utils.time_utils import GAME_TZ, game_to_utc, format_game
+from utils.async_utils import create_tracked_task
 
 
 class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.log = logging.getLogger("MarciaOS.Reminders")
         self.scheduled_tasks: dict[int, asyncio.Task] = {}
-        self.bot.loop.create_task(self._restore_scheduled_reminders())
+        create_tracked_task(
+            self._restore_scheduled_reminders(),
+            name="restore-reminders",
+            logger=self.log,
+        )
 
     def _format_reminder_message(self, body: str, template_name: str | None = None) -> str:
         parts = [part for part in (template_name, body) if part]
@@ -145,8 +152,10 @@ class Reminders(commands.Cog):
         body: str,
         when_utc: datetime,
     ) -> None:
-        task = self.bot.loop.create_task(
-            self._run_scheduled_reminder(reminder_id, channel, body, when_utc)
+        task = create_tracked_task(
+            self._run_scheduled_reminder(reminder_id, channel, body, when_utc),
+            name=f"scheduled-reminder-{reminder_id}",
+            logger=self.log,
         )
         self.scheduled_tasks[reminder_id] = task
 

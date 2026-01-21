@@ -4,7 +4,7 @@ This document covers how the bot is organized, how to run it locally, and how au
 
 ## Quickstart
 1. Create a virtual environment with Python 3.11+ and install dependencies: `pip install -r requirements.txt`.
-2. Copy your Discord token into the environment (`export DISCORD_TOKEN=...`).
+2. Copy your Discord token into the environment (`export TOKEN=...`).
 3. Run the bot locally with `python main.py`. The `DevServerManager` cog will self-start and maintain guild layout plus info boards.
 4. Run a cheap sanity check before pushing: `python -m compileall .`.
 

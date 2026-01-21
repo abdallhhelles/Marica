@@ -10,7 +10,6 @@ import io
 import json
 import logging
 import re
-import os
 import random
 import time
 from datetime import datetime, timezone
@@ -20,7 +19,7 @@ from pathlib import Path
 import discord
 from discord.errors import HTTPException
 from discord.ext import commands
-import httpx
+from utils.http_client import CircuitBreakerOpen
 
 from database import (
     get_profile_snapshots,
@@ -30,6 +29,7 @@ from database import (
     add_duel_score,
 )
 from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
+from utils.async_utils import create_tracked_task
 from utils.time_utils import now_game
 
 _PIL_SPEC = importlib.util.find_spec("PIL")
@@ -87,11 +87,7 @@ EASYOCR_FIELDS = {
 }
 VERIFY_FIELDS = {"account_btn", "settings_btn"}
 VERIFY_MIN_CONF = 0.25
-OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY")
 OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
-OCR_SPACE_TIMEOUT = float(os.getenv("OCR_SPACE_TIMEOUT", "60"))
-SCAN_REVIEW_TIMEOUT = int(os.getenv("PROFILE_SCAN_REVIEW_TIMEOUT", "90"))
-SCAN_WORKER_COUNT = int(os.getenv("PROFILE_SCAN_WORKERS", "1"))
 
 
 @dataclass(slots=True)
@@ -289,6 +285,10 @@ class ProfileScanner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.log = logging.getLogger("MarciaOS.ProfileScanner")
+        self.ocr_space_api_key = bot.config.ocr_space_api_key
+        self.ocr_space_timeout = bot.config.ocr_space_timeout
+        self.scan_review_timeout = bot.config.profile_scan_review_timeout
+        self.scan_worker_count = bot.config.profile_scan_workers
         self._easyocr_reader: easyocr.Reader | None = None
         self._easyocr_boxes: dict[str, list[float]] | None = None
         self._easyocr_ready: bool | None = None
@@ -299,15 +299,16 @@ class ProfileScanner(commands.Cog):
         self._scan_queue: asyncio.Queue[ScanJob] = asyncio.Queue()
         self._scan_workers: list[asyncio.Task] = []
         self._scan_menu_cooldowns: dict[int, float] = {}
-        self._scan_semaphore = asyncio.Semaphore(
-            int(os.getenv("PROFILE_SCAN_CONCURRENCY", "2"))
-        )
+        self._scan_semaphore = asyncio.Semaphore(bot.config.profile_scan_concurrency)
 
     async def cog_load(self):
-        for idx in range(max(1, SCAN_WORKER_COUNT)):
-            self._scan_workers.append(
-                asyncio.create_task(self._scan_worker(idx), name=f"profile-scan-worker-{idx}")
+        for idx in range(max(1, self.scan_worker_count)):
+            task = create_tracked_task(
+                self._scan_worker(idx),
+                name=f"profile-scan-worker-{idx}",
+                logger=self.log,
             )
+            self._scan_workers.append(task)
 
     async def cog_unload(self):
         for task in self._scan_workers:
@@ -519,8 +520,11 @@ class ProfileScanner(commands.Cog):
 
         if job.scan_type == "profile":
             image_url = job.attachment.url
-            cached_path = self._persist_profile_image(
-                job.guild_id, user.id, job.image_bytes, job.filename
+            cached_path = await self._persist_profile_image(
+                job.guild_id,
+                user.id,
+                job.image_bytes,
+                job.filename,
             )
             parsed, raw_text, ocr_note = await self._perform_ocr(
                 job.image_bytes, filename=job.filename, persisted_path=cached_path
@@ -541,6 +545,7 @@ class ProfileScanner(commands.Cog):
                 user.id,
                 payload,
                 ocr_note,
+                timeout=self.scan_review_timeout,
             )
             embed = self._build_review_embed(payload, ocr_note)
             try:
@@ -588,7 +593,13 @@ class ProfileScanner(commands.Cog):
                 "duel_week_confirmed": result.get("duel_week_confirmed", False),
             }
             embed = self._build_duel_review_embed(payload)
-            view = DuelScanReviewView(self, job.guild_id, user.id, payload)
+            view = DuelScanReviewView(
+                self,
+                job.guild_id,
+                user.id,
+                payload,
+                timeout=self.scan_review_timeout,
+            )
             try:
                 message = await job.message.reply(embed=embed, view=view, mention_author=False)
             except Exception:  # pragma: no cover - Discord edge
@@ -685,7 +696,7 @@ class ProfileScanner(commands.Cog):
         ocr_note: str | None = None
 
         async with self._scan_semaphore:
-            temp_path = persisted_path or self._stash_temp_image(image_bytes, filename)
+            temp_path = persisted_path or await self._stash_temp_image(image_bytes, filename)
 
             try:
                 easyocr_results = await self._run_easyocr(image_bytes, temp_path)
@@ -717,7 +728,7 @@ class ProfileScanner(commands.Cog):
                         else:
                             ocr_note = "Profile scan could not read this image."
 
-                if not parsed and OCR_SPACE_API_KEY:
+                if not parsed and self.ocr_space_api_key:
                     api_text, api_note = await self._run_ocr_space(image_bytes, filename)
                     raw_text = raw_text or api_text
                     if api_text:
@@ -745,16 +756,26 @@ class ProfileScanner(commands.Cog):
     ) -> tuple[str, str | None]:
         """Fallback to the OCR.space API when local OCR dependencies are unavailable."""
 
-        headers = {"apikey": OCR_SPACE_API_KEY}
+        headers = {"apikey": self.ocr_space_api_key}
         data = {"language": "eng", "isOverlayRequired": False}
         files = {"file": (filename or "profile.png", image_bytes, "application/octet-stream")}
 
         try:
-            async with httpx.AsyncClient(timeout=OCR_SPACE_TIMEOUT) as client:
-                resp = await client.post(
-                    OCR_SPACE_ENDPOINT, headers=headers, data=data, files=files
-                )
+            resp = await self.bot.http_client.request(
+                "ocr_space",
+                "POST",
+                OCR_SPACE_ENDPOINT,
+                headers=headers,
+                data=data,
+                files=files,
+                retries=0,
+                safe=False,
+                timeout=self.ocr_space_timeout,
+            )
             resp.raise_for_status()
+        except CircuitBreakerOpen as exc:  # pragma: no cover - network edge
+            self.log.warning("OCR.space circuit breaker open: %s", exc)
+            return "", "External OCR is temporarily unavailable."
         except Exception as exc:  # pragma: no cover - network edge
             self.log.warning("OCR.space request failed: %s", exc)
             return "", "External OCR request failed."
@@ -810,7 +831,7 @@ class ProfileScanner(commands.Cog):
 
         return await loop.run_in_executor(None, _scan)
 
-    def _stash_temp_image(
+    async def _stash_temp_image(
         self, image_bytes: bytes, filename: str | None = None
     ) -> Path | None:
         """Persist an uploaded image for OCR routines that prefer file paths."""
@@ -823,14 +844,14 @@ class ProfileScanner(commands.Cog):
         temp_path = shots_dir / f"profile_{timestamp}{suffix}"
 
         try:
-            temp_path.write_bytes(image_bytes)
+            await asyncio.to_thread(temp_path.write_bytes, image_bytes)
         except Exception:
             self.log.exception("Failed to stash profile image to %s", temp_path)
             return None
 
         return temp_path
 
-    def _persist_profile_image(
+    async def _persist_profile_image(
         self, guild_id: int, user_id: int, image_bytes: bytes, filename: str | None = None
     ) -> Path | None:
         """Save the raw upload so rescans avoid refetching from Discord CDN."""
@@ -843,7 +864,7 @@ class ProfileScanner(commands.Cog):
         path = base / f"{user_id}_{timestamp}{suffix}"
 
         try:
-            path.write_bytes(image_bytes)
+            await asyncio.to_thread(path.write_bytes, image_bytes)
         except Exception:
             self.log.exception("Failed to persist profile image to %s", path)
             return None
@@ -1240,8 +1261,10 @@ class ProfileScanReviewView(discord.ui.View):
         user_id: int,
         payload: dict,
         ocr_note: str | None,
+        *,
+        timeout: int,
     ):
-        super().__init__(timeout=SCAN_REVIEW_TIMEOUT)
+        super().__init__(timeout=timeout)
         self.cog = cog
         self.guild_id = guild_id
         self.user_id = user_id
@@ -1325,8 +1348,16 @@ class ProfileScanReviewView(discord.ui.View):
 
 
 class DuelScanReviewView(discord.ui.View):
-    def __init__(self, cog: ProfileScanner, guild_id: int, user_id: int, payload: dict):
-        super().__init__(timeout=SCAN_REVIEW_TIMEOUT)
+    def __init__(
+        self,
+        cog: ProfileScanner,
+        guild_id: int,
+        user_id: int,
+        payload: dict,
+        *,
+        timeout: int,
+    ):
+        super().__init__(timeout=timeout)
         self.cog = cog
         self.guild_id = guild_id
         self.user_id = user_id

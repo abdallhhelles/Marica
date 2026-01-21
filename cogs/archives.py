@@ -3,8 +3,10 @@ FILE: cogs/archives.py
 USE: Local file-system logging for server intel and member activity. All logging is silent-no Discord messages are sent while
 backfilling or recording events.
 """
+import asyncio
 import datetime
 import json
+import logging
 import os
 from typing import AsyncIterator
 
@@ -12,6 +14,9 @@ import discord
 from discord.ext import commands
 
 from database import is_channel_ignored
+from utils.async_utils import create_tracked_task
+
+logger = logging.getLogger("MarciaOS.Archives")
 
 class Archives(commands.Cog):
     def __init__(self, bot):
@@ -40,12 +45,15 @@ class Archives(commands.Cog):
         path = self.get_server_path(guild)
 
         # 1. Server Info File
-        with open(os.path.join(path, "server_info.txt"), "w", encoding="utf-8") as f:
-            f.write(f"SERVER: {guild.name}\n")
-            f.write(f"ID: {guild.id}\n")
-            f.write(f"OWNER: {guild.owner} ({guild.owner_id})\n")
-            f.write(f"CREATED: {guild.created_at}\n")
-            f.write(f"MEMBERS: {guild.member_count}\n")
+        server_info_path = os.path.join(path, "server_info.txt")
+        server_info = (
+            f"SERVER: {guild.name}\n"
+            f"ID: {guild.id}\n"
+            f"OWNER: {guild.owner} ({guild.owner_id})\n"
+            f"CREATED: {guild.created_at}\n"
+            f"MEMBERS: {guild.member_count}\n"
+        )
+        await self._write_text(server_info_path, server_info)
 
         # 2. Member List File (JSON for easy reading)
         member_data = []
@@ -56,14 +64,16 @@ class Archives(commands.Cog):
                 "roles": [r.name for r in m.roles if r.name != "@everyone"],
                 "joined_at": str(m.joined_at)
             })
-        with open(os.path.join(path, "members.json"), "w", encoding="utf-8") as f:
-            json.dump(member_data, f, indent=4)
+        members_path = os.path.join(path, "members.json")
+        await self._write_json(members_path, member_data)
 
-    def log_action(self, guild, user, action):
+    async def log_action(self, guild, user, action):
         path = self.get_server_path(guild)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(os.path.join(path, "actions.log"), "a", encoding="utf-8") as f:
-            f.write(f"[{timestamp}] {user} ({user.id}): {action}\n")
+        await self._append_text(
+            os.path.join(path, "actions.log"),
+            f"[{timestamp}] {user} ({user.id}): {action}\n",
+        )
 
     def _should_log_message(self, guild):
         return guild and guild.id == self.chat_log_server_id
@@ -71,11 +81,10 @@ class Archives(commands.Cog):
     def _seed_marker_path(self, guild: discord.Guild) -> str:
         return os.path.join(self.get_server_path(guild), "_history_seeded")
 
-    def _restore_seed_state(self, guild: discord.Guild):
+    async def _restore_seed_state(self, guild: discord.Guild):
         """Hydrate the in-memory seeded cache from disk markers."""
         try:
-            with open(self._seed_marker_path(guild), "r", encoding="utf-8") as f:
-                payload = json.load(f)
+            payload = await asyncio.to_thread(self._read_json, self._seed_marker_path(guild))
         except FileNotFoundError:
             return
         except Exception:
@@ -87,7 +96,7 @@ class Archives(commands.Cog):
             except (TypeError, ValueError):
                 continue
 
-    def _persist_seed_marker(self, guild: discord.Guild):
+    async def _persist_seed_marker(self, guild: discord.Guild):
         """Write a marker file documenting which channels have been backfilled."""
         channels = sorted(self._seeded_channels)
         payload = {
@@ -97,17 +106,18 @@ class Archives(commands.Cog):
         }
 
         try:
-            with open(self._seed_marker_path(guild), "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=4)
+            await self._write_json(self._seed_marker_path(guild), payload)
         except Exception:
             return
 
-    def _write_chat_log(self, guild, channel, line, *, timestamp: datetime.datetime | None = None):
+    async def _write_chat_log(self, guild, channel, line, *, timestamp: datetime.datetime | None = None):
         path = self.get_server_path(guild)
         log_name = self._channel_log_name(channel)
         stamp = (timestamp or datetime.datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        with open(os.path.join(path, log_name), "a", encoding="utf-8") as f:
-            f.write(f"[{stamp}] {line}\n")
+        await self._append_text(
+            os.path.join(path, log_name),
+            f"[{stamp}] {line}\n",
+        )
 
     def _dm_log_path(self, user: discord.User | discord.Member) -> str:
         safe_name = str(user).replace(" ", "_") or "user"
@@ -115,7 +125,7 @@ class Archives(commands.Cog):
         os.makedirs(path, exist_ok=True)
         return os.path.join(path, "dm.log")
 
-    def _write_dm_log(
+    async def _write_dm_log(
         self,
         user: discord.User | discord.Member,
         line: str,
@@ -123,8 +133,36 @@ class Archives(commands.Cog):
         timestamp: datetime.datetime | None = None,
     ) -> None:
         stamp = (timestamp or datetime.datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        with open(self._dm_log_path(user), "a", encoding="utf-8") as f:
-            f.write(f"[{stamp}] {line}\n")
+        await self._append_text(self._dm_log_path(user), f"[{stamp}] {line}\n")
+
+    async def _write_text(self, path: str, content: str) -> None:
+        await asyncio.to_thread(self._write_text_sync, path, content)
+
+    async def _append_text(self, path: str, content: str) -> None:
+        await asyncio.to_thread(self._append_text_sync, path, content)
+
+    async def _write_json(self, path: str, payload: object) -> None:
+        await asyncio.to_thread(self._write_json_sync, path, payload)
+
+    @staticmethod
+    def _write_text_sync(path: str, content: str) -> None:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    @staticmethod
+    def _append_text_sync(path: str, content: str) -> None:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(content)
+
+    @staticmethod
+    def _write_json_sync(path: str, payload: object) -> None:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=4)
+
+    @staticmethod
+    def _read_json(path: str) -> object:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
     def _dm_log_user(self, message: discord.Message) -> discord.User | discord.Member:
         recipient = getattr(message.channel, "recipient", None)
@@ -164,12 +202,16 @@ class Archives(commands.Cog):
             await self.update_server_files(guild)
 
             # Hydrate seeded cache so we do not double-write history on restarts
-            self._restore_seed_state(guild)
+            await self._restore_seed_state(guild)
 
             if self._should_log_message(guild):
                 async for channel in self._iter_log_targets(guild):
                     if channel.id not in self._seeded_channels:
-                        self.bot.loop.create_task(self._seed_chat_history(guild, channel))
+                        create_tracked_task(
+                            self._seed_chat_history(guild, channel),
+                            name=f"archive-seed-{channel.id}",
+                            logger=logger,
+                        )
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
@@ -178,7 +220,11 @@ class Archives(commands.Cog):
             and self._should_log_message(channel.guild)
             and channel.id not in self._seeded_channels
         ):
-            self.bot.loop.create_task(self._seed_chat_history(channel.guild, channel))
+            create_tracked_task(
+                self._seed_chat_history(channel.guild, channel),
+                name=f"archive-seed-{channel.id}",
+                logger=logger,
+            )
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
@@ -186,20 +232,24 @@ class Archives(commands.Cog):
             self._should_log_message(thread.guild)
             and thread.id not in self._seeded_channels
         ):
-            self.bot.loop.create_task(self._seed_chat_history(thread.guild, thread))
+            create_tracked_task(
+                self._seed_chat_history(thread.guild, thread),
+                name=f"archive-seed-{thread.id}",
+                logger=logger,
+            )
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
         # Logs every command used
         if ctx.guild:
-            self.log_action(ctx.guild, ctx.author, f"Command executed: {ctx.prefix}{ctx.command}")
+            await self.log_action(ctx.guild, ctx.author, f"Command executed: {ctx.prefix}{ctx.command}")
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
         # Logs every button click (Trade terminal etc)
         if interaction.guild and interaction.data:
             custom_id = interaction.data.get("custom_id", "Unknown UI Interaction")
-            self.log_action(interaction.guild, interaction.user, f"UI Interaction: {custom_id}")
+            await self.log_action(interaction.guild, interaction.user, f"UI Interaction: {custom_id}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -212,7 +262,7 @@ class Archives(commands.Cog):
                 f"{message.author} ({message.author.id}): {content}"
             )
             line += self._format_attachments(message)
-            self._write_dm_log(log_user, line)
+            await self._write_dm_log(log_user, line)
             return
 
         if not self._should_log_message(message.guild):
@@ -228,7 +278,7 @@ class Archives(commands.Cog):
             f"{message.author} ({message.author.id}): {content}"
         )
         line += self._format_attachments(message)
-        self._write_chat_log(message.guild, message.channel, line)
+        await self._write_chat_log(message.guild, message.channel, line)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
@@ -243,7 +293,7 @@ class Archives(commands.Cog):
                 f"Before: {before_content} | After: {after_content}"
             )
             line += self._format_attachments(after)
-            self._write_dm_log(log_user, line)
+            await self._write_dm_log(log_user, line)
             return
 
         if not self._should_log_message(before.guild):
@@ -261,7 +311,7 @@ class Archives(commands.Cog):
             f"Before: {before_content} | After: {after_content}"
         )
         line += self._format_attachments(after)
-        self._write_chat_log(before.guild, before.channel, line)
+        await self._write_chat_log(before.guild, before.channel, line)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
@@ -274,7 +324,7 @@ class Archives(commands.Cog):
                 f"{message.author} ({message.author.id}): {content}"
             )
             line += self._format_attachments(message)
-            self._write_dm_log(log_user, line)
+            await self._write_dm_log(log_user, line)
             return
 
         if not self._should_log_message(message.guild):
@@ -290,7 +340,7 @@ class Archives(commands.Cog):
             f"{message.author} ({message.author.id}): {content}"
         )
         line += self._format_attachments(message)
-        self._write_chat_log(message.guild, message.channel, line)
+        await self._write_chat_log(message.guild, message.channel, line)
 
     async def _seed_chat_history(
         self, guild: discord.Guild, channel: discord.TextChannel | discord.Thread
@@ -308,7 +358,7 @@ class Archives(commands.Cog):
                     f"{message.author} ({message.author.id}): {content}"
                 )
                 line += self._format_attachments(message)
-                self._write_chat_log(
+                await self._write_chat_log(
                     guild,
                     channel,
                     line,
@@ -322,7 +372,7 @@ class Archives(commands.Cog):
             return
 
         self._seeded_channels.add(channel.id)
-        self._persist_seed_marker(guild)
+        await self._persist_seed_marker(guild)
 
 async def setup(bot):
     await bot.add_cog(Archives(bot))

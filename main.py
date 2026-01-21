@@ -12,7 +12,6 @@ import random
 import time
 from datetime import timedelta
 
-import httpx
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -31,10 +30,17 @@ import discord
 from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
-from dotenv import load_dotenv
 
 from utils.assets import MARCIA_BUSY_LINES, MARCIA_QUOTES
+from utils.async_utils import create_tracked_task
 from utils.bug_logging import log_command_exception
+from utils.config import MarciaConfig, load_config
+from utils.http_client import CircuitBreakerOpen, HttpClient
+from utils.telemetry import (
+    log_metrics_snapshot,
+    record_command_latency,
+    record_reconnect,
+)
 from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
 
@@ -50,20 +56,10 @@ def configure_logging() -> None:
         )
 
 
-# Load environment variables
-load_dotenv()
-TOKEN = os.getenv("TOKEN")
-MARCIA_AI_API_KEY = os.getenv("MARCIA_AI_API_KEY")
-MARCIA_AI_BASE_URL = os.getenv("MARCIA_AI_BASE_URL", "https://openrouter.ai/api/v1")
-MARCIA_AI_MODEL = os.getenv("MARCIA_AI_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
-MARCIA_AI_APP_NAME = os.getenv("MARCIA_AI_APP_NAME", "Marcia OS")
-MARCIA_AI_APP_URL = os.getenv("MARCIA_AI_APP_URL")
-MARCIA_MENTION_COOLDOWN = float(os.getenv("MARCIA_MENTION_COOLDOWN", "45"))
-MARCIA_BUSY_COOLDOWN = float(os.getenv("MARCIA_BUSY_COOLDOWN", "120"))
 COG_DIR = BASE_DIR / "cogs"
 
 class MarciaBot(commands.Bot):
-    def __init__(self):
+    def __init__(self, config: MarciaConfig):
         # Setting up required intents
         # Members intent is CRITICAL for the Archive system to list members
         intents = discord.Intents.default()
@@ -78,12 +74,27 @@ class MarciaBot(commands.Bot):
             case_insensitive=True,
             allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True),
         )
+        self.config = config
+        self.http_client = HttpClient(
+            timeout=config.http_timeout,
+            retries=config.http_retries,
+            backoff=config.http_backoff,
+            breaker_failures=config.http_breaker_failures,
+            breaker_reset=config.http_breaker_reset,
+        )
         self._recent_interactions: dict[int, float] = {}
         self._interaction_dedupe_window = 120.0
         self._mention_reply_cooldowns: dict[int, float] = {}
         self._mention_busy_cooldowns: dict[int, float] = {}
-        self._mention_cooldown_seconds = MARCIA_MENTION_COOLDOWN
-        self._mention_busy_seconds = MARCIA_BUSY_COOLDOWN
+        self._mention_cooldown_seconds = config.mention_cooldown
+        self._mention_busy_seconds = config.busy_cooldown
+        self._metrics_task: asyncio.Task | None = None
+
+    async def close(self):
+        if self._metrics_task:
+            self._metrics_task.cancel()
+        await self.http_client.aclose()
+        await super().close()
 
     @staticmethod
     def _build_marcia_system_prompt() -> str:
@@ -120,16 +131,16 @@ class MarciaBot(commands.Bot):
         )
 
     async def _generate_ai_reply(self, message: discord.Message) -> str | None:
-        if not MARCIA_AI_API_KEY:
+        if not self.config.ai_api_key:
             return None
-        base_url = MARCIA_AI_BASE_URL.rstrip("/")
+        base_url = self.config.ai_base_url.rstrip("/")
         if base_url.endswith("/chat/completions"):
             endpoint = base_url
         else:
             endpoint = f"{base_url}/chat/completions"
         system_prompt = self._build_marcia_system_prompt()
         payload = {
-            "model": MARCIA_AI_MODEL,
+            "model": self.config.ai_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"{message.author.display_name}: {message.content}"},
@@ -138,32 +149,37 @@ class MarciaBot(commands.Bot):
             "max_tokens": 120,
         }
         headers = {
-            "Authorization": f"Bearer {MARCIA_AI_API_KEY}",
+            "Authorization": f"Bearer {self.config.ai_api_key}",
             "Content-Type": "application/json",
-            "X-Title": MARCIA_AI_APP_NAME,
+            "X-Title": self.config.ai_app_name,
         }
-        if MARCIA_AI_APP_URL:
-            headers["HTTP-Referer"] = MARCIA_AI_APP_URL
+        if self.config.ai_app_url:
+            headers["HTTP-Referer"] = self.config.ai_app_url
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                response = await client.post(
-                    endpoint,
-                    json=payload,
-                    headers=headers,
-                )
-                response.raise_for_status()
-                data = response.json()
-        except httpx.HTTPStatusError as exc:
-            response_text = exc.response.text if exc.response else "no response body"
+            response = await self.http_client.request(
+                "ai",
+                "POST",
+                endpoint,
+                json=payload,
+                headers=headers,
+                retries=0,
+                retry_for_status=(),
+                safe=False,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except CircuitBreakerOpen as exc:
+            logger.warning("AI reply skipped: %s", exc)
+            return None
+        except Exception as exc:
+            response = getattr(exc, "response", None)
+            response_text = response.text if response is not None else "no response body"
             logger.warning(
                 "AI reply failed (%s) for model %s: %s",
-                exc.response.status_code if exc.response else "no status",
-                MARCIA_AI_MODEL,
+                response.status_code if response is not None else "no status",
+                self.config.ai_model,
                 response_text[:300],
             )
-            return None
-        except (httpx.RequestError, ValueError):
-            logger.warning("AI reply failed; falling back to canned responses.")
             return None
         reply = data.get("choices", [{}])[0].get("message", {}).get("content")
         return self._sanitize_marcia_reply(reply)
@@ -212,6 +228,18 @@ class MarciaBot(commands.Bot):
             logger.info("✔ Slash commands synced (%d registered).", len(synced))
         except Exception:
             logger.exception("✘ Slash command sync failed")
+
+        if not self._metrics_task:
+            self._metrics_task = create_tracked_task(
+                self._metrics_loop(),
+                name="metrics-loop",
+                logger=logger,
+            )
+
+    async def _metrics_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self.config.metrics_interval)
+            log_metrics_snapshot()
 
     async def _is_ignored_channel(self, guild_id: int, channel_id: int) -> bool:
         """Return True when a channel is configured to be ignored, logging failures."""
@@ -405,6 +433,7 @@ class MarciaBot(commands.Bot):
                 )
             else:
                 await ctx.send("❌ **Access Denied:** Insufficient clearance.", delete_after=5)
+            self._record_command_result(ctx, success=False, source="message-command")
             return
         if isinstance(error, commands.MissingRequiredArgument):
             if ctx.interaction:
@@ -415,6 +444,7 @@ class MarciaBot(commands.Bot):
                 )
             else:
                 await ctx.send(f"❌ Missing argument: `{error.param.name}`.")
+            self._record_command_result(ctx, success=False, source="message-command")
             return
         if isinstance(error, commands.CommandOnCooldown):
             retry = self._format_cooldown(error.retry_after)
@@ -426,10 +456,12 @@ class MarciaBot(commands.Bot):
                 )
             else:
                 await ctx.send(f"⌛ Drones cooling down. Try again in {retry}.")
+            self._record_command_result(ctx, success=False, source="message-command")
             return
 
         await log_command_exception(self, error, ctx=ctx, source="message-command")
         logger.error(f"Uncaught Error: {error}")
+        self._record_command_result(ctx, success=False, source="message-command")
 
     async def on_command_completion(self, ctx):
         """Log message-command usage for analytics dashboards."""
@@ -437,6 +469,7 @@ class MarciaBot(commands.Bot):
             await increment_command_usage(getattr(ctx.guild, "id", None), ctx.command.qualified_name)
         except Exception:
             logger.exception("Failed to record command usage for %s", ctx.command)
+        self._record_command_result(ctx, success=True, source="message-command")
 
     async def on_app_command_completion(self, interaction: discord.Interaction, command: discord.app_commands.Command):
         """Log slash-command usage so `/` analytics stay accurate."""
@@ -444,6 +477,10 @@ class MarciaBot(commands.Bot):
             await increment_command_usage(getattr(interaction.guild, "id", None), command.qualified_name)
         except Exception:
             logger.exception("Failed to record app command usage for %s", command.qualified_name)
+        self._record_app_command_result(interaction, command, success=True)
+
+    async def on_command(self, ctx):
+        setattr(ctx, "_marcia_started_at", time.monotonic())
 
     async def on_interaction(self, interaction: discord.Interaction):
         if (
@@ -458,6 +495,7 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.autocomplete,
             discord.InteractionType.modal_submit,
         ):
+            setattr(interaction, "_marcia_started_at", time.monotonic())
             if not self._should_process_interaction(interaction):
                 return
             try:
@@ -504,6 +542,7 @@ class MarciaBot(commands.Bot):
                 ephemeral=True,
             )
             error.handled = True
+            self._record_app_command_result(interaction, getattr(interaction, "command", None), success=False)
             return
 
         if isinstance(error, app_commands.CommandOnCooldown):
@@ -514,6 +553,7 @@ class MarciaBot(commands.Bot):
                 ephemeral=True,
             )
             error.handled = True
+            self._record_app_command_result(interaction, getattr(interaction, "command", None), success=False)
             return
 
         if isinstance(error, app_commands.MissingPermissions):
@@ -523,6 +563,7 @@ class MarciaBot(commands.Bot):
                 ephemeral=True,
             )
             error.handled = True
+            self._record_app_command_result(interaction, getattr(interaction, "command", None), success=False)
             return
 
         await log_command_exception(
@@ -538,6 +579,47 @@ class MarciaBot(commands.Bot):
             "Uncaught app command error (%s)",
             getattr(getattr(interaction, "command", None), "qualified_name", "unknown"),
             exc_info=error,
+        )
+        self._record_app_command_result(interaction, getattr(interaction, "command", None), success=False)
+
+    async def on_disconnect(self):
+        record_reconnect(event="disconnect")
+
+    async def on_resumed(self):
+        record_reconnect(event="resumed")
+
+    def _record_command_result(self, ctx, *, success: bool, source: str) -> None:
+        started_at = getattr(ctx, "_marcia_started_at", None)
+        if started_at is None:
+            return
+        duration_ms = (time.monotonic() - started_at) * 1000
+        record_command_latency(
+            command=getattr(getattr(ctx, "command", None), "qualified_name", "unknown"),
+            duration_ms=duration_ms,
+            success=success,
+            guild_id=getattr(getattr(ctx, "guild", None), "id", None),
+            user_id=getattr(getattr(ctx, "author", None), "id", None),
+            source=source,
+        )
+
+    def _record_app_command_result(
+        self,
+        interaction: discord.Interaction,
+        command: discord.app_commands.Command | None,
+        *,
+        success: bool,
+    ) -> None:
+        started_at = getattr(interaction, "_marcia_started_at", None)
+        if started_at is None:
+            return
+        duration_ms = (time.monotonic() - started_at) * 1000
+        record_command_latency(
+            command=getattr(command, "qualified_name", "unknown"),
+            duration_ms=duration_ms,
+            success=success,
+            guild_id=getattr(getattr(interaction, "guild", None), "id", None),
+            user_id=getattr(getattr(interaction, "user", None), "id", None),
+            source="app-command",
         )
 
     async def _load_cogs(self):
@@ -557,11 +639,13 @@ async def main():
     configure_logging()
     logger.info("📂 Working directory pinned to %s", BASE_DIR)
 
-    if not TOKEN:
+    config = load_config()
+
+    if not config.token:
         logger.error("✘ TOKEN missing. Please set the TOKEN environment variable before starting Marcia OS.")
         return
 
-    bot = MarciaBot()
+    bot = MarciaBot(config)
 
     # Administrative Sync command for Slash Commands (Owner only)
     @bot.command(hidden=True)
@@ -572,7 +656,7 @@ async def main():
         await ctx.send(f"📡 Synced {len(fmt)} command trees.")
 
     async with bot:
-        await bot.start(TOKEN)
+        await bot.start(config.token)
 
 if __name__ == "__main__":
     try:

@@ -12,7 +12,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-import httpx
+from utils.http_client import CircuitBreakerOpen
 
 from utils.assets import (
     EMOJI_ADORE,
@@ -93,16 +93,12 @@ SHOWCASE_SECTIONS = [
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.http = httpx.AsyncClient(timeout=10.0)
         self.log = logging.getLogger("MarciaOS.Utility")
         self._app_owner = None
         self._feedback_owner = None
         self._feedback_dedupe: dict[tuple, float] = {}
         self._share_link = "https://bit.ly/49z28IZ"
         self._about_cache: dict[str | None, discord.Embed] = {}
-
-    async def cog_unload(self):
-        await self.http.aclose()
 
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         """Send a response for both message and slash contexts without double-acking."""
@@ -126,11 +122,22 @@ class Utility(commands.Cog):
             "q": text,
         }
 
-        response = await self.http.get(
-            "https://translate.googleapis.com/translate_a/single",
-            params=params,
-        )
-        response.raise_for_status()
+        try:
+            response = await self.bot.http_client.request(
+                "translate",
+                "GET",
+                "https://translate.googleapis.com/translate_a/single",
+                params=params,
+                retries=2,
+                safe=True,
+            )
+            response.raise_for_status()
+        except CircuitBreakerOpen as exc:
+            self.log.warning("Translate skipped: %s", exc)
+            raise
+        except Exception as exc:
+            self.log.warning("Translate request failed: %s", exc)
+            raise
 
         payload = response.json()
         # API returns [[['translated sentence', 'original sentence', ...], ...], ...]
