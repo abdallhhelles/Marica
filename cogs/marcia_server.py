@@ -22,10 +22,7 @@ from database import (
 MARCIA_SERVER_ID = 1454704176662843525
 ABOUT_CHANNEL_NAME = "about"
 RULES_CHANNEL_NAME = "rules"
-COMMANDS_CHANNEL_NAME = "commands"
 GENERAL_CHANNEL_NAME = "general"
-BUGS_CHANNEL_NAME = "bugs"
-SUGGESTIONS_CHANNEL_NAME = "suggestions"
 ANALYTICS_CHANNEL_NAME = "analytics"
 EVENTS_CHANNEL_NAME = "events"
 
@@ -65,28 +62,10 @@ class MarciaServer(commands.Cog):
             topic="Server rules and expectations (Marcia-managed).",
             read_only=True,
         )
-        commands_channel = await self._ensure_channel(
-            guild,
-            COMMANDS_CHANNEL_NAME,
-            topic="Command directory and quick-start links (Marcia-managed).",
-            read_only=True,
-        )
         general_channel = await self._ensure_channel(
             guild,
             GENERAL_CHANNEL_NAME,
             topic="Welcome + general chat.",
-            read_only=False,
-        )
-        bugs_channel = await self._ensure_channel(
-            guild,
-            BUGS_CHANNEL_NAME,
-            topic="Bug reports and scan issues.",
-            read_only=False,
-        )
-        suggestions_channel = await self._ensure_channel(
-            guild,
-            SUGGESTIONS_CHANNEL_NAME,
-            topic="Ideas, feedback, and feature requests.",
             read_only=False,
         )
         analytics_channel = await self._ensure_channel(
@@ -106,15 +85,12 @@ class MarciaServer(commands.Cog):
         await update_setting(guild.id, "event_channel_id", events_channel.id, guild.name)
         await update_setting(guild.id, "chat_channel_id", general_channel.id, guild.name)
         await update_setting(guild.id, "welcome_channel_id", general_channel.id, guild.name)
-        await update_setting(guild.id, "feedback_channel_id", suggestions_channel.id, guild.name)
+        await update_setting(guild.id, "feedback_channel_id", general_channel.id, guild.name)
         await update_setting(guild.id, "analytics_channel_id", analytics_channel.id, guild.name)
 
         await self._seed_about(about_channel)
         await self._seed_rules(rules_channel)
-        await self._seed_commands(commands_channel)
         await self._seed_general(general_channel)
-        await self._seed_bugs(bugs_channel)
-        await self._seed_suggestions(suggestions_channel)
         await self._seed_events(events_channel)
 
     async def _ensure_channel(
@@ -175,12 +151,11 @@ class MarciaServer(commands.Cog):
             "",
             "**Start here**",
             "• Read **#rules** to stay aligned.",
-            "• Use **#commands** for the full command list and quick-starts.",
-            "• Ask questions in **#general**.",
+            "• Use `/commands` for the full command list and quick-starts.",
+            "• Ask questions in **#general** or ping `/feedback` with issues.",
             "",
-            "**Feedback lanes**",
-            "• Bugs → **#bugs**",
-            "• Ideas/features → **#suggestions**",
+            "**Feedback lane**",
+            "• Use `/feedback` for bugs and feature ideas (auto-routed to the handler).",
         ]
         await channel.send("\n".join(info_lines))
 
@@ -195,30 +170,11 @@ class MarciaServer(commands.Cog):
             "📜 **Marcia Server Rules**",
             "1) Respect the squad. No harassment, hate speech, or personal attacks.",
             "2) Keep chat readable. No spam, scams, or walls of text.",
-            "3) Use the right lane: bugs → #bugs, ideas → #suggestions.",
+            "3) Use `/feedback` for bugs and feature requests.",
             "4) Keep feedback actionable (steps, screenshots, expected vs actual).",
             "5) English preferred so everyone can coordinate.",
         ]
-        await channel.send("\n".join(info_lines))
-
-    async def _seed_commands(self, channel: discord.TextChannel) -> None:
-        try:
-            history = [msg async for msg in channel.history(limit=1)]
-        except Exception:
-            history = []
-        if history:
-            return
-        commands_lines = [
-            "🧭 **Command Quick-Start**",
-            "• `/commands` → full catalog",
-            "• `/setup` → link channels + profile scan intake",
-            "• `/scan_profile` → log CP/Kills/VIP/Likes from a screenshot",
-            "• `/profile` → your latest dossier",
-            "• `/leaderboard` → compare XP + scan stats",
-            "• `/analytics` → live server stats",
-            "• `/event` → schedule missions (admins)",
-        ]
-        await channel.send("\n".join(commands_lines))
+        await channel.send("\n".join(rules_lines))
 
     async def _seed_general(self, channel: discord.TextChannel) -> None:
         try:
@@ -230,36 +186,6 @@ class MarciaServer(commands.Cog):
         await channel.send(
             "👋 **Welcome to Marcia OS.** Ask questions, share screenshots, and coordinate here."
         )
-
-    async def _seed_bugs(self, channel: discord.TextChannel) -> None:
-        try:
-            history = [msg async for msg in channel.history(limit=1)]
-        except Exception:
-            history = []
-        if history:
-            return
-        bug_lines = [
-            "🐞 **Bug reports**",
-            "When filing a bug, include:",
-            "• What you did",
-            "• What you expected",
-            "• What happened instead",
-            "• Screenshots/logs if available",
-        ]
-        await channel.send("\n".join(bug_lines))
-
-    async def _seed_suggestions(self, channel: discord.TextChannel) -> None:
-        try:
-            history = [msg async for msg in channel.history(limit=1)]
-        except Exception:
-            history = []
-        if history:
-            return
-        suggestion_lines = [
-            "💡 **Suggestions**",
-            "Drop feature ideas or UX improvements here. Short, scoped, and actionable notes win.",
-        ]
-        await channel.send("\n".join(suggestion_lines))
 
     async def _seed_events(self, channel: discord.TextChannel) -> None:
         try:
@@ -281,6 +207,7 @@ class MarciaServer(commands.Cog):
         embed.add_field(name="🎣 Trade Listings", value=str(snapshot["trade_listings"]), inline=True)
         embed.add_field(name="👥 Active Traders", value=str(snapshot["traders"]), inline=True)
         embed.add_field(name="🛰️ Missions Running", value=str(snapshot["missions_active"]), inline=True)
+        embed.add_field(name="📂 Templates Saved", value=str(snapshot["templates"]), inline=True)
         embed.add_field(name="🧭 Survivors Tracked", value=str(snapshot["survivors_tracked"]), inline=True)
         embed.add_field(name="🎒 Items Logged", value=str(snapshot["items"]), inline=True)
 

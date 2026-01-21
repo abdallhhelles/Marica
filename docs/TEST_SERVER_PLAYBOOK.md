@@ -13,24 +13,14 @@ Marcia checks for these channels and creates them if missing:
    - Created if missing.
    - Marcia posts the rules.
    - **Only Marcia can post.**
-3. **#commands**
-   - Created if missing.
-   - Marcia posts the command quick-start.
-   - **Only Marcia can post.**
-4. **#general**
+3. **#general**
    - Created if missing.
    - Welcome + community chat.
-5. **#bugs**
-   - Created if missing.
-   - Bug reports and scan issues.
-6. **#suggestions**
-   - Created if missing.
-   - Community feedback + ideas live here.
-7. **#analytics**
+4. **#analytics**
    - Created if missing.
    - **Only Marcia can post.**
    - Updates **hourly** with fun stats and bot activity.
-8. **#events**
+5. **#events**
    - Created if missing.
    - **Only Marcia can post.**
    - `/event` announcements land here.
@@ -40,17 +30,14 @@ Only the essential channels are required:
 
 - `#about`
 - `#rules`
-- `#commands`
 - `#general`
-- `#bugs`
-- `#suggestions`
 - `#analytics`
 - `#events`
 
 ## ✅ Auto-link behavior
 For this server only, Marcia will:
 
-- Auto-link **rules**, **events**, **general** (chat + welcome), **suggestions**, and **analytics** in `/setup`.
+- Auto-link **rules**, **events**, **general** (chat + welcome), and **analytics** in `/setup`.
 - Preserve any admin edits you make later via `/setup`.
 
 ## ✅ Permission expectations
@@ -58,7 +45,6 @@ Marcia enforces read-only behavior for:
 
 - `#about`
 - `#rules`
-- `#commands`
 - `#analytics`
 - `#events`
 
@@ -74,8 +60,8 @@ She will set **@everyone → send_messages: false** and allow only her own role 
 - Designed to be read-only and low-noise.
 
 ## ✅ Quick verification checklist
-- `#about`, `#rules`, `#commands`, `#general`, `#bugs`, `#suggestions`, `#analytics`, `#events` exist.
-- `#about`, `#rules`, `#commands`, `#analytics`, `#events` are read-only to members.
+- `#about`, `#rules`, `#general`, `#analytics`, `#events` exist.
+- `#about`, `#rules`, `#analytics`, `#events` are read-only to members.
 - `/setup` shows those channels linked.
 - `#analytics` updates hourly.
 
