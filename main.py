@@ -98,7 +98,7 @@ class MarciaBot(commands.Bot):
             "/profile, /profile_review, /inventory, /scavenge.\n"
             "- Admin tools: /setup, /setup_trade, /refresh_commands, /analytics.\n"
             "- Event flow: /event creates ops, reactions opt in, DM reminders follow.\n"
-            "- Profile scanning: /scan_profile captures stats for /profile and /leaderboard.\n"
+            "- Profile scanning: /scan DMs scan options to feed /profile and /leaderboard.\n"
         )
         return (
             "You are Marcia, a tactical operations AI for the Dark War Survival alliance hub. "
