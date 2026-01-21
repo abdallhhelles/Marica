@@ -954,6 +954,14 @@ class Events(commands.Cog):
                     logger.warning("Could not add join reaction for %s", name)
                 await upsert_rsvp_prompt(guild_id, name, sent.id)
             else:
+                if mins == 0:
+                    await self._announce_event_start(
+                        guild_id,
+                        name,
+                        desc,
+                        location,
+                        ping_role_id,
+                    )
                 await self._notify_dm_participants(guild_id, name, mins, desc, location)
 
         await delete_mission(guild_id, name)
@@ -976,6 +984,56 @@ class Events(commands.Cog):
             embed.add_field(name="👥 Ping", value=ping_display, inline=True)
         embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
         return embed
+
+    async def _announce_event_start(
+        self,
+        guild_id: int,
+        name: str,
+        desc: str,
+        location: str | None,
+        ping_role_id: int | None,
+    ) -> None:
+        settings = await get_settings(guild_id)
+        if not (settings and settings.get("event_channel_id")):
+            return
+
+        chan = self.bot.get_channel(settings["event_channel_id"])
+        if not chan or await is_channel_ignored(guild_id, chan.id):
+            return
+
+        role = None
+        if isinstance(ping_role_id, int) and ping_role_id >= 0:
+            role = chan.guild.get_role(ping_role_id)
+
+        mention = ""
+        if ping_role_id == -1:
+            mention = "@everyone"
+        elif role:
+            mention = role.mention
+
+        mention_line = f"{mention}\n\n" if mention else ""
+        location_line = f"\n📍 {location}" if location else ""
+        message = (
+            f"{mention_line}"
+            "📡 **Operation Live**\n\n"
+            f"**{name}** is starting now.\n\n"
+            f"{desc}{location_line}"
+        )
+
+        try:
+            await chan.send(
+                message,
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=ping_role_id == -1,
+                    roles=bool(role),
+                ),
+            )
+        except discord.Forbidden:
+            logger.warning(
+                "Missing access to send event kickoff in %s (%s).",
+                chan.guild.name,
+                chan.id,
+            )
 
     async def _notify_dm_participants(self, guild_id: int, codename: str, mins: int, desc: str, location: str | None) -> None:
         subscribers = await get_rsvp_members(guild_id, codename, status="going")
