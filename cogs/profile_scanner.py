@@ -408,6 +408,18 @@ class ProfileScanner(commands.Cog):
             await message.reply("I couldn't read that image.")
             return
 
+        if pending.scan_type == "profile" and cv2 and pytesseract and np:
+            try:
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if image is not None and _is_duel_week(image):
+                    await message.reply(
+                        "That looks like a Duel Week off-day screenshot. Pick Duel score scan and resend."
+                    )
+                    return
+            except Exception:  # pragma: no cover - best-effort hint
+                pass
+
         job = ScanJob(
             scan_type=pending.scan_type,
             guild_id=pending.guild_id,
@@ -481,10 +493,7 @@ class ProfileScanner(commands.Cog):
             if not result["valid"]:
                 error = result.get("error", "unknown")
                 if error == "not_duel_week":
-                    message = (
-                        "I couldn't confirm the Duel Week off-day header. "
-                        "Try a clearer screenshot of the duel screen."
-                    )
+                    message = "That screenshot doesn't look like the Duel Week off-day screen."
                 elif error == "ocr_missing":
                     message = (
                         "Duel score scan unavailable. Install Tesseract + pytesseract and OpenCV to enable OCR."
