@@ -25,21 +25,25 @@ from utils.assets import (
 )
 from database import (
     DB_PATH,
+    add_to_inventory,
+    get_duel_leaderboard,
+    get_duel_scores_for_user,
     get_inventory,
+    get_latest_duel_score,
+    get_latest_duel_week,
     get_profile_snapshot,
     get_settings,
     get_user_stats,
     increment_activity_metric,
     is_channel_ignored,
-    top_profile_stat,
+    log_inventory_transfer,
     top_global_profile_stat,
     top_global_xp,
+    top_profile_stat,
     top_xp_leaderboard,
     update_scavenge_time,
     update_user_xp,
-    add_to_inventory,
     transfer_inventory,
-    log_inventory_transfer,
 )
 
 XP_PER_MESSAGE = 12
@@ -93,6 +97,7 @@ PROFILE_STAT_LABELS = {
 LEADERBOARD_METRICS = {
     "xp": ("XP", "🏆"),
     **PROFILE_STAT_LABELS,
+    "duel": ("Duel Score", "⚔️"),
 }
 
 class Leveling(commands.Cog):
@@ -367,12 +372,31 @@ class Leveling(commands.Cog):
         else:
             embed.add_field(
                 name="Profile Scan",
-                value="No valid profile scan stats stored yet. Run `/scan_profile` to capture your card.",
+                value="No valid profile scan stats stored yet. Run `/scan` to capture your card.",
                 inline=False,
             )
 
+        duel_latest = await get_latest_duel_score(ctx.guild.id, member.id)
+        profile_view: discord.ui.View | None = None
+        if duel_latest:
+            score_text = duel_latest.get("score_text") or "-"
+            score_int = duel_latest.get("score_int")
+            score_value = f"{score_text}"
+            if score_int is not None:
+                score_value = f"{score_text} ({score_int:,})"
+            embed.add_field(
+                name="Duel Score (Latest)",
+                value=f"Week {duel_latest.get('week_key')}: {score_value}",
+                inline=False,
+            )
+            profile_view = DuelHistoryView(
+                requester_id=ctx.author.id,
+                guild_id=ctx.guild.id,
+                user_id=member.id,
+            )
+
         await increment_activity_metric(ctx.guild.id, "profile_views")
-        await self._safe_send(ctx, embed=embed)
+        await self._safe_send(ctx, embed=embed, view=profile_view)
 
     @commands.hybrid_command(
         name="profile",
@@ -681,13 +705,58 @@ class Leveling(commands.Cog):
             )
             return embed
 
+        if metric == "duel":
+            if scope == "global":
+                return discord.Embed(
+                    title="⚔️ Duel Score Leaderboard",
+                    description="Duel scores are tracked per sector only.",
+                    color=0xE67E22,
+                )
+
+            week_key = await get_latest_duel_week(guild.id)
+            if not week_key:
+                return discord.Embed(
+                    title="⚔️ Duel Score Leaderboard",
+                    description="No duel score scans recorded yet. Use `/scan` to capture scores.",
+                    color=0xE67E22,
+                )
+
+            rows = await get_duel_leaderboard(guild.id, week_key, limit)
+            if not rows:
+                return discord.Embed(
+                    title="⚔️ Duel Score Leaderboard",
+                    description=f"No duel scores found for week {week_key}.",
+                    color=0xE67E22,
+                )
+
+            embed = discord.Embed(
+                title="⚔️ Duel Score Leaderboard",
+                description=f"Week {week_key} (top {len(rows)})",
+                color=0xE67E22,
+            )
+            lines = []
+            for idx, row in enumerate(rows, start=1):
+                member = guild.get_member(row["user_id"])
+                name = row.get("player_name") or (member.display_name if member else f"User {row['user_id']}")
+                score_int = row.get("score_int")
+                score_text = row.get("score_text") or "-"
+                score_value = f"{score_text}"
+                if score_int is not None:
+                    score_value = f"{score_text} ({score_int:,})"
+                lines.append(f"**{idx}.** {name} - {score_value}")
+            embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
+            embed.set_footer(
+                text=f"Showing top {len(rows)} duel scores for week {week_key}."
+            )
+            return embed
+
         stat_label, emoji = PROFILE_STAT_LABELS.get(metric, (metric.title(), "📈"))
         if scope == "global":
             rows = await top_global_profile_stat(metric, limit)
             if not rows:
                 return discord.Embed(
                     title=f"{emoji} {stat_label} Leaderboard",
-                    description="No scanned profiles yet. Run `/scan_profile` and try again.",
+                    description="No scanned profiles yet. Run `/scan` and try again.",
                     color=0x5865F2,
                 )
 
@@ -710,7 +779,7 @@ class Leveling(commands.Cog):
                 )
             embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
             embed.set_footer(
-                text=f"Showing top {len(rows)} survivors. Scan profiles to keep network stats fresh."
+            text=f"Showing top {len(rows)} survivors. Scan profiles to keep network stats fresh."
             )
             return embed
 
@@ -718,7 +787,7 @@ class Leveling(commands.Cog):
         if not rows:
             return discord.Embed(
                 title=f"{emoji} {stat_label} Leaderboard",
-                description="No scanned profiles yet. Run `/scan_profile` and try again.",
+                description="No scanned profiles yet. Run `/scan` and try again.",
                 color=0x5865F2,
             )
 
@@ -734,7 +803,7 @@ class Leveling(commands.Cog):
             lines.append(f"**{idx}.** {name} - {self._format_metric(row['value'])}")
         embed.add_field(name="Ranks", value=self._fit_embed_lines(lines), inline=False)
         embed.set_footer(
-            text=f"Showing top {len(rows)} survivors. Use `/scan_profile` then `/leaderboard` to surface fresh scans."
+            text=f"Showing top {len(rows)} survivors. Use `/scan` then `/leaderboard` to surface fresh scans."
         )
         return embed
 
@@ -767,7 +836,29 @@ class Leveling(commands.Cog):
         filename: str
         note: str
 
-        if metric == "xp" and scope != "global":
+        if metric == "duel":
+            if scope == "global":
+                return None
+            week_key = await get_latest_duel_week(guild.id)
+            if not week_key:
+                return None
+            rows = await get_duel_leaderboard(guild.id, week_key, limit)
+            if not rows:
+                return None
+            headers = ["Rank", "User", "Score", "Week"]
+            filename = f"leaderboard_duel_{week_key}_{guild.id}.tsv"
+            note = f"Duel score leaderboard for week {week_key} (top {len(rows)})."
+            lines = ["\t".join(headers)]
+            for idx, row in enumerate(rows, start=1):
+                member = guild.get_member(row["user_id"])
+                name = row.get("player_name") or (member.display_name if member else f"User {row['user_id']}")
+                score_text = row.get("score_text") or "-"
+                score_int = row.get("score_int")
+                score_value = f"{score_text}"
+                if score_int is not None:
+                    score_value = f"{score_text} ({score_int:,})"
+                lines.append("\t".join(map(str, [idx, name, score_value, week_key])))
+        elif metric == "xp" and scope != "global":
             rows = await top_xp_leaderboard(guild.id, limit)
             if not rows:
                 return None
@@ -903,6 +994,50 @@ class Leveling(commands.Cog):
                 )
             except discord.Forbidden:
                 pass
+
+
+class DuelHistoryView(discord.ui.View):
+    def __init__(self, requester_id: int, guild_id: int, user_id: int):
+        super().__init__(timeout=120)
+        self.requester_id = requester_id
+        self.guild_id = guild_id
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.requester_id:
+            return True
+
+        await interaction.response.send_message(
+            "This duel history belongs to someone else.",
+            ephemeral=True,
+        )
+        return False
+
+    @discord.ui.button(label="Duel History", style=discord.ButtonStyle.secondary, emoji="📜")
+    async def duel_history(self, interaction: discord.Interaction, button: discord.ui.Button):
+        rows = await get_duel_scores_for_user(self.guild_id, self.user_id, limit=10)
+        if not rows:
+            await interaction.response.send_message(
+                "No duel scores recorded yet.",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="⚔️ Duel Score History",
+            color=0xE67E22,
+        )
+        lines = []
+        for row in rows:
+            score_text = row.get("score_text") or "-"
+            score_int = row.get("score_int")
+            score_value = f"{score_text}"
+            if score_int is not None:
+                score_value = f"{score_text} ({score_int:,})"
+            lines.append(f"Week {row.get('week_key')}: {score_value}")
+
+        embed.add_field(name="Recent Weeks", value="\n".join(lines), inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class InventoryTransferView(discord.ui.View):
@@ -1110,6 +1245,8 @@ class LeaderboardMetricSelect(discord.ui.Select):
         for metric, (label, emoji) in LEADERBOARD_METRICS.items():
             if metric == "xp":
                 description = "Activity-based XP rankings"
+            elif metric == "duel":
+                description = "Weekly duel score rankings"
             else:
                 description = f"Profile scans ranked by {label.lower()}"
             options.append(
