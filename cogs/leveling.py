@@ -396,7 +396,10 @@ class Leveling(commands.Cog):
             )
 
         await increment_activity_metric(ctx.guild.id, "profile_views")
-        await self._safe_send(ctx, embed=embed, view=profile_view)
+        if profile_view:
+            await self._safe_send(ctx, embed=embed, view=profile_view)
+        else:
+            await self._safe_send(ctx, embed=embed)
 
     @commands.hybrid_command(
         name="profile",

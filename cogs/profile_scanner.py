@@ -194,7 +194,14 @@ def _ocr_duel_text(image, *, psm: int = 7, whitelist: str | None = None) -> str:
     config = f"--psm {psm}"
     if whitelist:
         config += f" -c tessedit_char_whitelist={whitelist}"
-    return pytesseract.image_to_string(image, config=config).strip()
+    try:
+        return pytesseract.image_to_string(image, config=config).strip()
+    except Exception as exc:  # pragma: no cover - dependency edge
+        if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
+            exc, pytesseract.TesseractNotFoundError
+        ):
+            return ""
+        raise
 
 
 def _is_duel_week(image) -> bool:
@@ -436,6 +443,10 @@ class ProfileScanner(commands.Cog):
             error = result.get("error", "unknown")
             if error == "not_duel_week":
                 message = "That screenshot doesn't look like the Duel Week off-day screen."
+            elif error == "tesseract_missing":
+                message = (
+                    "Duel score scan unavailable. Install the Tesseract binary to enable OCR."
+                )
             else:
                 message = "I couldn't read that duel score screenshot."
             return await self._safe_send(ctx, content=message, ephemeral=True)
@@ -619,8 +630,15 @@ class ProfileScanner(commands.Cog):
         if image is None:
             return {"valid": False, "error": "image_load_failed"}
 
-        if not _is_duel_week(image):
-            return {"valid": False, "error": "not_duel_week"}
+        try:
+            if not _is_duel_week(image):
+                return {"valid": False, "error": "not_duel_week"}
+        except Exception as exc:  # pragma: no cover - dependency edge
+            if hasattr(pytesseract, "TesseractNotFoundError") and isinstance(
+                exc, pytesseract.TesseractNotFoundError
+            ):
+                return {"valid": False, "error": "tesseract_missing"}
+            raise
 
         name = _ocr_duel_text(_prep_duel_image(_crop_norm(image, OWNER_NAME_ROI)), psm=7)
         name = re.sub(r"\s+", " ", name).strip()
