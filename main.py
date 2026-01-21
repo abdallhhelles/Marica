@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import random
 import time
+import weakref
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -89,6 +90,9 @@ class MarciaBot(commands.Bot):
         self._mention_cooldown_seconds = config.mention_cooldown
         self._mention_busy_seconds = config.busy_cooldown
         self._metrics_task: asyncio.Task | None = None
+        self._interaction_started_at: weakref.WeakKeyDictionary[
+            discord.Interaction, float
+        ] = weakref.WeakKeyDictionary()
 
     async def close(self):
         if self._metrics_task:
@@ -482,6 +486,15 @@ class MarciaBot(commands.Bot):
     async def on_command(self, ctx):
         setattr(ctx, "_marcia_started_at", time.monotonic())
 
+    def _mark_interaction_started(self, interaction: discord.Interaction) -> None:
+        try:
+            self._interaction_started_at[interaction] = time.monotonic()
+        except TypeError:
+            logger.debug("Unable to store interaction start time for %s", interaction)
+
+    def _get_interaction_started(self, interaction: discord.Interaction) -> float | None:
+        return self._interaction_started_at.get(interaction)
+
     async def on_interaction(self, interaction: discord.Interaction):
         if (
             interaction.guild
@@ -495,7 +508,7 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.autocomplete,
             discord.InteractionType.modal_submit,
         ):
-            setattr(interaction, "_marcia_started_at", time.monotonic())
+            self._mark_interaction_started(interaction)
             if not self._should_process_interaction(interaction):
                 return
             try:
@@ -609,7 +622,7 @@ class MarciaBot(commands.Bot):
         *,
         success: bool,
     ) -> None:
-        started_at = getattr(interaction, "_marcia_started_at", None)
+        started_at = self._get_interaction_started(interaction)
         if started_at is None:
             return
         duration_ms = (time.monotonic() - started_at) * 1000
