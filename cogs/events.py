@@ -846,16 +846,26 @@ class Events(commands.Cog):
         return embed
 
     def _build_event_removal_embed(self, guild, mission):
-        target = datetime.fromisoformat(mission["target_utc"]).astimezone(timezone.utc)
+        mission_data = dict(mission) if not isinstance(mission, dict) else mission
+        target_value = mission_data.get("target_utc")
+        try:
+            target = (
+                datetime.fromisoformat(target_value).astimezone(timezone.utc)
+                if target_value
+                else None
+            )
+        except (TypeError, ValueError):
+            target = None
+        scheduled_value = format_game(target) if target else "Unknown schedule"
         embed = discord.Embed(
             title="🗑️ Remove Operation",
             description="Confirm the event you want to scrub from the docket.",
             color=0x5865F2,
         )
-        embed.add_field(name="Codename", value=mission["codename"], inline=False)
-        embed.add_field(name="Scheduled", value=format_game(target), inline=True)
-        if mission.get("description"):
-            embed.add_field(name="Briefing", value=mission["description"], inline=False)
+        embed.add_field(name="Codename", value=mission_data.get("codename", "Unknown"), inline=False)
+        embed.add_field(name="Scheduled", value=scheduled_value, inline=True)
+        description = mission_data.get("description") or "No description"
+        embed.add_field(name="Briefing", value=description, inline=False)
         embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
         return embed
 

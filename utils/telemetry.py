@@ -123,9 +123,9 @@ def record_task_failure(*, task_name: str, error: str) -> None:
     _log_event("task_failure", task_name=task_name, error=error)
 
 
-def record_reconnect(*, shard_id: int | None = None, event: str) -> None:
+def record_reconnect(*, shard_id: int | None = None, reason: str) -> None:
     METRICS.inc("reconnect_events")
-    _log_event("reconnect", shard_id=shard_id, event=event)
+    _log_event("reconnect", shard_id=shard_id, reason=reason)
 
 
 def log_metrics_snapshot() -> None:
