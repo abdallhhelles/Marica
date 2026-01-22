@@ -359,6 +359,19 @@ class MarciaBot(commands.Bot):
                     )
                     return
                 setattr(message, "_marcia_invocation_id", invocation_id)
+                command_name = (
+                    ctx.command.qualified_name
+                    if ctx.command
+                    else (ctx.invoked_with or "unknown")
+                )
+                self._log_command_context(
+                    command_name=command_name,
+                    user=message.author,
+                    guild=message.guild,
+                    channel=message.channel,
+                    interaction_id=None,
+                    invocation_id=invocation_id,
+                )
                 logger.info(
                     "Command dispatch start source=message-command message_id=%s invocation_id=%s",
                     message.id,
@@ -397,6 +410,19 @@ class MarciaBot(commands.Bot):
                 )
                 return
             setattr(message, "_marcia_invocation_id", invocation_id)
+            command_name = (
+                ctx.command.qualified_name
+                if ctx.command
+                else (ctx.invoked_with or "unknown")
+            )
+            self._log_command_context(
+                command_name=command_name,
+                user=message.author,
+                guild=message.guild,
+                channel=message.channel,
+                interaction_id=None,
+                invocation_id=invocation_id,
+            )
             logger.info(
                 "Command dispatch start source=message-command message_id=%s invocation_id=%s",
                 message.id,
@@ -546,6 +572,38 @@ class MarciaBot(commands.Bot):
             return None
         return entry[0]
 
+    def _log_command_context(
+        self,
+        *,
+        command_name: str,
+        user: discord.abc.User | None,
+        guild: discord.Guild | None,
+        channel: discord.abc.GuildChannel | discord.DMChannel | None,
+        interaction_id: int | None,
+        invocation_id: str,
+    ) -> None:
+        user_tag = str(user) if user else "Unknown"
+        user_display = getattr(user, "display_name", None) or user_tag
+        user_id = getattr(user, "id", None)
+        guild_name = guild.name if guild else "DM"
+        guild_id = getattr(guild, "id", None)
+        channel_name = getattr(channel, "name", None) or "DM"
+        channel_id = getattr(channel, "id", None)
+        logger.info(
+            "CMD %s by %s (display_name=%s, user_id=%s) in %s (guild_id=%s) #%s "
+            "(channel_id=%s) interaction_id=%s invocation_id=%s",
+            command_name,
+            user_tag,
+            user_display,
+            user_id,
+            guild_name,
+            guild_id,
+            channel_name,
+            channel_id,
+            interaction_id,
+            invocation_id,
+        )
+
     async def on_interaction(self, interaction: discord.Interaction):
         if (
             interaction.guild
@@ -560,6 +618,19 @@ class MarciaBot(commands.Bot):
             discord.InteractionType.modal_submit,
         ):
             invocation_id = uuid.uuid4().hex
+            command_name = (
+                interaction.data.get("name", "unknown")
+                if isinstance(interaction.data, dict)
+                else "unknown"
+            )
+            self._log_command_context(
+                command_name=command_name,
+                user=interaction.user,
+                guild=interaction.guild,
+                channel=interaction.channel,
+                interaction_id=interaction.id,
+                invocation_id=invocation_id,
+            )
             logger.info(
                 "Command dispatch start source=app-command interaction_id=%s invocation_id=%s",
                 interaction.id,
@@ -653,10 +724,10 @@ class MarciaBot(commands.Bot):
         self._record_app_command_result(interaction, getattr(interaction, "command", None), success=False)
 
     async def on_disconnect(self):
-        record_reconnect(event="disconnect")
+        record_reconnect(reason="disconnect")
 
     async def on_resumed(self):
-        record_reconnect(event="resumed")
+        record_reconnect(reason="resumed")
 
     def _record_command_result(self, ctx, *, success: bool, source: str) -> None:
         started_at = getattr(ctx, "_marcia_started_at", None)
