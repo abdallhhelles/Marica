@@ -171,6 +171,13 @@ MARCIA_BUSY_LINES = [
     f"Hold position. I'm busy keeping everyone alive. {EMOJI_APPROVE}",
 ]
 
+MARCIA_OVERVIEW_LINE = (
+    "I run alliance ops: schedule events with reminders, track XP leveling, manage scavenging streaks, "
+    "match trades, and keep profile scans, leaderboards, and inventories clean, plus fast onboarding "
+    "menus and admin setup when needed. "
+    f"{EMOJI_CONFIDENT}"
+)
+
 # Calm, consistent system tone lines for reminders and ops.
 MARCIA_SYSTEM_LINES = [
     "Stay ready. The alliance is only as strong as its follow-through.",

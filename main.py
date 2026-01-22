@@ -32,7 +32,7 @@ from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
 
-from utils.assets import MARCIA_BUSY_LINES, MARCIA_QUOTES
+from utils.assets import MARCIA_BUSY_LINES, MARCIA_OVERVIEW_LINE, MARCIA_QUOTES
 from utils.async_utils import create_tracked_task
 from utils.bug_logging import log_command_exception
 from utils.config import MarciaConfig, load_config
@@ -194,6 +194,14 @@ class MarciaBot(commands.Bot):
         if reply is None:
             return None
         return reply.replace("—", "-")
+
+    @staticmethod
+    def _is_overview_question(message: discord.Message) -> bool:
+        content = message.content.lower()
+        triggers = ("what does", "what do", "what's", "whats", "what is")
+        if not any(trigger in content for trigger in triggers):
+            return False
+        return "bot" in content or "you do" in content or "marcia" in content
 
     def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
         now = time.monotonic()
@@ -455,6 +463,9 @@ class MarciaBot(commands.Bot):
             self._mention_reply_cooldowns[message.author.id] = now
             async with message.channel.typing():
                 await asyncio.sleep(1)
+                if self._is_overview_question(message):
+                    await message.reply(MARCIA_OVERVIEW_LINE)
+                    return
                 reply = await self._generate_ai_reply(message)
                 if not reply:
                     reply = random.choice(MARCIA_QUOTES)
