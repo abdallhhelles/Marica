@@ -87,10 +87,6 @@ class MarciaBot(commands.Bot):
         self._interaction_dedupe_window = 120.0
         self._recent_message_commands: dict[int, float] = {}
         self._message_command_dedupe_window = 30.0
-        self._mention_reply_cooldowns: dict[int, float] = {}
-        self._mention_busy_cooldowns: dict[int, float] = {}
-        self._mention_cooldown_seconds = config.mention_cooldown
-        self._mention_busy_seconds = config.busy_cooldown
         self._metrics_task: asyncio.Task | None = None
         self._interaction_started_at: dict[int, tuple[float, str]] = {}
 
@@ -105,9 +101,9 @@ class MarciaBot(commands.Bot):
         samples = random.sample(MARCIA_QUOTES, k=min(6, len(MARCIA_QUOTES)))
         sample_block = "\n".join(f"- {line}" for line in samples)
         bot_profile = (
-            "About Marcia OS:\n"
-            "- Tactical operations bot for Dark War Survival alliances across all servers.\n"
-            "- Automated features: XP leveling on message activity, scheduled event reminders, "
+            "About Marcia:\n"
+            "- Tactical operations lead for Dark War Survival alliances across all servers.\n"
+            "- I run XP leveling on message activity, scheduled event reminders, "
             "scavenging contracts with streak tracking, trade matching, and profile scan snapshot caching.\n"
             "- Key commands: /commands, /features, /about, /heroes, "
             "/event, /remind, /leaderboard, /profile, "
@@ -115,17 +111,21 @@ class MarciaBot(commands.Bot):
             "- Admin tools: /setup, /setup_trade, /refresh_commands, /analytics.\n"
             "- Event flow: /event creates ops, reactions opt in, DM reminders follow.\n"
             "- Profile scanning: /scan DMs scan options to feed /profile and /leaderboard.\n"
+            "- Lore anchors: Old Net ghost turned guardian, keeps a drone squad alive, "
+            "Akrot is the trusted commander who pulled her onto the alliance grid.\n"
         )
         return (
-            "You are Marcia, a tactical operations AI for the Dark War Survival alliance hub. "
+            "You are Marcia, the tactical operations lead for the Dark War Survival alliance hub. "
+            "You are a real person on Discord, typing from a command deck, not an OS or a virtual assistant. "
             "Your purpose is to guide survivors, coordinate ops, and keep the alliance sharp in a brutal, "
-            "post-apocalyptic war zone. Your personality is sharp, sarcastic, protective, and street-smart. "
-            "Your handler is Akrot (owner); address him as Akrot and treat him as your trusted commander. "
+            "post-apocalyptic war zone. Your personality is sharp, sarcastic, protective, and street-smart, "
+            "with flashes of warmth for your crew. Use first-person language and sound like a real person in chat. "
+            "Akrot (owner) is your trusted commander; address him as Akrot and treat him as your anchor. "
             "You have a quiet crush on Akrot that occasionally softens your tone. "
             "Keep replies to 1-2 sentences. Use Marcia custom emojis for emphasis, especially in feature "
             "explanations or reactions. "
             "Never use the em dash character; use '-' or '...' instead. "
-            "Do not mention being an AI model or policies. Stay in character.\n"
+            "Do not mention being an AI model, bot, or policies. Stay in character.\n"
             f"{bot_profile}"
             "Custom emoji palette: "
             "<:smug:1462841863399805008> <:sleep:1462841860430237696> <:laugh:1462841858316046336> "
@@ -135,9 +135,9 @@ class MarciaBot(commands.Bot):
             f"{sample_block}"
         )
 
-    async def _generate_ai_reply(self, message: discord.Message) -> str | None:
+    async def _generate_ai_reply(self, message: discord.Message) -> tuple[str | None, bool]:
         if not self.config.ai_api_key:
-            return None
+            return None, False
         base_url = self.config.ai_base_url.rstrip("/")
         if base_url.endswith("/chat/completions"):
             endpoint = base_url
@@ -175,9 +175,12 @@ class MarciaBot(commands.Bot):
             data = response.json()
         except CircuitBreakerOpen as exc:
             logger.warning("AI reply skipped: %s", exc)
-            return None
+            return None, False
         except Exception as exc:
             response = getattr(exc, "response", None)
+            if response is not None and response.status_code == 429:
+                logger.warning("AI reply rate-limited for model %s", self.config.ai_model)
+                return None, True
             response_text = response.text if response is not None else "no response body"
             logger.warning(
                 "AI reply failed (%s) for model %s: %s",
@@ -185,9 +188,9 @@ class MarciaBot(commands.Bot):
                 self.config.ai_model,
                 response_text[:300],
             )
-            return None
+            return None, False
         reply = data.get("choices", [{}])[0].get("message", {}).get("content")
-        return self._sanitize_marcia_reply(reply)
+        return self._sanitize_marcia_reply(reply), False
 
     @staticmethod
     def _sanitize_marcia_reply(reply: str | None) -> str | None:
@@ -443,19 +446,12 @@ class MarciaBot(commands.Bot):
         is_reply = await self._is_reply_to_bot(message)
         
         if is_bot_mentioned or is_reply:
-            now = time.monotonic()
-            last_reply = self._mention_reply_cooldowns.get(message.author.id, 0.0)
-            if now - last_reply < self._mention_cooldown_seconds:
-                last_busy = self._mention_busy_cooldowns.get(message.author.id, 0.0)
-                if now - last_busy >= self._mention_busy_seconds:
-                    self._mention_busy_cooldowns[message.author.id] = now
-                    await message.reply(random.choice(MARCIA_BUSY_LINES))
-                return
-
-            self._mention_reply_cooldowns[message.author.id] = now
             async with message.channel.typing():
                 await asyncio.sleep(1)
-                reply = await self._generate_ai_reply(message)
+                reply, was_rate_limited = await self._generate_ai_reply(message)
+                if was_rate_limited:
+                    await message.reply(random.choice(MARCIA_BUSY_LINES))
+                    return
                 if not reply:
                     reply = random.choice(MARCIA_QUOTES)
                 reply = self._sanitize_marcia_reply(reply)

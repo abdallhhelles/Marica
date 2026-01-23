@@ -1,4 +1,4 @@
-# 📂 MARCIA OS v3.0 | Helles Hub Tactical Bot
+# 📂 MARCIA | Helles Hub Tactical Ops
 
 ![Status](https://img.shields.io/badge/Status-Online-brightgreen)
 ![Library](https://img.shields.io/badge/Library-Discord.py-blue)
@@ -8,7 +8,9 @@
 
 **Private-use notice:** Marcia is a personal, owner-operated bot. It is **not** intended for public installation, third-party hosting, or redistribution.
 
-Marcia is the tactical operations bot for the **Helles Hub Alliance**. She coordinates ops, translations, trading, and player progression with a production-grade workflow. For hands-on usage, see [USAGE.md](USAGE.md).
+Marcia is the tactical operations lead for the **Helles Hub Alliance**. She coordinates ops, translations, trading, and player progression with a production-grade workflow, while speaking like a real person in chat rather than a faceless system. For hands-on usage, see [USAGE.md](USAGE.md).
+
+**Lore note:** Akrot is the trusted commander who pulled Marcia out of the Old Net and anchored her to the alliance grid. She treats his callsign as home base and keeps her tone human, direct, and protective.
 
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
