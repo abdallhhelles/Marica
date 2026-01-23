@@ -19,9 +19,10 @@ MENU_OPTIONS = [
     ("Command Usage Breakdown", "Top commands + most active servers."),
     ("Send Update DM to all server owners", "Broadcast a short status update via DM."),
     ("Send Announcement to channel by channel_id", "Targeted announcement with a channel override."),
+    ("Send Direct DM to a user", "Reply or answer inquiries with a direct message."),
 ]
 
-NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
+NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
 
 
 OWNER_USERNAME = "akrott"
@@ -97,6 +98,8 @@ class ControlPanelDetail(_OwnerLockedView):
             self.add_item(BroadcastDMButton(cog))
         elif selection_index == 8:
             self.add_item(AnnouncementButton(cog))
+        elif selection_index == 9:
+            self.add_item(UserDMButton(cog))
 
 
 class BroadcastDMButton(discord.ui.Button):
@@ -115,6 +118,15 @@ class AnnouncementButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(AnnouncementModal(self.cog))
+
+
+class UserDMButton(discord.ui.Button):
+    def __init__(self, cog: "AkrottControl"):
+        super().__init__(label="Send user DM", style=discord.ButtonStyle.primary, emoji="💬")
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(UserDMModal(self.cog))
 
 
 class BroadcastDMModal(discord.ui.Modal, title="Owner update DM"):
@@ -170,6 +182,39 @@ class AnnouncementModal(discord.ui.Modal, title="Channel announcement"):
             await interaction.followup.send("❌ Failed to send announcement.", ephemeral=True)
 
 
+class UserDMModal(discord.ui.Modal, title="Send direct DM"):
+    def __init__(self, cog: "AkrottControl"):
+        super().__init__()
+        self.cog = cog
+        self.user_id = discord.ui.TextInput(
+            label="User ID",
+            placeholder="123456789012345678",
+            max_length=25,
+        )
+        self.message = discord.ui.TextInput(
+            label="Message body",
+            placeholder="Reply or answer an inquiry",
+            style=discord.TextStyle.long,
+            max_length=2000,
+        )
+        self.add_item(self.user_id)
+        self.add_item(self.message)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            uid = int(str(self.user_id.value).strip())
+        except ValueError:
+            await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        success = await self.cog.send_user_dm(uid, str(self.message.value))
+        if success:
+            await interaction.followup.send("✅ DM sent.", ephemeral=True)
+        else:
+            await interaction.followup.send("❌ Failed to send DM.", ephemeral=True)
+
+
 class AkrottControl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -201,6 +246,7 @@ class AkrottControl(commands.Cog):
             6: self._build_command_usage,
             7: self._build_dm_helper,
             8: self._build_announcement_helper,
+            9: self._build_user_dm_helper,
         }
 
         builder = builders.get(selection_index)
@@ -514,6 +560,13 @@ class AkrottControl(commands.Cog):
         )
         return embed
 
+    async def _build_user_dm_helper(self) -> discord.Embed:
+        embed = discord.Embed(title=f"{NUMBER_EMOJIS[9]} Send Direct DM to a user", color=0x5865F2)
+        embed.description = (
+            "Share a user ID and message to reply to requests or answer questions via DM."
+        )
+        return embed
+
     async def broadcast_owner_dm(self, content: str) -> tuple[int, int]:
         sent = 0
         failed = 0
@@ -544,6 +597,20 @@ class AkrottControl(commands.Cog):
 
         try:
             await channel.send(content)
+            return True
+        except Exception:
+            return False
+
+    async def send_user_dm(self, user_id: int, content: str) -> bool:
+        user = self.bot.get_user(user_id)
+        if user is None:
+            try:
+                user = await self.bot.fetch_user(user_id)
+            except Exception:
+                return False
+
+        try:
+            await user.send(content)
             return True
         except Exception:
             return False
