@@ -36,12 +36,12 @@ TEST_LAYOUT = [
                     "marker": "seed:readme:v2-min",
                     "content": textwrap.dedent(
                         """
-                        **Welcome:** Keep it concise. `/gyper setup` to map events/welcome/verify/rules + auto-role. Re-check links in `/gyper setup` after permission tweaks.
+                        **Welcome:** Keep it concise. `/setup` to map events/welcome/verify/rules + auto-role. Re-check links in `/setup` after permission tweaks.
 
                         **Core Flows:**
-                        - `/gyper event` for ops (UTC-2). Channel ping at 60, DMs after.
-                        - `/gyper scavenge` hourly, chat for XP (60s), trade via Fish-Link + profile/inventory.
-                        - `/gyper commands` + `/gyper features` for quick discovery.
+                        - `/event` for ops (UTC-2). Channel ping at 60, DMs after.
+                        - `/scavenge` hourly, chat for XP (60s), trade via Fish-Link + profile/inventory.
+                        - `/commands` + `/features` for quick discovery.
 
                         **QA Etiquette:** One issue per thread, include command, timestamp, expected vs actual, and a log or screenshot.
                         """
@@ -69,7 +69,7 @@ TEST_LAYOUT = [
                         - Error count last 24h (auto-fed from bug logger).
                         - XP/level milestones posted to `#level-up`.
 
-                        Use `/gyper commands` for the full directory and `/gyper features` for the showcase.
+                        Use `/commands` for the full directory and `/features` for the showcase.
                         """
                     ),
                 },
@@ -81,10 +81,10 @@ TEST_LAYOUT = [
         [
             (
                 "events",
-                "Read-only reminders for ops; `/gyper event` posts here.",
+                "Read-only reminders for ops; `/event` posts here.",
                 {
                     "marker": "seed:events:v2-min",
-                    "content": "Lock this channel. `/gyper event` announcements only. Pin the current schedule and keep chatter in `#lounge`.",
+                    "content": "Lock this channel. `/event` announcements only. Pin the current schedule and keep chatter in `#lounge`.",
                 },
             ),
             (
@@ -114,7 +114,7 @@ TEST_LAYOUT = [
                 "Stress test commands, cooldowns, and concurrency.",
                 {
                     "marker": "seed:load-tests:v2-min",
-                    "content": "Queue stress runs: rapid `/gyper scavenge`, concurrent `/gyper event` creation, button mashing on Fish-Link. Post rate-limit results + traces.",
+                    "content": "Queue stress runs: rapid `/scavenge`, concurrent `/event` creation, button mashing on Fish-Link. Post rate-limit results + traces.",
                 },
             ),
             (

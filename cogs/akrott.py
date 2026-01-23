@@ -210,7 +210,7 @@ class AkrottControl(commands.Cog):
         title, hint = MENU_OPTIONS[selection_index]
         embed = discord.Embed(title=f"{NUMBER_EMOJIS[selection_index]} {title}", color=0x5865F2)
         embed.description = hint
-        embed.set_footer(text="Re-run /gyper akrott panel to reopen the control panel menu.")
+        embed.set_footer(text="Re-run /akrott panel to reopen the control panel menu.")
         return embed
 
     async def _build_xp_leaderboard(self) -> discord.Embed:
@@ -436,7 +436,7 @@ class AkrottControl(commands.Cog):
                 inventory_rows = (await cursor.fetchone())[0]
 
         if not rows:
-            embed.description = "No servers configured yet. Run /gyper setup to link sectors."
+            embed.description = "No servers configured yet. Run /setup to link sectors."
             return embed
 
         command_total, top_command, top_uses = await command_usage_totals()

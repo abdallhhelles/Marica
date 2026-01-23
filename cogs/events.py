@@ -334,7 +334,7 @@ class TemplateMenuView(discord.ui.View):
         )
         if not selected:
             return await interaction.response.edit_message(
-                content="❌ Template not found. Try again from `/gyper event`.",
+                content="❌ Template not found. Try again from `/event`.",
                 view=None,
                 embed=None,
             )
@@ -503,7 +503,7 @@ class EventRemovalSelect(discord.ui.Select):
         mission = self.mission_map.get(codename)
         if not mission:
             return await interaction.response.edit_message(
-                content="❌ Event not found. Run `/gyper event` again.",
+                content="❌ Event not found. Run `/event` again.",
                 view=None,
                 embed=None,
             )
@@ -720,7 +720,7 @@ class Events(commands.Cog):
         if not settings or not settings.get("event_channel_id"):
             return await self._safe_send(
                 ctx,
-                content="📌 Set an events channel first with `/gyper setup` so I know where to post ops.",
+                content="📌 Set an events channel first with `/setup` so I know where to post ops.",
                 ephemeral=True,
             )
         embed = self._build_event_menu_embed()
@@ -766,7 +766,7 @@ class Events(commands.Cog):
             t_msg = await self.bot.wait_for('message', check=check, timeout=180)
             await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_target)
         except asyncio.TimeoutError:
-            await ctx.author.send("⌛ Timed out. Ping me again with `/gyper event` when you're ready.")
+            await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
     async def create_template_mission_flow(self, ctx, template_name, template_desc):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
@@ -794,7 +794,7 @@ class Events(commands.Cog):
             t_msg = await self.bot.wait_for('message', check=check, timeout=180)
             await self.finalize_mission(ctx, name, template_desc, t_msg.content, location, ping_target)
         except asyncio.TimeoutError:
-            await ctx.author.send("⌛ Timed out. Ping me again with `/gyper event` when you're ready.")
+            await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
     async def use_template_callback(
         self,
@@ -811,7 +811,7 @@ class Events(commands.Cog):
         if not selected:
             return await self.bot._safe_interaction_reply(
                 interaction,
-                content="❌ Template not found. Try again from `/gyper event`.",
+                content="❌ Template not found. Try again from `/event`.",
                 ephemeral=True,
             )
 
