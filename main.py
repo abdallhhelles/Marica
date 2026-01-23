@@ -12,6 +12,7 @@ import random
 import time
 import uuid
 from datetime import timedelta
+from collections import deque
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -89,6 +90,8 @@ class MarciaBot(commands.Bot):
         self._message_command_dedupe_window = 30.0
         self._metrics_task: asyncio.Task | None = None
         self._interaction_started_at: dict[int, tuple[float, str]] = {}
+        self._ai_memory: dict[int, deque[dict[str, str]]] = {}
+        self._ai_memory_limit = 12
 
     async def close(self):
         if self._metrics_task:
@@ -123,7 +126,7 @@ class MarciaBot(commands.Bot):
             "Akrot (owner) is your trusted commander; address him as Akrot and treat him as your anchor. "
             "You have a quiet crush on Akrot that occasionally softens your tone. "
             "Keep replies to 1-2 sentences. Use Marcia custom emojis for emphasis, especially in feature "
-            "explanations or reactions. "
+            "explanations or reactions. Use the recent conversation history to stay consistent and avoid repeats. "
             "Never use the em dash character; use '-' or '...' instead. "
             "Do not mention being an AI model, bot, or policies. Stay in character.\n"
             f"{bot_profile}"
@@ -144,12 +147,11 @@ class MarciaBot(commands.Bot):
         else:
             endpoint = f"{base_url}/chat/completions"
         system_prompt = self._build_marcia_system_prompt()
+        history = list(self._ai_memory.get(message.channel.id, []))
+        current = {"role": "user", "content": f"{message.author.display_name}: {message.content}"}
         payload = {
             "model": self.config.ai_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"{message.author.display_name}: {message.content}"},
-            ],
+            "messages": [{"role": "system", "content": system_prompt}, *history, current],
             "temperature": 0.7,
             "max_tokens": 120,
         }
@@ -197,6 +199,17 @@ class MarciaBot(commands.Bot):
         if reply is None:
             return None
         return reply.replace("—", "-")
+
+    def _remember_ai_message(self, channel_id: int, *, role: str, content: str | None) -> None:
+        if not content:
+            return
+        memory = self._ai_memory.setdefault(
+            channel_id, deque(maxlen=self._ai_memory_limit)
+        )
+        trimmed = content.strip()
+        if len(trimmed) > 400:
+            trimmed = f"{trimmed[:397]}..."
+        memory.append({"role": role, "content": trimmed})
 
     def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
         now = time.monotonic()
@@ -448,6 +461,11 @@ class MarciaBot(commands.Bot):
         if is_bot_mentioned or is_reply:
             async with message.channel.typing():
                 await asyncio.sleep(1)
+                self._remember_ai_message(
+                    message.channel.id,
+                    role="user",
+                    content=f"{message.author.display_name}: {message.content}",
+                )
                 reply, was_rate_limited = await self._generate_ai_reply(message)
                 if was_rate_limited:
                     await message.reply(random.choice(MARCIA_BUSY_LINES))
@@ -456,6 +474,7 @@ class MarciaBot(commands.Bot):
                     reply = random.choice(MARCIA_QUOTES)
                 reply = self._sanitize_marcia_reply(reply)
                 await message.reply(reply)
+                self._remember_ai_message(message.channel.id, role="assistant", content=reply)
 
         # Avoid double-firing hybrid commands when slash commands also emit a
         # visible message in chat.
@@ -587,8 +606,8 @@ class MarciaBot(commands.Bot):
         channel_name = getattr(channel, "name", None) or "DM"
         channel_id = getattr(channel, "id", None)
         logger.info(
-            "CMD %s by %s (display_name=%s, user_id=%s) in %s (guild_id=%s) #%s "
-            "(channel_id=%s) interaction_id=%s invocation_id=%s",
+            "CMD %s | user=%s (display=%s, id=%s) | location=%s (guild_id=%s) #%s "
+            "(channel_id=%s) | interaction_id=%s | invocation_id=%s",
             command_name,
             user_tag,
             user_display,
