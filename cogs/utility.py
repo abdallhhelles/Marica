@@ -6,6 +6,7 @@ FEATURES: Flag-based translation, Polls, Reminders, and Marcia Manuals.
 import asyncio
 import logging
 import random
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -166,6 +167,46 @@ class Utility(commands.Cog):
         # API returns [[['translated sentence', 'original sentence', ...], ...], ...]
         translated_chunks = payload[0]
         return "".join(chunk[0] for chunk in translated_chunks if chunk and chunk[0])
+
+    def _chunk_text(self, text: str, limit: int) -> list[str]:
+        if not text:
+            return [""]
+
+        chunks: list[str] = []
+        current = ""
+        tokens = re.split(r"(\s+)", text)
+
+        for token in tokens:
+            if not token:
+                continue
+            if len(token) > limit:
+                if current:
+                    chunks.append(current)
+                    current = ""
+                for start in range(0, len(token), limit):
+                    chunks.append(token[start:start + limit])
+                continue
+            if len(current) + len(token) > limit:
+                if current:
+                    chunks.append(current)
+                current = token
+            else:
+                current += token
+
+        if current:
+            chunks.append(current)
+
+        return chunks
+
+    async def _send_translation_reply(self, msg: discord.Message, dest: str, translated: str) -> None:
+        header = f"📡 **DECODED [{dest.upper()}]:**\n"
+        continuation = f"📡 **DECODED [{dest.upper()}] (cont.):**\n"
+        max_len = 2000
+        chunks = self._chunk_text(translated, max_len - len(header))
+
+        for index, chunk in enumerate(chunks):
+            prefix = header if index == 0 else continuation
+            await msg.reply(f"{prefix}{chunk}", mention_author=False)
 
     # --------------------
     # Shared builders
@@ -509,7 +550,7 @@ class Utility(commands.Cog):
         dest = FLAG_LANG[emoji]
         try:
             translated = await self._translate_text(msg.content, dest)
-            await msg.reply(f"📡 **DECODED [{dest.upper()}]:**\n{translated}", mention_author=False)
+            await self._send_translation_reply(msg, dest, translated)
             await increment_activity_metric(msg.guild.id if msg.guild else None, "translations")
         except Exception as e:
             self.log.warning("Translation Error: %s", e)
