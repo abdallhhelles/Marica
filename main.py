@@ -7,12 +7,13 @@ import asyncio
 import logging
 import os
 import sys
+from collections import deque
+from datetime import timedelta
+from importlib import metadata
 from pathlib import Path
 import random
 import time
 import uuid
-from datetime import timedelta
-from collections import deque
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -233,8 +234,29 @@ class MarciaBot(commands.Bot):
         self._recent_message_commands[message.id] = now
         return True
 
+    def _warn_dependency_conflicts(self) -> None:
+        try:
+            googletrans_version = metadata.version("googletrans")
+        except metadata.PackageNotFoundError:
+            return
+
+        try:
+            httpx_version = metadata.version("httpx")
+        except metadata.PackageNotFoundError:
+            httpx_version = "missing"
+
+        if googletrans_version == "4.0.0rc1":
+            logger.warning(
+                "Dependency conflict detected: googletrans==%s requires httpx==0.13.3, "
+                "but httpx==%s is installed. Remove googletrans or re-pin httpx to the "
+                "version in requirements.txt.",
+                googletrans_version,
+                httpx_version,
+            )
+
     async def setup_hook(self):
         """Pre-connection setup: Initializing DB, Loading Cogs, and Persistence."""
+        self._warn_dependency_conflicts()
         logger.info("📡 Connecting to Central Intelligence Database...")
         try:
             await init_db()
@@ -383,16 +405,13 @@ class MarciaBot(commands.Bot):
                 )
                 self._log_command_context(
                     command_name=command_name,
+                    source="message-command",
                     user=message.author,
                     guild=message.guild,
                     channel=message.channel,
+                    message_id=message.id,
                     interaction_id=None,
                     invocation_id=invocation_id,
-                )
-                logger.info(
-                    "Command dispatch start source=message-command message_id=%s invocation_id=%s",
-                    message.id,
-                    invocation_id,
                 )
                 await self.process_commands(message)
                 return
@@ -434,16 +453,13 @@ class MarciaBot(commands.Bot):
             )
             self._log_command_context(
                 command_name=command_name,
+                source="message-command",
                 user=message.author,
                 guild=message.guild,
                 channel=message.channel,
+                message_id=message.id,
                 interaction_id=None,
                 invocation_id=invocation_id,
-            )
-            logger.info(
-                "Command dispatch start source=message-command message_id=%s invocation_id=%s",
-                message.id,
-                invocation_id,
             )
             await self.process_commands(message)
             if message.content.startswith("/"):
@@ -592,9 +608,11 @@ class MarciaBot(commands.Bot):
         self,
         *,
         command_name: str,
+        source: str,
         user: discord.abc.User | None,
         guild: discord.Guild | None,
         channel: discord.abc.GuildChannel | discord.DMChannel | None,
+        message_id: int | None,
         interaction_id: int | None,
         invocation_id: str,
     ) -> None:
@@ -606,9 +624,11 @@ class MarciaBot(commands.Bot):
         channel_name = getattr(channel, "name", None) or "DM"
         channel_id = getattr(channel, "id", None)
         logger.info(
-            "CMD %s | user=%s (display=%s, id=%s) | location=%s (guild_id=%s) #%s "
-            "(channel_id=%s) | interaction_id=%s | invocation_id=%s",
+            "CMD start | name=%s | source=%s | user=%s (display=%s, id=%s) | "
+            "guild=%s (id=%s) | channel=%s (id=%s) | message_id=%s | "
+            "interaction_id=%s | invocation_id=%s",
             command_name,
+            source,
             user_tag,
             user_display,
             user_id,
@@ -616,6 +636,7 @@ class MarciaBot(commands.Bot):
             guild_id,
             channel_name,
             channel_id,
+            message_id,
             interaction_id,
             invocation_id,
         )
@@ -641,16 +662,13 @@ class MarciaBot(commands.Bot):
             )
             self._log_command_context(
                 command_name=command_name,
+                source="app-command",
                 user=interaction.user,
                 guild=interaction.guild,
                 channel=interaction.channel,
+                message_id=None,
                 interaction_id=interaction.id,
                 invocation_id=invocation_id,
-            )
-            logger.info(
-                "Command dispatch start source=app-command interaction_id=%s invocation_id=%s",
-                interaction.id,
-                invocation_id,
             )
             self._mark_interaction_started(interaction, invocation_id)
             if not self._should_process_interaction(interaction):
