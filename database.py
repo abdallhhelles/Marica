@@ -1439,6 +1439,33 @@ async def guild_analytics_snapshot(guild_id: int) -> dict:
         }
 
 
+async def global_analytics_snapshot() -> dict:
+    """Return global counts for analytics dashboards across all guilds."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        async def fetch_value(query: str, params: tuple = ()):
+            async with db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
+        trade_total = await fetch_value("SELECT COUNT(*) FROM trade_pool")
+        traders = await fetch_value("SELECT COUNT(DISTINCT user_id) FROM trade_pool")
+        missions_active = await fetch_value("SELECT COUNT(*) FROM server_missions")
+        templates_saved = await fetch_value("SELECT COUNT(*) FROM server_templates")
+        survivors_tracked = await fetch_value("SELECT COUNT(*) FROM user_stats")
+        total_items = await fetch_value("SELECT COALESCE(SUM(quantity), 0) FROM user_inventory")
+
+        return {
+            "trade_listings": trade_total,
+            "traders": traders,
+            "missions_active": missions_active,
+            "templates": templates_saved,
+            "survivors_tracked": survivors_tracked,
+            "items": total_items,
+        }
+
+
 async def top_xp_leaderboard(guild_id: int, limit: int = 10):
     """Return top survivors by XP for a guild."""
     async with aiosqlite.connect(DB_PATH) as db:

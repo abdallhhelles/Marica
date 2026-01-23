@@ -4,6 +4,7 @@ USE: Special automation for the Marcia Server (ID-specific).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -11,11 +12,15 @@ import discord
 from discord.ext import commands, tasks
 
 from database import (
-    guild_analytics_snapshot,
-    top_profile_stat,
-    top_xp_leaderboard,
-    update_setting,
+    activity_metric_totals,
+    command_usage_totals,
     get_settings,
+    global_analytics_snapshot,
+    top_commands,
+    top_global_profile_stat,
+    top_global_xp,
+    top_guild_usage,
+    update_setting,
 )
 
 
@@ -29,6 +34,7 @@ class MarciaServer(commands.Cog):
         self.log = logging.getLogger("MarciaOS.MarciaServer")
         self._ready_once = False
         self._analytics_message_id: int | None = None
+        self._channel_lock = asyncio.Lock()
         self.analytics_loop.start()
 
     def cog_unload(self):
@@ -46,13 +52,58 @@ class MarciaServer(commands.Cog):
         await self._post_or_update_analytics(guild)
 
     async def _ensure_marcia_channels(self, guild: discord.Guild) -> None:
-        analytics_channel = await self._ensure_channel(
-            guild,
-            ANALYTICS_CHANNEL_NAME,
-            topic="Marcia OS network pulse, stats, and updates.",
-            read_only=True,
-        )
-        await update_setting(guild.id, "analytics_channel_id", analytics_channel.id, guild.name)
+        async with self._channel_lock:
+            settings = await get_settings(guild.id)
+            analytics_channel = None
+            if settings:
+                channel_id = settings.get("analytics_channel_id")
+                if channel_id:
+                    analytics_channel = guild.get_channel(channel_id)
+
+            if analytics_channel and analytics_channel.name != ANALYTICS_CHANNEL_NAME:
+                try:
+                    await analytics_channel.edit(
+                        name=ANALYTICS_CHANNEL_NAME,
+                        reason="Marcia Server align analytics channel name",
+                    )
+                except Exception:
+                    self.log.warning("Unable to rename analytics channel %s", analytics_channel.id)
+
+            channels_named = [
+                channel
+                for channel in guild.text_channels
+                if channel.name == ANALYTICS_CHANNEL_NAME
+            ]
+            if analytics_channel is None and channels_named:
+                analytics_channel = min(channels_named, key=lambda channel: channel.id)
+
+            if analytics_channel is None:
+                analytics_channel = await self._ensure_channel(
+                    guild,
+                    ANALYTICS_CHANNEL_NAME,
+                    topic="Marcia OS network pulse, stats, and updates.",
+                    read_only=True,
+                )
+            else:
+                await self._apply_read_only_permissions(analytics_channel)
+                if analytics_channel.topic != "Marcia OS network pulse, stats, and updates.":
+                    try:
+                        await analytics_channel.edit(
+                            topic="Marcia OS network pulse, stats, and updates.",
+                            reason="Marcia Server align analytics channel topic",
+                        )
+                    except Exception:
+                        self.log.warning("Unable to update analytics channel topic %s", analytics_channel.id)
+
+            if channels_named and analytics_channel:
+                for channel in channels_named:
+                    if channel.id != analytics_channel.id:
+                        try:
+                            await channel.delete(reason="Marcia Server dedupe marcia-info")
+                        except Exception:
+                            self.log.warning("Unable to delete duplicate marcia-info channel %s", channel.id)
+
+            await update_setting(guild.id, "analytics_channel_id", analytics_channel.id, guild.name)
 
     async def _ensure_channel(
         self,
@@ -100,44 +151,117 @@ class MarciaServer(commands.Cog):
         await channel.edit(overwrites=overwrites, reason="Marcia Server read-only channel policy")
 
 
-    def _build_analytics_embed(self, guild: discord.Guild, snapshot: dict, xp_rows, cp_rows, kill_rows) -> discord.Embed:
+    def _build_analytics_embed(
+        self,
+        guild: discord.Guild,
+        snapshot: dict,
+        xp_rows,
+        cp_rows,
+        kill_rows,
+        activity_totals: dict[str, int],
+        command_total: int,
+        top_command: str | None,
+        top_command_uses: int,
+        top_commands_rows,
+        top_guild_rows,
+    ) -> discord.Embed:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        total_guilds = len(self.bot.guilds)
+        total_members = sum(g.member_count or 0 for g in self.bot.guilds)
         embed = discord.Embed(
             title="🌐 Global Analytics Pulse",
-            description="Hourly update: fun stats + what Marcia is doing (served with a grin).",
+            description="Hourly update: galaxy-wide stats from Marcia's command deck.",
             color=0x5865F2,
         )
         embed.add_field(name="⏱️ Last update", value=now, inline=False)
-        embed.add_field(name="🎣 Trade Listings", value=str(snapshot["trade_listings"]), inline=True)
-        embed.add_field(name="👥 Active Traders", value=str(snapshot["traders"]), inline=True)
-        embed.add_field(name="🛰️ Missions Running", value=str(snapshot["missions_active"]), inline=True)
-        embed.add_field(name="📂 Templates Saved", value=str(snapshot["templates"]), inline=True)
-        embed.add_field(name="🧭 Survivors Tracked", value=str(snapshot["survivors_tracked"]), inline=True)
-        embed.add_field(name="🎒 Items Logged", value=str(snapshot["items"]), inline=True)
+        embed.add_field(
+            name="📡 Network Pulse",
+            value="\n".join(
+                [
+                    f"Servers online: **{total_guilds}**",
+                    f"Survivors in comms: **{total_members:,}**",
+                    f"Tracked profiles: **{snapshot['survivors_tracked']:,}**",
+                ]
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="🛰️ Field Intel",
+            value="\n".join(
+                [
+                    f"Fish-Link listings: **{snapshot['trade_listings']:,}**",
+                    f"Active traders: **{snapshot['traders']:,}**",
+                    f"Missions live: **{snapshot['missions_active']:,}**",
+                    f"Templates locked: **{snapshot['templates']:,}**",
+                    f"Items logged: **{snapshot['items']:,}**",
+                ]
+            ),
+            inline=False,
+        )
+        top_command_line = (
+            f"`{top_command}` ({top_command_uses:,} runs)"
+            if top_command
+            else "No command telemetry yet."
+        )
+        embed.add_field(
+            name="🎮 Command Cadence",
+            value="\n".join(
+                [
+                    f"Total commands fired: **{command_total:,}**",
+                    f"Most-used command: {top_command_line}",
+                ]
+            ),
+            inline=False,
+        )
+        if activity_totals:
+            embed.add_field(
+                name="🧪 Ops Highlights",
+                value="\n".join(
+                    [
+                        f"Scavenge runs: **{activity_totals.get('scavenge_runs', 0):,}**",
+                        f"Translations decrypted: **{activity_totals.get('translations', 0):,}**",
+                        f"Events scheduled: **{activity_totals.get('events_scheduled', 0):,}**",
+                        f"Profile scans: **{activity_totals.get('profile_views', 0):,}**",
+                    ]
+                ),
+                inline=False,
+            )
+
+        if top_guild_rows:
+            lines = []
+            for idx, row in enumerate(top_guild_rows, start=1):
+                guild_obj = self.bot.get_guild(row["guild_id"])
+                guild_name = guild_obj.name if guild_obj else f"Guild {row['guild_id']}"
+                lines.append(f"{idx}. {guild_name} - {row['total']:,} commands")
+            embed.add_field(name="🏙️ Top Command Hubs", value="\n".join(lines), inline=False)
+
+        if top_commands_rows:
+            lines = [f"`{row['command_name']}` — {row['total']:,} runs" for row in top_commands_rows]
+            embed.add_field(name="🧭 Most Used Commands", value="\n".join(lines), inline=False)
 
         if xp_rows:
             top_xp = []
             for idx, row in enumerate(xp_rows, start=1):
-                member = guild.get_member(row["user_id"])
-                name = member.display_name if member else f"User {row['user_id']}"
+                member = self.bot.get_user(row["user_id"])
+                name = member.mention if member else f"User {row['user_id']}"
                 top_xp.append(f"{idx}. {name} - L{row['level']} | {row['xp']:,} XP")
-            embed.add_field(name="🏆 Top XP", value="\n".join(top_xp), inline=False)
+            embed.add_field(name="🏆 Network XP Legends", value="\n".join(top_xp), inline=False)
 
         if cp_rows:
             top_cp = []
             for idx, row in enumerate(cp_rows, start=1):
-                member = guild.get_member(row["user_id"])
-                name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
+                member = self.bot.get_user(row["user_id"])
+                name = row["player_name"] or (member.mention if member else f"User {row['user_id']}")
                 top_cp.append(f"{idx}. {name} - {row['value']:,} CP")
-            embed.add_field(name="⚔️ Top Combat Power", value="\n".join(top_cp), inline=False)
+            embed.add_field(name="⚔️ Combat Power Titans", value="\n".join(top_cp), inline=False)
 
         if kill_rows:
             top_kills = []
             for idx, row in enumerate(kill_rows, start=1):
-                member = guild.get_member(row["user_id"])
-                name = row["player_name"] or (member.display_name if member else f"User {row['user_id']}")
+                member = self.bot.get_user(row["user_id"])
+                name = row["player_name"] or (member.mention if member else f"User {row['user_id']}")
                 top_kills.append(f"{idx}. {name} - {row['value']:,} Kills")
-            embed.add_field(name="☠️ Top Kills", value="\n".join(top_kills), inline=False)
+            embed.add_field(name="☠️ Killboard Stars", value="\n".join(top_kills), inline=False)
 
         embed.add_field(
             name="🛠️ What Marcia is doing",
@@ -148,7 +272,7 @@ class MarciaServer(commands.Cog):
             ]),
             inline=False,
         )
-        embed.set_footer(text="Marcia Server | Clock: UTC-2 | Keep it fun.")
+        embed.set_footer(text="Marcia Server | Clock: UTC-2 | Fun stats, serious ops.")
         return embed
 
     async def _post_or_update_analytics(self, guild: discord.Guild) -> None:
@@ -162,12 +286,30 @@ class MarciaServer(commands.Cog):
         if not channel:
             return
 
-        snapshot = await guild_analytics_snapshot(guild.id)
-        xp_rows = await top_xp_leaderboard(guild.id, limit=5)
-        cp_rows = await top_profile_stat(guild.id, "cp", limit=5)
-        kill_rows = await top_profile_stat(guild.id, "kills", limit=5)
+        snapshot = await global_analytics_snapshot()
+        xp_rows = await top_global_xp(limit=5)
+        cp_rows = await top_global_profile_stat("cp", limit=5)
+        kill_rows = await top_global_profile_stat("kills", limit=5)
+        activity_totals = await activity_metric_totals(
+            ["scavenge_runs", "translations", "events_scheduled", "profile_views"]
+        )
+        command_total, top_command, top_command_uses = await command_usage_totals()
+        top_commands_rows = await top_commands(3)
+        top_guild_rows = await top_guild_usage(3)
 
-        embed = self._build_analytics_embed(guild, snapshot, xp_rows, cp_rows, kill_rows)
+        embed = self._build_analytics_embed(
+            guild,
+            snapshot,
+            xp_rows,
+            cp_rows,
+            kill_rows,
+            activity_totals,
+            command_total,
+            top_command,
+            top_command_uses,
+            top_commands_rows,
+            top_guild_rows,
+        )
 
         message = None
         if self._analytics_message_id:
