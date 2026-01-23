@@ -91,6 +91,61 @@ SHOWCASE_SECTIONS = [
     },
 ]
 
+
+class FeedbackReplyModal(discord.ui.Modal, title="Reply to feedback sender"):
+    def __init__(self, bot: commands.Bot, user_id: int):
+        super().__init__()
+        self.bot = bot
+        self.user_id = user_id
+        self.message = discord.ui.TextInput(
+            label="Reply message",
+            placeholder="Write your reply as Marcia...",
+            style=discord.TextStyle.long,
+            max_length=2000,
+        )
+        self.add_item(self.message)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        user = self.bot.get_user(self.user_id)
+        if user is None:
+            try:
+                user = await self.bot.fetch_user(self.user_id)
+            except Exception:
+                await interaction.followup.send("❌ Unable to resolve that user ID.", ephemeral=True)
+                return
+
+        try:
+            await user.send(str(self.message.value))
+            await interaction.followup.send("✅ Reply sent to the feedback sender.", ephemeral=True)
+        except Exception:
+            await interaction.followup.send("❌ Failed to send the reply DM.", ephemeral=True)
+
+
+class FeedbackReplyView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, target_user_id: int, allowed_user_id: int):
+        super().__init__(timeout=900)
+        self.bot = bot
+        self.target_user_id = target_user_id
+        self.allowed_user_id = allowed_user_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.allowed_user_id:
+            return True
+
+        await interaction.response.send_message(
+            "❌ Access denied. This feedback reply is locked to the owner.",
+            ephemeral=True,
+        )
+        return False
+
+    @discord.ui.button(label="Reply to sender", style=discord.ButtonStyle.primary, emoji="💬")
+    async def reply_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await interaction.response.send_modal(
+            FeedbackReplyModal(self.bot, self.target_user_id)
+        )
+
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -485,7 +540,8 @@ class Utility(commands.Cog):
                 channel_label = f"{getattr(ctx.channel, 'name', 'unknown')} ({channel_id})"
                 embed.add_field(name="Channel", value=channel_label, inline=True)
             try:
-                await owner.send(embed=embed)
+                view = FeedbackReplyView(self.bot, user_id, owner.id) if user_id else None
+                await owner.send(embed=embed, view=view)
             except Exception as exc:
                 self.log.warning("Feedback DM failed: %s", exc)
 
