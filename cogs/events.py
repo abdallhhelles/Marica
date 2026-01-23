@@ -745,19 +745,23 @@ class Events(commands.Cog):
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = name_msg.content
 
-            await ctx.author.send("📝 **Details?**")
+            await ctx.author.send("📝 **Instructions?**")
             desc_msg = await self.bot.wait_for('message', check=check, timeout=300)
             desc = desc_msg.content
 
-            await ctx.author.send("📍 **Location?** (optional, reply `skip`)")
-            location_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            location = None if location_msg.content.lower().strip() == "skip" else location_msg.content
+            await ctx.author.send("📅 **Date?** `YYYY-MM-DD` (game clock, UTC-2).")
+            date_msg = await self.bot.wait_for('message', check=check, timeout=180)
 
-            await ctx.author.send(
-                "⏰ **Time?** `YYYY-MM-DD HH:MM` (game clock, UTC-2)."
+            await ctx.author.send("⏰ **Time?** `HH:MM` (game clock, UTC-2).")
+            time_msg = await self.bot.wait_for('message', check=check, timeout=180)
+            await self.finalize_mission(
+                ctx,
+                name,
+                desc,
+                f"{date_msg.content} {time_msg.content}",
+                None,
+                -1,
             )
-            t_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            await self.finalize_mission(ctx, name, desc, t_msg.content, location, -1)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
@@ -771,15 +775,19 @@ class Events(commands.Cog):
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = template_name if name_msg.content.lower().strip() == "skip" else name_msg.content
 
-            await ctx.author.send("📍 **Location?** (optional, reply `skip`)")
-            location_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            location = None if location_msg.content.lower().strip() == "skip" else location_msg.content
+            await ctx.author.send("📅 **Date?** `YYYY-MM-DD` (game clock, UTC-2).")
+            date_msg = await self.bot.wait_for('message', check=check, timeout=180)
 
-            await ctx.author.send(
-                "⏰ **Time?** `YYYY-MM-DD HH:MM` (game clock, UTC-2)."
+            await ctx.author.send("⏰ **Time?** `HH:MM` (game clock, UTC-2).")
+            time_msg = await self.bot.wait_for('message', check=check, timeout=180)
+            await self.finalize_mission(
+                ctx,
+                name,
+                template_desc,
+                f"{date_msg.content} {time_msg.content}",
+                None,
+                -1,
             )
-            t_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            await self.finalize_mission(ctx, name, template_desc, t_msg.content, location, -1)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
