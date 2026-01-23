@@ -84,8 +84,8 @@ class Reminders(commands.Cog):
             name="📅 Scheduling Options",
             value=(
                 "Send now: leave date + time empty.\n"
-                "Schedule: enter both date + time.\n"
-                f"Format: `YYYY-MM-DD` + `HH:MM` (Now: {format_game(datetime.now(timezone.utc))})"
+                "Schedule: date + time only.\n"
+                f"`YYYY-MM-DD` + `HH:MM` (Now: {format_game(datetime.now(timezone.utc))})"
             ),
             inline=False,
         )
@@ -330,16 +330,16 @@ class ReminderChannelModal(discord.ui.Modal):
             label="Message",
             style=discord.TextStyle.long,
             max_length=800,
-            placeholder="Marcia needs the reminder text",
+            placeholder="Tell Marcia what to announce",
         )
         self.date = discord.ui.TextInput(
-            label="Date (optional)",
+            label="Date",
             required=False,
             placeholder="YYYY-MM-DD (UTC-2)",
             max_length=32,
         )
         self.time = discord.ui.TextInput(
-            label="Time (optional)",
+            label="Time",
             required=False,
             placeholder="HH:MM (UTC-2)",
             max_length=32,
@@ -381,7 +381,7 @@ class ReminderChannelModal(discord.ui.Modal):
         if date_value or time_value:
             if not (date_value and time_value):
                 await interaction.followup.send(
-                    "❌ I need both a date and time (or leave both blank to send now).",
+                    "❌ I need both date + time (or leave both blank to send now).",
                     ephemeral=True,
                 )
                 return
@@ -416,16 +416,16 @@ class ReminderModal(discord.ui.Modal):
             label="Message",
             style=discord.TextStyle.long,
             max_length=800,
-            placeholder="Marcia needs the reminder text",
+            placeholder="Tell Marcia what to announce",
         )
         self.date = discord.ui.TextInput(
-            label="Date (optional)",
+            label="Date",
             required=False,
             placeholder="YYYY-MM-DD (UTC-2)",
             max_length=32,
         )
         self.time = discord.ui.TextInput(
-            label="Time (optional)",
+            label="Time",
             required=False,
             placeholder="HH:MM (UTC-2)",
             max_length=32,
@@ -442,7 +442,7 @@ class ReminderModal(discord.ui.Modal):
         if date_value or time_value:
             if not (date_value and time_value):
                 await interaction.followup.send(
-                    "❌ I need both a date and time (or leave both blank to send now).",
+                    "❌ I need both date + time (or leave both blank to send now).",
                     ephemeral=True,
                 )
                 return

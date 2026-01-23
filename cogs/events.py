@@ -741,18 +741,18 @@ class Events(commands.Cog):
     async def create_mission_flow(self, ctx):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
         try:
-            await ctx.author.send("📡 **Event name?**")
+            await ctx.author.send("📡 Name?")
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = name_msg.content
 
-            await ctx.author.send("📝 **Instructions?**")
+            await ctx.author.send("📝 Orders?")
             desc_msg = await self.bot.wait_for('message', check=check, timeout=300)
             desc = desc_msg.content
 
-            await ctx.author.send("📅 **Date?** `YYYY-MM-DD` (game clock, UTC-2).")
+            await ctx.author.send("📅 Date? `YYYY-MM-DD` (UTC-2).")
             date_msg = await self.bot.wait_for('message', check=check, timeout=180)
 
-            await ctx.author.send("⏰ **Time?** `HH:MM` (game clock, UTC-2).")
+            await ctx.author.send("⏰ Time? `HH:MM` (UTC-2).")
             time_msg = await self.bot.wait_for('message', check=check, timeout=180)
             await self.finalize_mission(
                 ctx,
@@ -769,16 +769,16 @@ class Events(commands.Cog):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
         try:
             await ctx.author.send(
-                f"📋 **Template Loaded:** `{template_name}`\n{template_desc}\n\n"
-                "Reply with a new name or type `skip` to keep this name."
+                f"📋 Template loaded: `{template_name}`\n{template_desc}\n\n"
+                "New name or `skip`?"
             )
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = template_name if name_msg.content.lower().strip() == "skip" else name_msg.content
 
-            await ctx.author.send("📅 **Date?** `YYYY-MM-DD` (game clock, UTC-2).")
+            await ctx.author.send("📅 Date? `YYYY-MM-DD` (UTC-2).")
             date_msg = await self.bot.wait_for('message', check=check, timeout=180)
 
-            await ctx.author.send("⏰ **Time?** `HH:MM` (game clock, UTC-2).")
+            await ctx.author.send("⏰ Time? `HH:MM` (UTC-2).")
             time_msg = await self.bot.wait_for('message', check=check, timeout=180)
             await self.finalize_mission(
                 ctx,
