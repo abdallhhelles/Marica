@@ -76,19 +76,21 @@ def record_command_latency(
     user_id: int | None,
     source: str,
     invocation_id: str | None = None,
+    log_event: bool = True,
 ) -> None:
     METRICS.observe("command_latency_ms", duration_ms)
     METRICS.inc("command_success" if success else "command_error")
-    _log_event(
-        "command_latency",
-        command=command,
-        duration_ms=round(duration_ms, 2),
-        success=success,
-        guild_id=guild_id,
-        user_id=user_id,
-        source=source,
-        invocation_id=invocation_id,
-    )
+    if log_event:
+        _log_event(
+            "command_latency",
+            command=command,
+            duration_ms=round(duration_ms, 2),
+            success=success,
+            guild_id=guild_id,
+            user_id=user_id,
+            source=source,
+            invocation_id=invocation_id,
+        )
 
 
 def record_external_call(

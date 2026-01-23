@@ -46,6 +46,19 @@ def _get_int(name: str, default: int) -> int:
         return default
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    raw = _get_env(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("Invalid %s value %r; using %s", name, raw, default)
+    return default
+
+
 @dataclass(frozen=True)
 class MarciaConfig:
     token: str | None
@@ -62,6 +75,7 @@ class MarciaConfig:
     http_breaker_failures: int
     http_breaker_reset: float
     metrics_interval: float
+    log_command_latency: bool
     ocr_space_api_key: str | None
     ocr_space_timeout: float
     profile_scan_review_timeout: int
@@ -91,6 +105,7 @@ def load_config() -> MarciaConfig:
         http_breaker_failures=_get_int("MARCIA_HTTP_BREAKER_FAILURES", 3),
         http_breaker_reset=_get_float("MARCIA_HTTP_BREAKER_RESET", 30.0),
         metrics_interval=_get_float("MARCIA_METRICS_INTERVAL", 120.0),
+        log_command_latency=_get_bool("MARCIA_LOG_COMMAND_LATENCY", False),
         ocr_space_api_key=_get_env("OCR_SPACE_API_KEY"),
         ocr_space_timeout=_get_float("OCR_SPACE_TIMEOUT", 60.0),
         profile_scan_review_timeout=_get_int("PROFILE_SCAN_REVIEW_TIMEOUT", 90),

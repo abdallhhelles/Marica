@@ -112,6 +112,29 @@ class Utility(commands.Cog):
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
 
+    async def _safe_interaction_edit(self, interaction: discord.Interaction, **kwargs):
+        """Edit an interaction response without raising expired or duplicate-ack errors."""
+        try:
+            if interaction.response.is_done() or getattr(interaction, "is_expired", lambda: False)():
+                return await interaction.edit_original_response(**kwargs)
+            return await interaction.response.edit_message(**kwargs)
+        except discord.NotFound:
+            self.log.warning(
+                "Interaction edit skipped (response expired or missing) interaction_id=%s",
+                interaction.id,
+            )
+        except discord.HTTPException as exc:
+            if exc.code in (10062, 40060):
+                self.log.debug(
+                    "Interaction edit skipped (acknowledged/expired) interaction_id=%s",
+                    interaction.id,
+                )
+                return None
+            self.log.exception("Failed to edit interaction response")
+        except Exception:
+            self.log.exception("Failed to edit interaction response")
+        return None
+
     async def _translate_text(self, text: str, dest: str) -> str:
         """Translate text using the public googleapis endpoint without googletrans."""
         params = {
@@ -810,7 +833,8 @@ class ClearConfirmView(discord.ui.View):
     @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger, emoji="🧹")
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.cog._execute_clear(self.ctx, self.amount)
-        await interaction.response.edit_message(
+        await self.cog._safe_interaction_edit(
+            interaction,
             content="✅ Clear complete.",
             embed=None,
             view=None,
@@ -818,7 +842,8 @@ class ClearConfirmView(discord.ui.View):
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
+        await self.cog._safe_interaction_edit(
+            interaction,
             content="Clear cancelled.",
             embed=None,
             view=None,
