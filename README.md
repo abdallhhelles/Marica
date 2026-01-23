@@ -138,8 +138,9 @@ TOKEN=your_discord_bot_token_here
 * `MARCIA_DB_CACHE_TTL` — Seconds to cache settings/ignore lists (default: `30`).
 
 **Moderation logging**
-* For the moderated guild (`1403997721962086480`), transcripts live under `archives/<ServerName>_<ServerID>/`, one `<channel>_<channel_id>.log` per text channel or thread.
-* A `.history_seeded` marker appears after the first full backfill (including archived threads). New channels/threads are captured automatically.
+* For the moderated guild (`1403997721962086480`), transcripts live under `archives/servers/<ServerName>_<ServerID>/logs/` with `channels/` and `threads/` subfolders.
+* Log files are named `channel_<name>_<id>.log` or `thread_<name>_<id>.log` for quick scans.
+* A `metadata/history_seeded.json` marker appears after the first full backfill (including archived threads). New channels/threads are captured automatically.
 * Logging is silent—no channel posts during backfill or transcript writes.
 
 ---

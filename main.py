@@ -777,6 +777,7 @@ class MarciaBot(commands.Bot):
             user_id=getattr(getattr(ctx, "author", None), "id", None),
             source=source,
             invocation_id=invocation_id,
+            log_event=self.config.log_command_latency,
         )
 
     def _record_app_command_result(
@@ -801,6 +802,7 @@ class MarciaBot(commands.Bot):
             user_id=getattr(getattr(interaction, "user", None), "id", None),
             source="app-command",
             invocation_id=invocation_id,
+            log_event=self.config.log_command_latency,
         )
 
     async def _load_cogs(self):

@@ -22,8 +22,10 @@ class Archives(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.root_dir = "archives"
-        if not os.path.exists(self.root_dir):
-            os.makedirs(self.root_dir)
+        self.servers_dir = os.path.join(self.root_dir, "servers")
+        self.dms_dir = os.path.join(self.root_dir, "dms")
+        os.makedirs(self.servers_dir, exist_ok=True)
+        os.makedirs(self.dms_dir, exist_ok=True)
 
         # Server-scoped chat logging
         self.chat_log_server_id = 1403997721962086480
@@ -31,18 +33,38 @@ class Archives(commands.Cog):
 
     def _channel_log_name(self, channel: discord.abc.GuildChannel) -> str:
         safe_name = str(channel.name).replace(" ", "_") or "channel"
-        return f"{safe_name}_{channel.id}.log"
+        channel_type = "thread" if isinstance(channel, discord.Thread) else "channel"
+        return f"{channel_type}_{safe_name}_{channel.id}.log"
 
     def get_server_path(self, guild):
-        # Creates a folder named "ServerName_ID"
+        """Return the server archive root, ensuring base folders exist."""
         folder_name = f"{guild.name.replace(' ', '_')}_{guild.id}"
-        path = os.path.join(self.root_dir, folder_name)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        path = os.path.join(self.servers_dir, folder_name)
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _metadata_dir(self, guild: discord.Guild) -> str:
+        path = os.path.join(self.get_server_path(guild), "metadata")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _logs_dir(self, guild: discord.Guild) -> str:
+        path = os.path.join(self.get_server_path(guild), "logs")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _channel_logs_dir(self, guild: discord.Guild) -> str:
+        path = os.path.join(self._logs_dir(guild), "channels")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _thread_logs_dir(self, guild: discord.Guild) -> str:
+        path = os.path.join(self._logs_dir(guild), "threads")
+        os.makedirs(path, exist_ok=True)
         return path
 
     async def update_server_files(self, guild):
-        path = self.get_server_path(guild)
+        path = self._metadata_dir(guild)
 
         # 1. Server Info File
         server_info_path = os.path.join(path, "server_info.txt")
@@ -68,7 +90,7 @@ class Archives(commands.Cog):
         await self._write_json(members_path, member_data)
 
     async def log_action(self, guild, user, action):
-        path = self.get_server_path(guild)
+        path = self._logs_dir(guild)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await self._append_text(
             os.path.join(path, "actions.log"),
@@ -79,7 +101,7 @@ class Archives(commands.Cog):
         return guild and guild.id == self.chat_log_server_id
 
     def _seed_marker_path(self, guild: discord.Guild) -> str:
-        return os.path.join(self.get_server_path(guild), "_history_seeded")
+        return os.path.join(self._metadata_dir(guild), "history_seeded.json")
 
     async def _restore_seed_state(self, guild: discord.Guild):
         """Hydrate the in-memory seeded cache from disk markers."""
@@ -111,7 +133,7 @@ class Archives(commands.Cog):
             return
 
     async def _write_chat_log(self, guild, channel, line, *, timestamp: datetime.datetime | None = None):
-        path = self.get_server_path(guild)
+        path = self._thread_logs_dir(guild) if isinstance(channel, discord.Thread) else self._channel_logs_dir(guild)
         log_name = self._channel_log_name(channel)
         stamp = (timestamp or datetime.datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
         await self._append_text(
@@ -120,8 +142,7 @@ class Archives(commands.Cog):
         )
 
     def _dm_log_path(self, user: discord.User | discord.Member) -> str:
-        safe_name = str(user).replace(" ", "_") or "user"
-        path = os.path.join(self.root_dir, "dms", f"{safe_name}_{user.id}")
+        path = os.path.join(self.dms_dir, str(user.id))
         os.makedirs(path, exist_ok=True)
         return os.path.join(path, "dm.log")
 
