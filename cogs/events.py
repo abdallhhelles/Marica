@@ -577,12 +577,13 @@ class Events(commands.Cog):
         embed = discord.Embed(
             title="📡 Mission Control // Marcia",
             description=(
-                "Pick how you want me to broadcast your operation.\n"
-                "`New Event` opens a DM interview, `Use Template` pulls from your archive.\n"
-                "`Archive Template` saves a new template for reuse.\n"
-                "`Upcoming Events` previews the next ops list for this sector.\n"
-                "`Remove Event` lets you delete a scheduled op without leaving this menu.\n"
-                "I track everything in UTC-2 (Dark War Survival)."
+                "Pick what you want to do:\n"
+                "`New Event` starts a quick DM setup.\n"
+                "`Use Template` starts from a saved briefing.\n"
+                "`Archive Template` saves a briefing for reuse.\n"
+                "`Upcoming Events` shows the next ops list.\n"
+                "`Remove Event` deletes a scheduled op.\n"
+                "Times use the game clock (UTC-2)."
             ),
             color=0x5865F2,
         )
@@ -729,9 +730,9 @@ class Events(commands.Cog):
     async def create_template_flow(self, ctx):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
         try:
-            await ctx.author.send("💾 **Template Title?** (what do we call this op?)")
+            await ctx.author.send("💾 **Template name?**")
             title = (await self.bot.wait_for('message', check=check, timeout=120)).content
-            await ctx.author.send("📝 **Directives?** Drop the briefing text.")
+            await ctx.author.send("📝 **Briefing text?**")
             desc = (await self.bot.wait_for('message', check=check, timeout=300)).content
             await add_template(ctx.guild.id, title, desc)
             await ctx.author.send(f"✅ Protocol `{title}` archived. {_marcia_quip()}")
@@ -740,31 +741,27 @@ class Events(commands.Cog):
     async def create_mission_flow(self, ctx):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
         try:
-            await ctx.author.send(
-                "📡 **Mission Codename?** (keep it short; I'll broadcast it)"
-            )
+            await ctx.author.send("📡 Name?")
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = name_msg.content
 
-            await ctx.author.send("📝 **Instructions?** Tell the squad what to do.")
+            await ctx.author.send("📝 Orders?")
             desc_msg = await self.bot.wait_for('message', check=check, timeout=300)
             desc = desc_msg.content
 
-            await ctx.author.send("📍 **Location or voice channel?** Reply with coords/link or type `skip`.")
-            location_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            location = None if location_msg.content.lower().strip() == "skip" else location_msg.content
+            await ctx.author.send("📅 Date? `YYYY-MM-DD` (UTC-2).")
+            date_msg = await self.bot.wait_for('message', check=check, timeout=180)
 
-            await ctx.author.send(
-                "👥 **Ping who?** Mention a role, type `everyone`, or `none` to stay quiet."
+            await ctx.author.send("⏰ Time? `HH:MM` (UTC-2).")
+            time_msg = await self.bot.wait_for('message', check=check, timeout=180)
+            await self.finalize_mission(
+                ctx,
+                name,
+                desc,
+                f"{date_msg.content} {time_msg.content}",
+                None,
+                -1,
             )
-            ping_msg = await self.bot.wait_for('message', check=check, timeout=120)
-            ping_target = await self._resolve_ping(ctx, ping_msg.content)
-
-            await ctx.author.send(
-                f"⏰ **Target Time?** `YYYY-MM-DD HH:MM` using the game clock (UTC-2)."
-            )
-            t_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            await self.finalize_mission(ctx, name, desc, t_msg.content, location, ping_target)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 
@@ -772,27 +769,25 @@ class Events(commands.Cog):
         def check(m): return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
         try:
             await ctx.author.send(
-                f"📋 **Template Loaded:** `{template_name}`\n{template_desc}\n\n"
-                "Reply with a new codename or type `skip` to keep this name."
+                f"📋 Template loaded: `{template_name}`\n{template_desc}\n\n"
+                "New name or `skip`?"
             )
             name_msg = await self.bot.wait_for('message', check=check, timeout=120)
             name = template_name if name_msg.content.lower().strip() == "skip" else name_msg.content
 
-            await ctx.author.send("📍 **Location or voice channel?** Reply with coords/link or type `skip`.")
-            location_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            location = None if location_msg.content.lower().strip() == "skip" else location_msg.content
+            await ctx.author.send("📅 Date? `YYYY-MM-DD` (UTC-2).")
+            date_msg = await self.bot.wait_for('message', check=check, timeout=180)
 
-            await ctx.author.send(
-                "👥 **Ping who?** Mention a role, type `everyone`, or `none` to stay quiet."
+            await ctx.author.send("⏰ Time? `HH:MM` (UTC-2).")
+            time_msg = await self.bot.wait_for('message', check=check, timeout=180)
+            await self.finalize_mission(
+                ctx,
+                name,
+                template_desc,
+                f"{date_msg.content} {time_msg.content}",
+                None,
+                -1,
             )
-            ping_msg = await self.bot.wait_for('message', check=check, timeout=120)
-            ping_target = await self._resolve_ping(ctx, ping_msg.content)
-
-            await ctx.author.send(
-                "⏰ **Target Time?** `YYYY-MM-DD HH:MM` using the game clock (UTC-2)."
-            )
-            t_msg = await self.bot.wait_for('message', check=check, timeout=180)
-            await self.finalize_mission(ctx, name, template_desc, t_msg.content, location, ping_target)
         except asyncio.TimeoutError:
             await ctx.author.send("⌛ Timed out. Ping me again with `/event` when you're ready.")
 

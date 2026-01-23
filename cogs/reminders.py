@@ -42,9 +42,10 @@ class Reminders(commands.Cog):
         parts = [part for part in (template_name, body) if part]
         combined = "\n".join(parts)
         cleaned = combined.lstrip("* ").lower()
+        prefix = "@everyone\n\n"
         if cleaned.startswith("reminder"):
-            return f"📡 {combined}"
-        return f"📡 **Reminder:** {combined}"
+            return f"{prefix}📡 {combined}"
+        return f"{prefix}📡 **Reminder:** {combined}"
 
     async def cog_check(self, ctx: commands.Context) -> bool:
         if ctx.guild and await is_channel_ignored(ctx.guild.id, ctx.channel.id):
@@ -70,11 +71,11 @@ class Reminders(commands.Cog):
         embed = discord.Embed(
             title="🛰️ Reminder Control",
             description=(
-                "Choose how you want to manage reminders:\n\n"
-                "**New Reminder**: Schedule a reminder to your events channel.\n"
-                "**Use Template**: Send a saved reminder template to the events channel.\n"
-                "**Archive Template**: Save a new template for reuse.\n"
-                "**Upcoming Reminders**: Review what is scheduled.\n"
+                "Pick your move:\n\n"
+                "**New Reminder**: Write a reminder.\n"
+                "**Use Template**: Send a saved reminder.\n"
+                "**Archive Template**: Save a reminder template.\n"
+                "**Upcoming Reminders**: See what is scheduled.\n"
                 "**Remove Reminder**: Cancel a scheduled reminder."
             ),
             color=0x5865F2,
@@ -82,10 +83,9 @@ class Reminders(commands.Cog):
         embed.add_field(
             name="📅 Scheduling Options",
             value=(
-                "For new or template reminders:\n"
-                "• **Send now** - Leave the time field blank\n"
-                "• **Schedule for later** - Enter date/time in game time format:\n"
-                f"  `YYYY-MM-DD HH:MM` (Current: {format_game(datetime.now(timezone.utc))})"
+                "Send now: leave date + time empty.\n"
+                "Schedule: date + time only.\n"
+                f"`YYYY-MM-DD` + `HH:MM` (Now: {format_game(datetime.now(timezone.utc))})"
             ),
             inline=False,
         )
@@ -111,7 +111,10 @@ class Reminders(commands.Cog):
 
         async def _post():
             reminder_message = self._format_reminder_message(body)
-            await channel.send(f"{reminder_message}\n\n{quote}")
+            await channel.send(
+                f"{reminder_message}\n\n{quote}",
+                allowed_mentions=discord.AllowedMentions(everyone=True),
+            )
 
         if when_utc and when_utc > datetime.now(timezone.utc):
             reminder_id = await add_scheduled_reminder(
@@ -169,7 +172,10 @@ class Reminders(commands.Cog):
         await discord.utils.sleep_until(when_utc)
         try:
             reminder_message = self._format_reminder_message(body)
-            await channel.send(f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}")
+            await channel.send(
+                f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}",
+                allowed_mentions=discord.AllowedMentions(everyone=True),
+            )
         finally:
             await delete_scheduled_reminder(channel.guild.id, reminder_id)
             self.scheduled_tasks.pop(reminder_id, None)
@@ -197,7 +203,7 @@ class Reminders(commands.Cog):
             parsed = datetime.strptime(raw_value.strip(), "%Y-%m-%d %H:%M")
         except ValueError:
             raise ValueError(
-                "Use YYYY-MM-DD HH:MM in game time (UTC-2). Example: 2024-12-31 18:30"
+                "Use `YYYY-MM-DD` + `HH:MM` in game time (UTC-2). Example: 2024-12-31 18:30"
             )
 
         return game_to_utc(parsed.replace(tzinfo=GAME_TZ))
@@ -316,25 +322,32 @@ class ReminderChannelModal(discord.ui.Modal):
         self.ctx = ctx
 
         self.channel_input = discord.ui.TextInput(
-            label="Channel (use #channel or channel ID)",
-            placeholder="#general or 1234567890",
+            label="Channel",
+            placeholder="#events or 1234567890",
             max_length=100,
         )
         self.body = discord.ui.TextInput(
-            label="Reminder text",
+            label="Message",
             style=discord.TextStyle.long,
             max_length=800,
-            placeholder="What should Marcia announce?",
+            placeholder="Tell Marcia what to announce",
         )
-        self.when = discord.ui.TextInput(
-            label="Send at (game time)",
+        self.date = discord.ui.TextInput(
+            label="Date",
             required=False,
-            placeholder="YYYY-MM-DD HH:MM (UTC-2) - leave blank to send now",
+            placeholder="YYYY-MM-DD (UTC-2)",
+            max_length=32,
+        )
+        self.time = discord.ui.TextInput(
+            label="Time",
+            required=False,
+            placeholder="HH:MM (UTC-2)",
             max_length=32,
         )
         self.add_item(self.channel_input)
         self.add_item(self.body)
-        self.add_item(self.when)
+        self.add_item(self.date)
+        self.add_item(self.time)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -363,11 +376,23 @@ class ReminderChannelModal(discord.ui.Modal):
             )
             return
 
-        try:
-            when_utc = self.cog._parse_when(str(self.when.value))
-        except ValueError as e:
-            await interaction.followup.send(str(e), ephemeral=True)
-            return
+        date_value = str(self.date.value).strip()
+        time_value = str(self.time.value).strip()
+        if date_value or time_value:
+            if not (date_value and time_value):
+                await interaction.followup.send(
+                    "❌ I need both date + time (or leave both blank to send now).",
+                    ephemeral=True,
+                )
+                return
+            raw_when = f"{date_value} {time_value}"
+            try:
+                when_utc = self.cog._parse_when(raw_when)
+            except ValueError as e:
+                await interaction.followup.send(str(e), ephemeral=True)
+                return
+        else:
+            when_utc = None
 
         await self.cog._send_or_schedule(self.ctx, channel, str(self.body.value), when_utc)
         await interaction.followup.send(f"✅ Reminder queued for {channel.mention}.", ephemeral=True)
@@ -388,28 +413,47 @@ class ReminderModal(discord.ui.Modal):
         self.event_channel_id = event_channel_id
 
         self.body = discord.ui.TextInput(
-            label="Reminder text",
+            label="Message",
             style=discord.TextStyle.long,
             max_length=800,
-            placeholder="What should Marcia announce?",
+            placeholder="Tell Marcia what to announce",
         )
-        self.when = discord.ui.TextInput(
-            label="Send at (game time)",
+        self.date = discord.ui.TextInput(
+            label="Date",
             required=False,
-            placeholder="YYYY-MM-DD HH:MM (UTC-2) - leave blank for now",
+            placeholder="YYYY-MM-DD (UTC-2)",
+            max_length=32,
+        )
+        self.time = discord.ui.TextInput(
+            label="Time",
+            required=False,
+            placeholder="HH:MM (UTC-2)",
             max_length=32,
         )
         self.add_item(self.body)
-        self.add_item(self.when)
+        self.add_item(self.date)
+        self.add_item(self.time)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        try:
-            when_utc = self.cog._parse_when(str(self.when.value))
-        except ValueError as e:
-            await interaction.followup.send(str(e), ephemeral=True)
-            return
+        date_value = str(self.date.value).strip()
+        time_value = str(self.time.value).strip()
+        if date_value or time_value:
+            if not (date_value and time_value):
+                await interaction.followup.send(
+                    "❌ I need both date + time (or leave both blank to send now).",
+                    ephemeral=True,
+                )
+                return
+            raw_when = f"{date_value} {time_value}"
+            try:
+                when_utc = self.cog._parse_when(raw_when)
+            except ValueError as e:
+                await interaction.followup.send(str(e), ephemeral=True)
+                return
+        else:
+            when_utc = None
 
         if self.target == "events":
             channel = (
@@ -499,10 +543,10 @@ class TemplateCreateModal(discord.ui.Modal):
             placeholder="e.g. Rally Alert",
         )
         self.body = discord.ui.TextInput(
-            label="Template body",
+            label="Template message",
             style=discord.TextStyle.long,
             max_length=800,
-            placeholder="What should the reminder say?",
+            placeholder="Type the reminder",
         )
         self.add_item(self.name)
         self.add_item(self.body)
