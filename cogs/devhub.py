@@ -17,7 +17,6 @@ from utils.async_utils import create_tracked_task
 from utils.patch_notes import PatchNotesStore
 
 DEV_GUILD_ID = 1455313963507257486
-TEST_GUILD_ID = 1454704176662843525
 INFO_CHANNEL_NAME = "marcia-info"
 PATCH_NOTES_CHANNEL_NAME = "marcia-patch-notes"
 EXTRA_CHANNELS = [
@@ -161,7 +160,7 @@ class DevServerManager(commands.Cog):
     async def _bootstrap(self):
         await self.bot.wait_until_ready()
 
-        for guild_id in (DEV_GUILD_ID, TEST_GUILD_ID):
+        for guild_id in (DEV_GUILD_ID,):
             guild = self.bot.get_guild(guild_id)
             if not guild:
                 logger.warning("Managed guild not found (ID: %s)", guild_id)
@@ -170,9 +169,6 @@ class DevServerManager(commands.Cog):
             await self._ensure_channels(guild)
             await self._publish_info_panel(guild)
             await self._post_patch_notes(guild)
-
-            if guild_id == TEST_GUILD_ID:
-                await self._ensure_test_hub_layout(guild)
 
         if not self.info_updater.is_running():
             self.info_updater.start()

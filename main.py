@@ -402,7 +402,7 @@ class MarciaBot(commands.Bot):
                 return
             await message.reply(
                 "I can't answer direct DMs. Please head to the bot server and use `/feedback`, "
-                "or add a handler there for your concern. Official server: https://discord.gg/tuWX4sVR4Y"
+                "or add a handler there for your concern. Official server: https://discord.gg/TneGDQXG"
             )
             return
 
