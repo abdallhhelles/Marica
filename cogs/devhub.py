@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import logging
 import subprocess
-import textwrap
 from datetime import datetime, timezone
 
 import discord
@@ -17,7 +16,6 @@ from utils.async_utils import create_tracked_task
 from utils.patch_notes import PatchNotesStore
 
 DEV_GUILD_ID = 1455313963507257486
-TEST_GUILD_ID = 1454704176662843525
 INFO_CHANNEL_NAME = "marcia-info"
 PATCH_NOTES_CHANNEL_NAME = "marcia-patch-notes"
 EXTRA_CHANNELS = [
@@ -25,118 +23,6 @@ EXTRA_CHANNELS = [
     ("ideas-lab", "Brainstorming and design discussions for new Marcia features."),
     ("bug-reports", "Log regressions or issues found during testing."),
 ]
-TEST_LAYOUT = [
-    (
-        "Control Tower",
-        [
-            (
-                "readme",
-                "Rules, verification, and fast onboarding.",
-                {
-                    "marker": "seed:readme:v2-min",
-                    "content": textwrap.dedent(
-                        """
-                        **Welcome:** Keep it concise. `/setup` to map events/welcome/verify/rules + auto-role. Re-check links in `/setup` after permission tweaks.
-
-                        **Core Flows:**
-                        - `/event` for ops (UTC-2). Channel ping at 60, DMs after.
-                        - `/scavenge` hourly, chat for XP (60s), trade via Fish-Link + profile/inventory.
-                        - `/commands` + `/features` for quick discovery.
-
-                        **QA Etiquette:** One issue per thread, include command, timestamp, expected vs actual, and a log or screenshot.
-                        """
-                    ),
-                    "pin": True,
-                },
-            ),
-            (
-                "updates",
-                "Deploy notes and important pings only.",
-                {
-                    "marker": "seed:updates:v1-min",
-                    "content": "Changelogs + maintenance windows land here. Keep reactions lightweight; discussions move to `#bug-reports` or `#ideas-lab`.",
-                },
-            ),
-            (
-                "marcia-stats",
-                "Live Marcia stats and quick tips.",
-                {
-                    "marker": "seed:stats:v1-min",
-                    "content": textwrap.dedent(
-                        """
-                        Snapshots to watch:
-                        - Command volume (top 5) across guilds.
-                        - Error count last 24h (auto-fed from bug logger).
-                        - XP/level milestones posted to `#level-up`.
-
-                        Use `/commands` for the full directory and `/features` for the showcase.
-                        """
-                    ),
-                },
-            ),
-        ],
-    ),
-    (
-        "Operations",
-        [
-            (
-                "events",
-                "Read-only reminders for ops; `/event` posts here.",
-                {
-                    "marker": "seed:events:v2-min",
-                    "content": "Lock this channel. `/event` announcements only. Pin the current schedule and keep chatter in `#lounge`.",
-                },
-            ),
-            (
-                "level-up",
-                "Rank milestones and lightweight XP tips.",
-                {
-                    "marker": "seed:level-up:v1-min",
-                    "content": "Marcia posts rank-ups here. Keep it noise-free; drop congratulations with emojis only.",
-                },
-            ),
-        ],
-    ),
-    (
-        "QA",
-        [
-            (
-                "bug-reports",
-                "Repro steps, screenshots, expected vs actual.",
-                {
-                    "marker": "seed:bug-reports:v2-min",
-                    "content": "Template: what happened • expected behavior • exact command • timestamp (UTC-2) • screenshot/log. Link to messages if translation/reaction related.",
-                    "pin": True,
-                },
-            ),
-            (
-                "load-tests",
-                "Stress test commands, cooldowns, and concurrency.",
-                {
-                    "marker": "seed:load-tests:v2-min",
-                    "content": "Queue stress runs: rapid `/scavenge`, concurrent `/event` creation, button mashing on Fish-Link. Post rate-limit results + traces.",
-                },
-            ),
-            (
-                "ideas-lab",
-                "Short-form requests and polish notes.",
-                {
-                    "marker": "seed:ideas:v1-min",
-                    "content": "Pitch the upgrade in 5 lines max. Include target users, channel touchpoints, and success criteria.",
-                },
-            ),
-        ],
-    ),
-    (
-        "Lounge",
-        [
-            ("lounge", "Low-noise chat for testers and devs.", None),
-            ("showcase", "Clips and screenshots of Marcia in action.", None),
-        ],
-    ),
-]
-
-
 logger = logging.getLogger("MarciaOS.DevHub")
 
 
@@ -161,7 +47,7 @@ class DevServerManager(commands.Cog):
     async def _bootstrap(self):
         await self.bot.wait_until_ready()
 
-        for guild_id in (DEV_GUILD_ID, TEST_GUILD_ID):
+        for guild_id in (DEV_GUILD_ID,):
             guild = self.bot.get_guild(guild_id)
             if not guild:
                 logger.warning("Managed guild not found (ID: %s)", guild_id)
@@ -170,9 +56,6 @@ class DevServerManager(commands.Cog):
             await self._ensure_channels(guild)
             await self._publish_info_panel(guild)
             await self._post_patch_notes(guild)
-
-            if guild_id == TEST_GUILD_ID:
-                await self._ensure_test_hub_layout(guild)
 
         if not self.info_updater.is_running():
             self.info_updater.start()
@@ -192,18 +75,6 @@ class DevServerManager(commands.Cog):
 
         for name, topic in EXTRA_CHANNELS:
             await self._get_or_create_channel(guild, name, topic=topic)
-
-    async def _ensure_test_hub_layout(self, guild: discord.Guild) -> None:
-        """Align the testing guild with the published playbook."""
-
-        for category_name, channels in TEST_LAYOUT:
-            category = await self._get_or_create_category(guild, category_name)
-            for name, topic, seed in channels:
-                channel = await self._get_or_create_channel(
-                    guild, name, topic=topic, category=category
-                )
-                if channel and seed:
-                    await self._seed_channel(channel, seed)
 
     async def _get_or_create_channel(
         self,
@@ -438,7 +309,7 @@ class DevServerManager(commands.Cog):
         
     @tasks.loop(minutes=30)
     async def info_updater(self):
-        for guild_id in (DEV_GUILD_ID, TEST_GUILD_ID):
+        for guild_id in (DEV_GUILD_ID,):
             guild = self.bot.get_guild(guild_id)
             if not guild:
                 continue

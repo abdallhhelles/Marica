@@ -232,7 +232,7 @@ class Utility(commands.Cog):
                 "Contact: use `/feedback` or DM the owner\n"
                 f"Invite link: {self._share_link}\n"
                 "Support station (keeps the uptime running): https://www.buymeacoffee.com/akrot\n"
-                "Official server: https://discord.gg/tuWX4sVR4Y"
+                "Official server: https://discord.gg/TneGDQXG"
             ),
             inline=False,
         )
