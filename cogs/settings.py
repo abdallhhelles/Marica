@@ -189,7 +189,7 @@ class Settings(commands.Cog):
         except asyncio.TimeoutError:
             return await self._safe_interaction_reply(
                 interaction,
-                content="⌛ Timed out. Try again from `/gyper setup` when ready.",
+                content="⌛ Timed out. Try again from `/setup` when ready.",
                 ephemeral=True,
             )
 
@@ -220,7 +220,7 @@ class Settings(commands.Cog):
         except asyncio.TimeoutError:
             return await self._safe_interaction_reply(
                 interaction,
-                content="⌛ Timed out. Try again from `/gyper setup` when ready.",
+                content="⌛ Timed out. Try again from `/setup` when ready.",
                 ephemeral=True,
             )
 
@@ -271,7 +271,7 @@ class Settings(commands.Cog):
         except asyncio.TimeoutError:
             return await self._safe_interaction_reply(
                 interaction,
-                content="⌛ Timed out. Open `/gyper setup` again when ready.",
+                content="⌛ Timed out. Open `/setup` again when ready.",
                 ephemeral=True,
             )
 
@@ -285,7 +285,7 @@ class Settings(commands.Cog):
                 return await msg.reply("✅ Auto-role cleared.")
             role = _role_from_message(msg, interaction.guild)
             if not role:
-                return await msg.reply("❌ Couldn't find that role. Try `/gyper setup` again.")
+                return await msg.reply("❌ Couldn't find that role. Try `/setup` again.")
             await update_setting(interaction.guild.id, "auto_role_id", role.id, interaction.guild.name)
             return await msg.reply(f"✅ Auto-role set to **{role.name}**.")
 
@@ -439,7 +439,7 @@ class Settings(commands.Cog):
                     await update_setting(guild.id, setting_key, found_channel.id, guild.name)
                     await msg.reply(f"✅ Linked **{found_channel.mention}**.")
                 else:
-                    await setup_channel.send("❌ Couldn't read that channel. Run `/gyper setup` again when you're ready.")
+                    await setup_channel.send("❌ Couldn't read that channel. Run `/setup` again when you're ready.")
 
             await setup_channel.send("🎚️ Mention the auto-role for new arrivals (or say `skip`).")
             role_msg = await self.bot.wait_for("message", check=check, timeout=120)
@@ -449,7 +449,7 @@ class Settings(commands.Cog):
                     await update_setting(guild.id, "auto_role_id", role.id, guild.name)
                     await role_msg.reply(f"✅ I'll tag newcomers with **{role.name}**.")
                 else:
-                    await setup_channel.send("❌ Couldn't find that role. Run `/gyper setup` again when ready.")
+                    await setup_channel.send("❌ Couldn't find that role. Run `/setup` again when ready.")
             else:
                 await setup_channel.send(_marcia_line("Leaving auto-role untouched."))
 
@@ -464,7 +464,7 @@ class Settings(commands.Cog):
                     await ignore_msg.reply("✅ Ignoring those channels.")
                 else:
                     await setup_channel.send(
-                        "❌ Couldn't read those channels. Use `/gyper setup` again if needed."
+                        "❌ Couldn't read those channels. Use `/setup` again if needed."
                     )
 
             await setup_channel.send(
@@ -478,17 +478,17 @@ class Settings(commands.Cog):
                     await unignore_msg.reply("✅ Channels removed from the ignore list.")
                 else:
                     await setup_channel.send(
-                        "❌ Couldn't read those channels. Use `/gyper setup` again if needed."
+                        "❌ Couldn't read those channels. Use `/setup` again if needed."
                     )
 
             await update_setting(guild.id, "server_offset_hours", -2, guild.name)
             await setup_channel.send("🕒 Clock set to **UTC-2** (game time). I'll ignore local clocks.")
 
             await setup_channel.send(
-                "🎉 Setup pass complete. Run `/gyper setup` in the server to verify links."
+                "🎉 Setup pass complete. Run `/setup` in the server to verify links."
             )
         except asyncio.TimeoutError:
-            await setup_channel.send("⌛ Timeout. Ping me again with `/gyper setup` when you're ready.")
+            await setup_channel.send("⌛ Timeout. Ping me again with `/setup` when you're ready.")
 
     async def _build_audit_embed(self, guild: discord.Guild | None) -> discord.Embed:
         data = await get_settings(guild.id) if guild else {}
@@ -531,7 +531,7 @@ class Settings(commands.Cog):
     def _build_help_embed(self) -> discord.Embed:
         embed = discord.Embed(
             title="🛠️ Marcia OS | Setup Intelligence",
-            description="Each feature below can be configured from the `/gyper setup` dropdown.",
+            description="Each feature below can be configured from the `/setup` dropdown.",
             color=0x3498db,
         )
         embed.add_field(
@@ -561,7 +561,7 @@ class Settings(commands.Cog):
         )
         embed.add_field(
             name="🛰️ Profile scan intake",
-            value="Where `/gyper scan` screenshots are read and logged.",
+            value="Where `/scan` screenshots are read and logged.",
             inline=False,
         )
         if self.is_marcia_server:
@@ -582,7 +582,7 @@ class Settings(commands.Cog):
         )
         embed.add_field(
             name="🎣 Trading terminal",
-            value="Run `/gyper setup_trade` in the channel you want the Fish-Link menu pinned.",
+            value="Run `/setup_trade` in the channel you want the Fish-Link menu pinned.",
             inline=False,
         )
         return embed

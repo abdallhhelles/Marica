@@ -360,7 +360,7 @@ class ProfileScanner(commands.Cog):
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
-                content="Run `/gyper scan` inside a server so I can link the scan to your guild.",
+                content="Run `/scan` inside a server so I can link the scan to your guild.",
                 ephemeral=True,
             )
 
@@ -369,7 +369,7 @@ class ProfileScanner(commands.Cog):
         except Exception:  # pragma: no cover - Discord edge
             return await self._safe_send(
                 ctx,
-                content="I couldn't open your DMs. Enable DMs and try `/gyper scan` again.",
+                content="I couldn't open your DMs. Enable DMs and try `/scan` again.",
                 ephemeral=True,
             )
 
@@ -1118,7 +1118,7 @@ class ProfileScanner(commands.Cog):
             title="🛰️ Profile logged",
             description=(
                 f"{random.choice(PROFILE_TAGLINES)}\n\n"
-                "`/gyper profile` shows your dossier; `/gyper leaderboard` compares XP and scan stats side by side."
+                "`/profile` shows your dossier; `/leaderboard` compares XP and scan stats side by side."
             ),
             color=0x3498db,
         )
@@ -1171,7 +1171,7 @@ class ProfileScanner(commands.Cog):
     def _build_duel_confirmation_embed(self, payload: dict) -> discord.Embed:
         embed = discord.Embed(
             title="⚔️ Duel score logged",
-            description="Score saved. Use `/gyper leaderboard` to compare duel results.",
+            description="Score saved. Use `/leaderboard` to compare duel results.",
             color=0xE67E22,
         )
         embed.add_field(name="Player", value=payload.get("player_name") or "Unknown", inline=False)

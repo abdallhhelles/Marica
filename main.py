@@ -109,12 +109,12 @@ class MarciaBot(commands.Bot):
             "- Tactical operations bot for Dark War Survival alliances across all servers.\n"
             "- Automated features: XP leveling on message activity, scheduled event reminders, "
             "scavenging contracts with streak tracking, trade matching, and profile scan snapshot caching.\n"
-            "- Key commands: /gyper commands, /gyper features, /gyper about, /gyper heroes, "
-            "/gyper event, /gyper remind, /gyper leaderboard, /gyper profile, "
-            "/gyper profile_review, /gyper inventory, /gyper scavenge.\n"
-            "- Admin tools: /gyper setup, /gyper setup_trade, /gyper refresh_commands, /gyper analytics.\n"
-            "- Event flow: /gyper event creates ops, reactions opt in, DM reminders follow.\n"
-            "- Profile scanning: /gyper scan DMs scan options to feed /gyper profile and /gyper leaderboard.\n"
+            "- Key commands: /commands, /features, /about, /heroes, "
+            "/event, /remind, /leaderboard, /profile, "
+            "/profile_review, /inventory, /scavenge.\n"
+            "- Admin tools: /setup, /setup_trade, /refresh_commands, /analytics.\n"
+            "- Event flow: /event creates ops, reactions opt in, DM reminders follow.\n"
+            "- Profile scanning: /scan DMs scan options to feed /profile and /leaderboard.\n"
         )
         return (
             "You are Marcia, a tactical operations AI for the Dark War Survival alliance hub. "
@@ -305,7 +305,7 @@ class MarciaBot(commands.Bot):
         logger.info("-" * 30)
         
         await self.change_presence(
-            activity=discord.Game(name="Dark War: Survival | /gyper commands"),
+            activity=discord.Game(name="Dark War: Survival | /commands"),
         )
 
     async def _is_reply_to_bot(self, message: discord.Message) -> bool:
@@ -385,7 +385,7 @@ class MarciaBot(commands.Bot):
             if await self._has_recent_bot_dm(message.channel):
                 return
             await message.reply(
-                "I can't answer direct DMs. Please head to the bot server and use `/gyper feedback`, "
+                "I can't answer direct DMs. Please head to the bot server and use `/feedback`, "
                 "or add a handler there for your concern. Official server: https://discord.gg/tuWX4sVR4Y"
             )
             return

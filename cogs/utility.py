@@ -229,7 +229,7 @@ class Utility(commands.Cog):
             name="Signals & Support",
             value=(
                 f"Owner: {owner_label}\n"
-                "Contact: use `/gyper feedback` or DM the owner\n"
+                "Contact: use `/feedback` or DM the owner\n"
                 f"Invite link: {self._share_link}\n"
                 "Support station (keeps the uptime running): https://www.buymeacoffee.com/akrot\n"
                 "Official server: https://discord.gg/tuWX4sVR4Y"
@@ -524,19 +524,19 @@ class Utility(commands.Cog):
     async def tips(self, ctx):
         """Random survival tips and bot tricks."""
         tips_list = [
-            "Use `/gyper remindme 60 Prepare for War` to get a DM in one hour.",
+            "Use `/remindme 60 Prepare for War` to get a DM in one hour.",
             "Mission timers run on Dark War Survival time (UTC-2).",
-            "Pin Fish-Link with `/gyper setup_trade` so traders can move fast without spam.",
-            "Use `/gyper remind` to schedule reminders or save templates for rapid ops pings.",
-            "Run `/gyper event` to stage ops with a codename, location, and optional role ping.",
-            "Need proof of power? `/gyper scan` DMs you scan options to update `/gyper profile` and `/gyper leaderboard` stats.",
-            "Inventory is sector-locked-`/gyper inventory` only shows loot from this server.",
-            "Clear stale drops with `/gyper clear` instead of manual pruning.",
-            "Use `/gyper features` or `/gyper commands` to onboard new survivors in seconds.",
+            "Pin Fish-Link with `/setup_trade` so traders can move fast without spam.",
+            "Use `/remind` to schedule reminders or save templates for rapid ops pings.",
+            "Run `/event` to stage ops with a codename, location, and optional role ping.",
+            "Need proof of power? `/scan` DMs you scan options to update `/profile` and `/leaderboard` stats.",
+            "Inventory is sector-locked-`/inventory` only shows loot from this server.",
+            "Clear stale drops with `/clear` instead of manual pruning.",
+            "Use `/features` or `/commands` to onboard new survivors in seconds.",
             "Keep a calm event channel-Marcia formats reminders so chatter stays low.",
-            "Check `/gyper leaderboard` exports if you need a TSV for spreadsheets.",
-            "Use `/gyper feedback` to report bugs or ideas without leaking server intel.",
-            "Browse `/gyper heroes` when you need a quick dossier before upgrades."
+            "Check `/leaderboard` exports if you need a TSV for spreadsheets.",
+            "Use `/feedback` to report bugs or ideas without leaking server intel.",
+            "Browse `/heroes` when you need a quick dossier before upgrades."
         ]
         await ctx.reply(f"💡 **TIP:** {random.choice(tips_list)}")
 
@@ -736,7 +736,7 @@ class Utility(commands.Cog):
         for i in range(len(options)):
             await poll_message.add_reaction(reactions[i])
 
-    @commands.hybrid_command(description="DM reminder after X minutes. /gyper remindme 10 Wake up")
+    @commands.hybrid_command(description="DM reminder after X minutes. /remindme 10 Wake up")
     async def remindme(self, ctx, minutes: int, *, task: str):
         """Set a reminder. !remindme 10 Wake Up"""
         await self._safe_send(ctx, content=f"⏰ Affirmative. Reminder set for `{task}`.")

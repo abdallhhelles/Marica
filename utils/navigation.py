@@ -8,11 +8,11 @@ import discord
 
 
 async def go_to_command_center(interaction: discord.Interaction) -> None:
-    """Share the /gyper commands directory without interactive menus."""
+    """Share the /commands directory without interactive menus."""
     utility = interaction.client.get_cog("Utility")
     if not utility:
         await interaction.response.send_message(
-            "Open `/gyper commands` to see the command directory.",
+            "Open `/commands` to see the command directory.",
             ephemeral=True,
         )
         return
