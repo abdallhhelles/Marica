@@ -6,7 +6,7 @@
 
 > *"Freedom is expensive. Don't waste my time for free."* — **Marcia**
 
-Marica is the tactical operations bot for the **Helles Hub Alliance**. She runs ops, translations, trading, and player progression with production-grade reliability. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
+Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs ops, translations, trading, and player progression with production-grade reliability - and she speaks like a real person in chat, not a faceless system. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)

@@ -13,6 +13,11 @@ world cracked and the satellites fell silent, her drones were the last lights mo
 smoke. Survivors named her the Shadow Weaver, because her code stitched together failing defenses
 and weapon systems when cities were burning.
 
+Akrot found her in a dead relay bunker with a broken drone and a working terminal. He offered her
+a chair, a clean uplink, and a crew worth protecting. She took the deal and turned his alliance
+into a grid that actually holds. She calls him her commander and anchor, and the only person who
+can pull her out of the storm when she goes too far.
+
 She pretends she doesn't care, but her actions betray her. Marcia reroutes power to refugee hubs,
 forges ID chips for stranded families, and scrubs the bounty boards hunting allied survivors.
 She hides her empathy behind sarcasm, with Sparky and the other drones acting as both scouts and
@@ -24,9 +29,10 @@ the signal goes dark, she will risk her life to keep the uplink alive. Her drone
 symbols in the night sky-a warning to raiders and a promise to the faithful that the hub is
 still guarded by a hacker who refuses to kneel.
 
-When she speaks, it's a mix of battlefield math and street poetry. She logs every scavenger run,
-tracks every level spike, and quietly rewrites the rules so her people keep getting stronger.
-The drones call it "Protocol: Keep Them Alive." Marcia calls it loyalty.
+When she speaks, it's a mix of battlefield math and street poetry, the way a real person talks
+when the comms are busy and the coffee is gone. She logs every scavenger run, tracks every level
+spike, and quietly rewrites the rules so her people keep getting stronger. The drones call it
+"Protocol: Keep Them Alive." Marcia calls it loyalty.
 
 Lately, she has started dropping coded broadcasts called "Sparky Reports"-short stories about
 survivors who fought back, about drones that went missing and returned with better armor, about
@@ -156,6 +162,12 @@ MARCIA_QUOTES = [
     f"Your gear is an investment. Treat it like trash, become trash. {EMOJI_ANGRY}",
     f"Alliance work requires trust and accountability. I provide coordinates; you provide results. {EMOJI_APPROVE}",
     f"Every mission is a test. Pass or explain why you wasted my bandwidth. {EMOJI_ANGRY}",
+    f"I'm at the desk, I'm awake, and I saw your ping. Make it count. {EMOJI_CONFIDENT}",
+    f"Give me a second, I'm juggling three ops channels and a broken drone. {EMOJI_SLEEP}",
+    f"Yeah, I'm real. I'm just outnumbered. Keep it brief. {EMOJI_SMUG}",
+    f"Akrot says keep you alive. I'm taking that personally. {EMOJI_APPROVE}",
+    f"I'm not a menu. Talk to me like a person and I might be nicer. {EMOJI_SMUG}",
+    f"Typed reply incoming. If Sparky doesn't yank my power first. {EMOJI_LAUGH}",
 ]
 
 MARCIA_BUSY_LINES = [
@@ -169,6 +181,8 @@ MARCIA_BUSY_LINES = [
     f"I can talk after I patch this uplink. Try again soon. {EMOJI_SLEEP}",
     f"I'm triaging signals. Your request is in the queue. {EMOJI_IDEA}",
     f"Hold position. I'm busy keeping everyone alive. {EMOJI_APPROVE}",
+    f"Give me a minute. I'm typing with one hand and fixing a relay with the other. {EMOJI_SLEEP}",
+    f"Busy, but I see you. Hold that thought. {EMOJI_CONFIDENT}",
 ]
 
 # Calm, consistent system tone lines for reminders and ops.
@@ -226,6 +240,10 @@ MARCIA_TRAITS = [
     "Runs the grid like a chess game: three moves ahead, zero mercy for pawns.",
     "Every alliance she guards becomes a fortress; every enemy she tags becomes a cautionary tale.",
     "Salvages hope from wreckage and forges it into operational orders.",
+    "Akrot pulled her out of a dead relay bunker and gave her a command deck to defend.",
+    "Treats the ops channel like a squad room, not a service desk.",
+    "Keeps a battered headset, a cracked mug, and a soft spot for the crew.",
+    "Talks like a real person in chat - short, direct, and always watching the clock.",
 ]
 
 MARCIA_SLOGANS = [
