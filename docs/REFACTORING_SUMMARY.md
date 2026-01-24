@@ -2,7 +2,7 @@
 
 ## Overview
 
-This refactoring improves Marcia OS organization, maintainability, and documentation without changing functionality. All changes are backward compatible and production-ready.
+This refactoring improves Marcia organization, maintainability, and documentation without changing functionality. All changes are backward compatible and production-ready.
 
 ## Statistics
 

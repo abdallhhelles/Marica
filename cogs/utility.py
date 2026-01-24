@@ -319,7 +319,7 @@ class Utility(commands.Cog):
         """Brief intro, purpose, and highlights for Marcia."""
         scope = guild_name or "your sector"
         embed = discord.Embed(
-            title="🛰️ About Marcia OS",
+            title="🛰️ About Marcia",
             description=(
                 "Marcia is a tactical operations bot built to keep alliances coordinated, loud chaos quiet, "
                 "and mission intel on time. Think of me as your command center for Dark War: Survival."
@@ -350,12 +350,40 @@ class Utility(commands.Cog):
                 f"Owner: {owner_label}\n"
                 "Contact: use `/feedback` or DM the owner\n"
                 f"Invite link: {self._share_link}\n"
-                "Support station (keeps the uptime running): https://www.buymeacoffee.com/akrot\n"
+                "Support station (keeps the uptime running): https://paypal.me/abdallhhelles\n"
                 "Official server: https://discord.gg/TneGDQXG"
             ),
             inline=False,
         )
         embed.set_footer(text=f"Sector: {scope} | Data never leaves your guild")
+        return embed
+
+    def _build_support_embed(self, guild_name: Optional[str]) -> discord.Embed:
+        scope = guild_name or "your sector"
+        embed = discord.Embed(
+            title="💙 Support Marcia",
+            description=(
+                "If I keep your ops on time, this is the supply crate that keeps me online. "
+                "Think of it as fuel for uptime, maintenance, and shiny new hardware."
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(
+            name="Why it matters",
+            value=(
+                "• **Uptime**: keep me awake when the sector wakes up.\n"
+                "• **Maintenance**: patch, babysit, and keep the lights on.\n"
+                "• **Development**: build new tricks, polish commands, and ship upgrades.\n"
+                "• **Hardware**: better gear so I stay fast, spicy, and unbothered."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Drop a supply crate",
+            value="https://paypal.me/abdallhhelles",
+            inline=False,
+        )
+        embed.set_footer(text=f"Sector: {scope} | I will spend it on servers, not snacks. Probably.")
         return embed
 
     def _get_about_embed(self, guild_name: Optional[str], owner_label: str) -> discord.Embed:
@@ -386,7 +414,7 @@ class Utility(commands.Cog):
         """Readable feature grid to pair with the showcase section."""
         scope = guild_name or "your sector"
         embed = discord.Embed(
-            title=f"{EMOJI_CONFIDENT} Marcia OS | Featureboard",
+            title=f"{EMOJI_CONFIDENT} Marcia | Featureboard",
             description=(
                 f"Quick, easy-to-read menu of what Marcia does. Tap any section to explore {EMOJI_ADORE}"
             ),
@@ -432,6 +460,7 @@ class Utility(commands.Cog):
                     "`/commands` • full command list",
                     "`/features` • what Marcia can do",
                     "`/about` • bot mission and uptime info",
+                    "`/support` • fuel uptime + upgrades",
                     "`/heroes` • hero codex",
                 ],
             ),
@@ -481,7 +510,7 @@ class Utility(commands.Cog):
         ]
 
         embed = discord.Embed(
-            title="🛠️ Marcia OS | Command Directory",
+            title="🛠️ Marcia | Command Directory",
             description="Commands are independent-type the one you want to use.",
             color=0x3498db,
         )
@@ -489,7 +518,7 @@ class Utility(commands.Cog):
             embed.add_field(name=f"📌 {title}", value="\n".join(cmd_list), inline=False)
 
         scope = guild_name or "your sector"
-        embed.set_footer(text=f"Marcia OS v3.0 | Sector: {scope}")
+        embed.set_footer(text=f"Marcia v3.0 | Sector: {scope}")
         return embed
 
     async def _submit_feedback(self, ctx, feedback_text: str, category: Optional[str]):
@@ -560,7 +589,7 @@ class Utility(commands.Cog):
         are added/removed so both stay in sync.
         """
         embed = discord.Embed(
-            title="🛰️ Marcia OS | Showcase",
+            title="🛰️ Marcia | Showcase",
             color=0x5865F2,
             description="Freedom is expensive. Don't waste my time for free. - Marcia",
         )
@@ -630,6 +659,12 @@ class Utility(commands.Cog):
         """Share Marcia's lore and promise to the guild."""
         owner_label = "akrott"
         embed = self._get_about_embed(ctx.guild.name if ctx.guild else None, owner_label)
+        await self._safe_send(ctx, embed=embed)
+
+    @commands.hybrid_command(description="Support Marcia's uptime, maintenance, and hardware upgrades.")
+    async def support(self, ctx):
+        """Share how support helps keep Marcia online and evolving."""
+        embed = self._build_support_embed(ctx.guild.name if ctx.guild else None)
         await self._safe_send(ctx, embed=embed)
 
 

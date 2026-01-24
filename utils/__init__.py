@@ -1,5 +1,5 @@
 """
-Utility modules for Marcia OS.
+Utility modules for Marcia.
 
 This package contains shared helper functions and constants used across the bot:
 - assets: Static data (quotes, lore, scavenge outcomes, etc.)

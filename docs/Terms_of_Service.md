@@ -1,7 +1,7 @@
-# Terms of Service for Marcia OS
+# Terms of Service for Marcia
 **Last Updated: March 2026**
 
-By using Marcia OS you agree to these terms. Marcia is a private, owner-operated bot and is not intended for public installation or third-party hosting.
+By using Marcia you agree to these terms. Marcia is a private, owner-operated bot and is not intended for public installation or third-party hosting.
 
 ### 1. User Requirements
 * You must comply with the **Discord Terms of Service** and **Community Guidelines**, including age requirements.
@@ -19,7 +19,7 @@ By using Marcia OS you agree to these terms. Marcia is a private, owner-operated
 * The owner is responsible for backing up server data.
 
 ### 4. Service Availability
-* Marcia OS is provided **“as is.”** Outages, missed reminders, or lost progress may occur.
+* Marcia is provided **“as is.”** Outages, missed reminders, or lost progress may occur.
 * Admins may pause or remove features (e.g., leveling, Fish-Link) at their discretion for server safety.
 
 ### 5. Moderation & Enforcement
@@ -27,4 +27,4 @@ By using Marcia OS you agree to these terms. Marcia is a private, owner-operated
 * Severe abuse (raiding, phishing, malware) will be reported to Discord Trust & Safety.
 
 ### 6. Limitation of Liability
-The developers and server operators are not liable for any damages arising from your use of Marcia OS, including data loss or interactions with other users through Fish-Link, event pings, trading, or analytics dashboards.
+The developers and server operators are not liable for any damages arising from your use of Marcia, including data loss or interactions with other users through Fish-Link, event pings, trading, or analytics dashboards.

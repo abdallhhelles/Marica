@@ -413,7 +413,7 @@ class Settings(commands.Cog):
 
         try:
             intro = (
-                "🛰️ **Marcia OS // Guided Setup**\n"
+                "🛰️ **Marcia // Guided Setup**\n"
                 f"Sector: **{guild.name}**\n"
                 "I'll tune your channels and auto-role. Answer in this channel or I'll time out."
             )
@@ -495,7 +495,7 @@ class Settings(commands.Cog):
         profile_channel_id = await get_profile_channel(guild.id) if guild else None
 
         embed = discord.Embed(
-            title="🛰️ Marcia OS | Sector Audit",
+            title="🛰️ Marcia | Sector Audit",
             description="Reviewing comms, roles, and timers for Dark War Survival ops.",
             color=0x5865F2,
         )
@@ -530,7 +530,7 @@ class Settings(commands.Cog):
 
     def _build_help_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            title="🛠️ Marcia OS | Setup Intelligence",
+            title="🛠️ Marcia | Setup Intelligence",
             description="Each feature below can be configured from the `/setup` dropdown.",
             color=0x3498db,
         )

@@ -289,7 +289,7 @@ class Trading(commands.Cog):
                 name=f"{rarity} Tier", value=rarity_block(data, rarity), inline=False
             )
 
-        embed.set_footer(text=f"Sector: {channel.guild.name} | Marcia OS")
+        embed.set_footer(text=f"Sector: {channel.guild.name} | Marcia")
         view = FishControlView(self.bot, persistent=True)
 
         if target_msg:

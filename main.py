@@ -1,6 +1,6 @@
 """
 FILE: main.py
-USE: Central entry point for Marcia OS.
+USE: Central entry point for Marcia.
 FEATURES: Handles initialization, Cog loading, SQL database connectivity, and persistent views.
 """
 import asyncio
@@ -825,7 +825,7 @@ async def main():
     config = load_config()
 
     if not config.token:
-        logger.error("✘ TOKEN missing. Please set the TOKEN environment variable before starting Marcia OS.")
+        logger.error("✘ TOKEN missing. Please set the TOKEN environment variable before starting Marcia.")
         return
 
     bot = MarciaBot(config)

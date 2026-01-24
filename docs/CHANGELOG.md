@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Marcia OS are documented in this file.
+All notable changes to Marcia are documented in this file.
 
 ## [Unreleased] - Code Organization Refactor
 

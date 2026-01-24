@@ -81,15 +81,15 @@ class MarciaServer(commands.Cog):
                 analytics_channel = await self._ensure_channel(
                     guild,
                     ANALYTICS_CHANNEL_NAME,
-                    topic="Marcia OS network pulse, stats, and updates.",
+                    topic="Marcia network pulse, stats, and updates.",
                     read_only=True,
                 )
             else:
                 await self._apply_read_only_permissions(analytics_channel)
-                if analytics_channel.topic != "Marcia OS network pulse, stats, and updates.":
+                if analytics_channel.topic != "Marcia network pulse, stats, and updates.":
                     try:
                         await analytics_channel.edit(
-                            topic="Marcia OS network pulse, stats, and updates.",
+                            topic="Marcia network pulse, stats, and updates.",
                             reason="Marcia Server align analytics channel topic",
                         )
                     except Exception:
