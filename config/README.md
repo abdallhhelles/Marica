@@ -1,6 +1,6 @@
 # Configuration Files
 
-This directory contains static configuration templates used by Marcia OS.
+This directory contains static configuration templates used by Marcia.
 
 ## Files
 

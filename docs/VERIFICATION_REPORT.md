@@ -1,4 +1,4 @@
-# Verification Report — Marcia OS Refactoring
+# Verification Report — Marcia Refactoring
 
 ## Date: January 10, 2026
 ## Branch: copilot/refine-code-and-organize-files

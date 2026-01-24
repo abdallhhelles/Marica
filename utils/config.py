@@ -1,5 +1,5 @@
 """
-Centralized configuration loader for Marcia OS.
+Centralized configuration loader for Marcia.
 Keep all environment parsing here to avoid drift across modules.
 """
 from __future__ import annotations
@@ -95,7 +95,7 @@ def load_config() -> MarciaConfig:
         ai_api_key=_get_env("MARCIA_AI_API_KEY"),
         ai_base_url=_get_env("MARCIA_AI_BASE_URL", "https://openrouter.ai/api/v1"),
         ai_model=_get_env("MARCIA_AI_MODEL", "meta-llama/llama-3.1-8b-instruct:free"),
-        ai_app_name=_get_env("MARCIA_AI_APP_NAME", "Marcia OS"),
+        ai_app_name=_get_env("MARCIA_AI_APP_NAME", "Marcia"),
         ai_app_url=_get_env("MARCIA_AI_APP_URL"),
         mention_cooldown=_get_float("MARCIA_MENTION_COOLDOWN", 45.0),
         busy_cooldown=_get_float("MARCIA_BUSY_COOLDOWN", 120.0),

@@ -1,5 +1,5 @@
 """
-Structured telemetry helpers for Marcia OS.
+Structured telemetry helpers for Marcia.
 Records command latency, external call timing, task failures, and reconnect events.
 """
 from __future__ import annotations

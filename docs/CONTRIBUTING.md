@@ -1,6 +1,6 @@
-# Contributing to Marcia OS
+# Contributing to Marcia
 
-Thank you for your interest in contributing to Marcia OS! This guide outlines the codebase structure and best practices.
+Thank you for your interest in contributing to Marcia! This guide outlines the codebase structure and best practices.
 
 ## Code Organization
 
@@ -177,4 +177,4 @@ If you have questions about the codebase structure or contribution guidelines, p
 2. Review the documentation in `docs/`
 3. Open an issue for clarification
 
-Thank you for contributing to Marcia OS!
+Thank you for contributing to Marcia!
