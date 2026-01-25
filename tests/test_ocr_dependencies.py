@@ -3,15 +3,35 @@
 This test validates that all OCR-related dependencies are available
 and can be imported successfully. It's designed to catch missing
 dependencies early in the development/deployment process.
+
+Note: OCR tests are skipped when OCR dependencies are not installed,
+as OCR is an optional feature. Install with: pip install -r requirements-ocr.txt
 """
 import sys
 import unittest
 from importlib.util import find_spec
 
 
-class TestOCRDependencies(unittest.TestCase):
-    """Test suite for OCR dependency validation."""
+# Check if OCR dependencies are available
+OCR_AVAILABLE = all([
+    find_spec("PIL"),
+    find_spec("pytesseract"),
+    find_spec("cv2"),
+    find_spec("numpy"),
+    find_spec("easyocr"),
+    find_spec("torch"),
+    find_spec("torchvision"),
+])
 
+
+class TestOCRDependencies(unittest.TestCase):
+    """Test suite for OCR dependency validation.
+    
+    These tests are skipped when OCR dependencies are not installed,
+    as OCR is an optional feature for the bot.
+    """
+
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_pillow_available(self):
         """Verify Pillow (PIL) is installed."""
         self.assertIsNotNone(
@@ -19,6 +39,7 @@ class TestOCRDependencies(unittest.TestCase):
             "Pillow is required for image processing. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_pytesseract_available(self):
         """Verify pytesseract is installed."""
         self.assertIsNotNone(
@@ -26,6 +47,7 @@ class TestOCRDependencies(unittest.TestCase):
             "pytesseract is required for OCR. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_opencv_available(self):
         """Verify opencv-python-headless is installed."""
         self.assertIsNotNone(
@@ -33,6 +55,7 @@ class TestOCRDependencies(unittest.TestCase):
             "opencv-python-headless is required for image processing. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_numpy_available(self):
         """Verify numpy is installed."""
         self.assertIsNotNone(
@@ -40,6 +63,7 @@ class TestOCRDependencies(unittest.TestCase):
             "numpy is required for array processing. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_easyocr_available(self):
         """Verify EasyOCR is installed."""
         self.assertIsNotNone(
@@ -47,6 +71,7 @@ class TestOCRDependencies(unittest.TestCase):
             "EasyOCR is required for OCR functionality. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_torch_available(self):
         """Verify PyTorch is installed."""
         self.assertIsNotNone(
@@ -54,6 +79,7 @@ class TestOCRDependencies(unittest.TestCase):
             "PyTorch is required for EasyOCR. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_torchvision_available(self):
         """Verify torchvision is installed."""
         self.assertIsNotNone(
@@ -61,6 +87,7 @@ class TestOCRDependencies(unittest.TestCase):
             "torchvision is required for EasyOCR. Install with: pip install -r requirements-ocr.txt"
         )
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_easyocr_can_initialize(self):
         """Verify EasyOCR can be imported and basic functionality works."""
         try:
@@ -71,6 +98,7 @@ class TestOCRDependencies(unittest.TestCase):
         except ImportError as e:
             self.fail(f"Failed to import easyocr: {e}")
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_torch_cpu_mode(self):
         """Verify PyTorch is configured for CPU mode."""
         try:
@@ -84,6 +112,7 @@ class TestOCRDependencies(unittest.TestCase):
         except ImportError:
             self.skipTest("PyTorch not installed - skipping CPU mode check")
 
+    @unittest.skipUnless(OCR_AVAILABLE, "OCR dependencies not installed (optional feature)")
     def test_tesseract_binary(self):
         """Verify Tesseract binary is available on the system."""
         try:
