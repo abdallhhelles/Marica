@@ -219,7 +219,7 @@ MARCIA_CAPABILITIES = [
     f"{EMOJI_CONFIDENT} UTC-2 scheduling so the alliance moves on one clock.",
     f"{EMOJI_ADORE} Scavenge loops, streaks, and loot trading to keep crews fed.",
     f"{EMOJI_APPROVE} Leaderboards across XP + profile stats, with server tags for global reads.",
-    f"{EMOJI_SMUG} Profile scan OCR for CP/kills/VIP/likes with admin review controls.",
+    f"{EMOJI_SMUG} Profile scans capture CP/kills/VIP/likes with admin review controls.",
     f"{EMOJI_ANGRY} Per-guild data isolation-no cross-sector bleed.",
 ]
 
