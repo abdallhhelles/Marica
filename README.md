@@ -37,7 +37,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 * **Cleanup & reuse:** `/event_remove <codename>` removes an operation; templates can be archived and reused.
 
 ### Profile scanning (OCR)
-* **Channel guard:** `/setup_profile_channel` scopes ingestion to a specific channel; other channels are ignored by design.
+* **DM intake:** `/scan` opens a DM flow; uploads happen privately and stats are linked to your server.
 * **Metric extraction:** Parses CP, kills, likes, VIP, level, server, and alliance from uploaded screenshots.
 * **Review & ranking:** `/profile_stats` shows the last snapshot; `/profile_leaderboard` surfaces the top CP/kills/likes/VIP/level.
 * **Health checks:** `python ocr/diagnostics.py` verifies dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
