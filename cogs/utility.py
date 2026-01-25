@@ -13,7 +13,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils.http_client import CircuitBreakerOpen
+from deep_translator import GoogleTranslator
 
 from utils.assets import (
     EMOJI_ADORE,
@@ -192,36 +192,18 @@ class Utility(commands.Cog):
         return None
 
     async def _translate_text(self, text: str, dest: str) -> str:
-        """Translate text using the public googleapis endpoint without googletrans."""
-        params = {
-            "client": "gtx",
-            "sl": "auto",
-            "tl": dest,
-            "dt": "t",
-            "q": text,
-        }
+        """Translate text using deep-translator's Google backend."""
+        loop = asyncio.get_running_loop()
+
+        def _translate() -> str:
+            translator = GoogleTranslator(source="auto", target=dest)
+            return translator.translate(text)
 
         try:
-            response = await self.bot.http_client.request(
-                "translate",
-                "GET",
-                "https://translate.googleapis.com/translate_a/single",
-                params=params,
-                retries=2,
-                safe=True,
-            )
-            response.raise_for_status()
-        except CircuitBreakerOpen as exc:
-            self.log.warning("Translate skipped: %s", exc)
-            raise
+            return await loop.run_in_executor(None, _translate)
         except Exception as exc:
             self.log.warning("Translate request failed: %s", exc)
             raise
-
-        payload = response.json()
-        # API returns [[['translated sentence', 'original sentence', ...], ...], ...]
-        translated_chunks = payload[0]
-        return "".join(chunk[0] for chunk in translated_chunks if chunk and chunk[0])
 
     def _chunk_text(self, text: str, limit: int) -> list[str]:
         if not text:

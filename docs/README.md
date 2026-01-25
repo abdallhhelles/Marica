@@ -126,7 +126,7 @@ apt-get update && apt-get install -y tesseract-ocr \
 
 Notes:
 * Keep the command on one line in panel settings; do not rely on interactive consoles.
-* Remove or pin conflicting preinstalls (e.g., `googletrans==4.0.0rc1` forces `httpx==0.13.3` and breaks the bot). Lock `httpx` to the version in `requirements.txt` if your host injects extras.
+* Translation uses `deep-translator` (Google backend). Avoid legacy `googletrans` packages that pin incompatible `httpx` versions, or isolate them in a separate venv.
 
 ### Local development
 Clone the repo, create `.env`, install dependencies (include OCR if you need scanning), and run `python main.py` from the repo root. The bot pins its working directory automatically.
@@ -188,6 +188,6 @@ TOKEN=your_discord_bot_token_here
 ## Operations & troubleshooting
 * **`ModuleNotFoundError: cogs`** — The bot forces its working directory to the repo root. If the error appears on panel hosts, ensure `main.py` and `cogs/` are co-located and the start command runs from this folder.
 * **Profile scans are blank** — Confirm `tesseract` is installed, OCR extras are present (from `requirements.txt`), and templates match your screenshot layout (see [OCR_SETUP.md](OCR_SETUP.md)).
-* **HTTP client conflicts** — Third-party images that preinstall `googletrans==4.0.0rc1` downgrade `httpx`. Re-pin to the version in `requirements.txt` and remove conflicting packages.
+* **HTTP client conflicts** — Third-party images that preinstall `googletrans==4.0.0rc1` downgrade `httpx`. Remove it or isolate it in a separate venv (e.g., `/home/container/venv_googletrans`) so the bot can keep `httpx==0.28.1`.
 
 ---
