@@ -230,6 +230,15 @@ async def init_db():
         ''')
 
         await db.execute('''
+            CREATE TABLE IF NOT EXISTS scanner_config (
+                guild_id INTEGER PRIMARY KEY,
+                profile_scan_enabled INTEGER,
+                duel_scan_enabled INTEGER,
+                updated_at INTEGER
+            )
+        ''')
+
+        await db.execute('''
             CREATE TABLE IF NOT EXISTS profile_snapshots (
                 guild_id INTEGER,
                 user_id INTEGER,
@@ -779,6 +788,8 @@ async def get_fish_inventory(guild_id: int, user_id: int) -> list[aiosqlite.Row]
 
 # --- SERVER SETTINGS HELPERS ---
 
+SCANNER_CONFIG_KEYS = ("profile_scan_enabled", "duel_scan_enabled")
+
 async def get_settings(guild_id: int) -> dict | None:
     now = time.monotonic()
     cached = _SETTINGS_CACHE.get(guild_id)
@@ -804,6 +815,50 @@ async def update_setting(guild_id: int, column: str, value: int | str | None, se
         ''', (guild_id, server_name, value))
         await db.commit()
     _SETTINGS_CACHE.pop(guild_id, None)
+
+async def get_scanner_config(guild_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM scanner_config WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def upsert_scanner_config(
+    guild_id: int,
+    *,
+    profile_scan_enabled: int | None,
+    duel_scan_enabled: int | None,
+) -> dict | None:
+    now_ts = int(time.time())
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO scanner_config (
+                guild_id,
+                profile_scan_enabled,
+                duel_scan_enabled,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                profile_scan_enabled = excluded.profile_scan_enabled,
+                duel_scan_enabled = excluded.duel_scan_enabled,
+                updated_at = excluded.updated_at
+            ''',
+            (guild_id, profile_scan_enabled, duel_scan_enabled, now_ts),
+        )
+        await db.commit()
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM scanner_config WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
 
 
 async def get_ignored_channels(guild_id: int) -> list[int]:

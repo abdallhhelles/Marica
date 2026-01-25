@@ -1,6 +1,6 @@
 # OCR setup and troubleshooting
 
-This guide keeps `/scan_profile` consistent across the owner-managed environment. It is not intended for public distribution or third-party hosting.
+This guide keeps `/scan` (hybrid command) consistent across owner-managed installs. It is not intended for public distribution or third-party hosting.
 
 ## Provisioning checklist
 1. Install Python packages:
@@ -20,7 +20,7 @@ Profile scanning runs purely on CPU by default (see `GPU = False` in `ocr/ocr_ru
 and want faster scans, install the matching CUDA wheels for torch/torchvision and flip that flag to `True`.
 
 ## Template workflow (EasyOCR crops)
-EasyOCR uses bounding boxes from `ocr/boxes_ratios.json`. If your screenshot layout differs from the default:
+EasyOCR uses bounding boxes from `ocr/boxes_ratios.json`. If your screenshot layout differs:
 1. Place a representative profile screenshot in `shots/`.
 2. Build boxes: `python ocr/box_picker.py` (click/drag each field).
 3. Validate: `python ocr/ocr_runner.py` and adjust boxes until every field reads cleanly.
