@@ -91,6 +91,7 @@ class MarciaBot(commands.Bot):
         self._message_command_dedupe_window = 30.0
         self._metrics_task: asyncio.Task | None = None
         self._interaction_started_at: dict[int, tuple[float, str]] = {}
+        self._message_invocation_ids: dict[int, str] = {}
         self._ai_memory: dict[int, deque[dict[str, str]]] = {}
         self._ai_memory_limit = 12
 
@@ -397,7 +398,7 @@ class MarciaBot(commands.Bot):
                         invocation_id,
                     )
                     return
-                setattr(message, "_marcia_invocation_id", invocation_id)
+                self._message_invocation_ids[message.id] = invocation_id
                 command_name = (
                     ctx.command.qualified_name
                     if ctx.command
@@ -445,7 +446,7 @@ class MarciaBot(commands.Bot):
                     invocation_id,
                 )
                 return
-            setattr(message, "_marcia_invocation_id", invocation_id)
+            self._message_invocation_ids[message.id] = invocation_id
             command_name = (
                 ctx.command.qualified_name
                 if ctx.command
@@ -586,7 +587,9 @@ class MarciaBot(commands.Bot):
 
     async def on_command(self, ctx):
         setattr(ctx, "_marcia_started_at", time.monotonic())
-        invocation_id = getattr(ctx.message, "_marcia_invocation_id", None)
+        invocation_id = None
+        if ctx.message:
+            invocation_id = self._message_invocation_ids.pop(ctx.message.id, None)
         if invocation_id is None:
             invocation_id = uuid.uuid4().hex
         setattr(ctx, "_marcia_invocation_id", invocation_id)
