@@ -354,13 +354,16 @@ class ProfileScanner(commands.Cog):
     # --------------------
     @commands.hybrid_command(
         name="scan",
-        description="Open the scan menu.",
+        description="Start a scan and get the upload prompt in DMs.",
     )
     async def scan(self, ctx):
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
-                content="Run `/scan` inside a server so I can link the scan to your guild.",
+                content=(
+                    "Run `/scan` inside the server where you want the stats to count. "
+                    "I'll DM you the upload prompt."
+                ),
                 ephemeral=True,
             )
 
@@ -385,18 +388,21 @@ class ProfileScanner(commands.Cog):
                 )
 
             embed = discord.Embed(
-                title="🛰️ Scan menu",
-                description="Pick a scan type and send your screenshot here.",
+                title="🛰️ Scan setup",
+                description=(
+                    "1) Pick a scan. 2) Upload a clear screenshot here (PNG/JPEG/WEBP). "
+                    "3) I’ll DM results."
+                ),
                 color=0x3498DB,
             )
             embed.add_field(
                 name="Profile scan",
-                value="Capture stats from a profile screenshot.",
+                value="Open your profile screen so stats and the header are fully visible.",
                 inline=False,
             )
             embed.add_field(
                 name="Duel score scan",
-                value="Capture Duel Week off-day scores.",
+                value="Use the Duel Week off-day results screen with the score visible.",
                 inline=False,
             )
             view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
@@ -465,7 +471,7 @@ class ProfileScanner(commands.Cog):
 
         if pending.scan_type == "duel" and not (cv2 and pytesseract and np):
             await message.reply(
-                "Duel score scan unavailable. Install Tesseract + pytesseract and OpenCV to enable OCR."
+                "Duel score scan is offline right now. Ask an admin to enable scanning on this bot."
             )
             self._pending_scans.pop(message.author.id, None)
             return
@@ -501,8 +507,9 @@ class ProfileScanner(commands.Cog):
         await self._scan_queue.put(job)
         position = self._scan_queue.qsize()
         queue_note = f"Global queue position: {position}."
+        scan_label = "profile scan" if pending.scan_type == "profile" else "duel score scan"
         await message.reply(
-            f"📡 Scan queued for **{pending.scan_type}**. {queue_note} I'll DM results when ready."
+            f"📡 {scan_label.title()} queued. {queue_note} I'll DM results when ready."
         )
         self._pending_scans.pop(message.author.id, None)
 
@@ -532,6 +539,25 @@ class ProfileScanner(commands.Cog):
             parsed, raw_text, ocr_note = await self._perform_ocr(
                 job.image_bytes, filename=job.filename, persisted_path=cached_path
             )
+            if not self._has_profile_metrics(parsed):
+                if ocr_note and any(
+                    phrase in ocr_note
+                    for phrase in (
+                        "isn't configured",
+                        "not enabled",
+                        "Scan templates are missing",
+                        "Scan templates are empty",
+                        "required system tools are missing",
+                    )
+                ):
+                    await job.message.reply(
+                        "Profile scan is offline right now. Ask an admin to enable scanning for this bot."
+                    )
+                    return
+                await job.message.reply(
+                    "I couldn't read that screenshot. Send a full-screen profile image with stats clearly visible."
+                )
+                return
             payload = self._build_payload(
                 user, image_url, parsed, raw_text, cached_path
             )
@@ -574,13 +600,9 @@ class ProfileScanner(commands.Cog):
                 if error == "not_duel_week":
                     message = "That screenshot doesn't look like the Duel Week off-day screen."
                 elif error == "ocr_missing":
-                    message = (
-                        "Duel score scan unavailable. Install Tesseract + pytesseract and OpenCV to enable OCR."
-                    )
+                    message = "Duel score scan is offline right now. Ask an admin to enable scanning."
                 elif error == "tesseract_missing":
-                    message = (
-                        "Duel score scan unavailable. Install the Tesseract binary to enable OCR."
-                    )
+                    message = "Duel score scan is offline right now. Ask an admin to enable scanning."
                 else:
                     message = "I couldn't read that duel score screenshot."
                 await job.message.reply(message)
@@ -723,13 +745,11 @@ class ProfileScanner(commands.Cog):
                         parsed.update(_parse_profile_text(pytesseract_text))
                     elif ocr_note is None:
                         if self._pytesseract_missing:
-                            ocr_note = "Pytesseract is installed but the Tesseract binary is missing."
+                            ocr_note = "Scanning is unavailable because the required system tools are missing."
                         elif not (pytesseract and Image):
-                            ocr_note = (
-                                "Profile scan dependencies are missing; install them from requirements.txt."
-                            )
+                            ocr_note = "Profile scanning is not enabled on this bot yet."
                         else:
-                            ocr_note = "Profile scan could not read this image."
+                            ocr_note = "I couldn't read this image. Try a clearer, full-screen screenshot."
 
                 if not parsed and self.ocr_space_api_key:
                     api_text, api_note = await self._run_ocr_space(image_bytes, filename)
@@ -778,20 +798,20 @@ class ProfileScanner(commands.Cog):
             resp.raise_for_status()
         except CircuitBreakerOpen as exc:  # pragma: no cover - network edge
             self.log.warning("OCR.space circuit breaker open: %s", exc)
-            return "", "External OCR is temporarily unavailable."
+            return "", "External scanning is temporarily unavailable."
         except Exception as exc:  # pragma: no cover - network edge
             self.log.warning("OCR.space request failed: %s", exc)
-            return "", "External OCR request failed."
+            return "", "External scan request failed."
 
         try:
             payload = resp.json()
         except ValueError:
             self.log.warning("OCR.space returned non-JSON response")
-            return "", "External OCR response was malformed."
+            return "", "External scan response was malformed."
 
         if payload.get("IsErroredOnProcessing"):
             msg = payload.get("ErrorMessage") or payload.get("ErrorMessageText")
-            note = msg if isinstance(msg, str) else "External OCR service reported an error."
+            note = msg if isinstance(msg, str) else "External scan service reported an error."
             return "", note
 
         results = payload.get("ParsedResults") or []
@@ -799,7 +819,7 @@ class ProfileScanner(commands.Cog):
         combined = "\n".join(filter(None, text_blocks)).strip()
 
         if not combined:
-            return "", "External OCR did not return any text."
+            return "", "External scan service did not return any text."
 
         return combined, None
 
@@ -888,9 +908,7 @@ class ProfileScanner(commands.Cog):
 
         if not (easyocr and cv2 and np):
             self._easyocr_ready = False
-            self._easyocr_failure_reason = (
-                "EasyOCR unavailable. Install OCR extras with `pip install -r requirements.txt`."
-            )
+            self._easyocr_failure_reason = "Profile scanning isn't configured on this bot."
             self.log.warning(self._easyocr_failure_reason)
             return False
 
@@ -900,7 +918,7 @@ class ProfileScanner(commands.Cog):
 
             if not BOXES_PATH.exists():
                 self._easyocr_ready = False
-                self._easyocr_failure_reason = f"OCR bounding boxes not found at {BOXES_PATH}."
+                self._easyocr_failure_reason = f"Scan templates are missing at {BOXES_PATH}."
                 self.log.warning(self._easyocr_failure_reason)
                 return False
 
@@ -917,7 +935,7 @@ class ProfileScanner(commands.Cog):
             self._easyocr_boxes = boxes
             self._easyocr_reader = reader
             self._easyocr_ready = bool(boxes)
-            self._easyocr_failure_reason = None if self._easyocr_ready else "OCR templates are empty."
+            self._easyocr_failure_reason = None if self._easyocr_ready else "Scan templates are empty."
             if not self._easyocr_ready:
                 self.log.warning(self._easyocr_failure_reason)
             return self._easyocr_ready
@@ -1104,10 +1122,7 @@ class ProfileScanner(commands.Cog):
             ingame.append(status)
         embed.add_field(name="Captured Stats", value="\n".join(ingame), inline=False)
         if not payload.get("raw_ocr"):
-            footer = ocr_note or (
-                "Profile scan unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
-                " auto-parsing."
-            )
+            footer = ocr_note or "Profile scan couldn't read this screenshot."
             embed.set_footer(text=footer)
         return embed
 
@@ -1137,10 +1152,7 @@ class ProfileScanner(commands.Cog):
         embed.add_field(name="Vault Seal", value=random.choice(PROFILE_SEALS), inline=False)
 
         if not payload.get("raw_ocr"):
-            footer = ocr_note or (
-                "Profile scan unavailable. Install Tesseract + pytesseract or easyocr + opencv for"
-                " auto-parsing."
-            )
+            footer = ocr_note or "Profile scan couldn't read this screenshot."
             embed.set_footer(text=footer)
         return embed
 
@@ -1165,7 +1177,7 @@ class ProfileScanner(commands.Cog):
                 inline=False,
             )
         if payload.get("raw_score_ocr"):
-            embed.set_footer(text=f"OCR raw: {payload['raw_score_ocr']}")
+            embed.set_footer(text=f"Readback: {payload['raw_score_ocr']}")
         return embed
 
     def _build_duel_confirmation_embed(self, payload: dict) -> discord.Embed:
@@ -1183,7 +1195,7 @@ class ProfileScanner(commands.Cog):
         embed.add_field(name="Score", value=score_value, inline=False)
         embed.add_field(name="Week", value=payload.get("week_key") or "-", inline=False)
         if payload.get("raw_score_ocr"):
-            embed.set_footer(text=f"OCR raw: {payload['raw_score_ocr']}")
+            embed.set_footer(text=f"Readback: {payload['raw_score_ocr']}")
         return embed
 
     @staticmethod
@@ -1241,7 +1253,7 @@ class ScanMenuView(discord.ui.View):
             requested_at=datetime.now(timezone.utc),
         )
         await interaction.response.send_message(
-            "🛰️ Profile scan selected. Upload your profile screenshot here to continue.",
+            "🛰️ Profile scan selected. Upload a full-screen profile screenshot here.",
         )
 
     @discord.ui.button(label="Duel score scan", style=discord.ButtonStyle.secondary, emoji="⚔️")
@@ -1252,7 +1264,7 @@ class ScanMenuView(discord.ui.View):
             requested_at=datetime.now(timezone.utc),
         )
         await interaction.response.send_message(
-            "⚔️ Duel score scan selected. Upload the Duel Week off-day screenshot here to continue.",
+            "⚔️ Duel score scan selected. Upload the Duel Week off-day results screenshot.",
         )
 
 
