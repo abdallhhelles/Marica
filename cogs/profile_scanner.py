@@ -1,7 +1,7 @@
 """
 FILE: cogs/profile_scanner.py
 USE: Capture profile screenshots, scan key stats, and surface stat leaderboards.
-FEATURES: Channel-scoped intake, scan parsing, profile views, and leaderboard queries.
+FEATURES: DM intake, scan parsing, profile views, and leaderboard queries.
 """
 
 import asyncio
@@ -390,19 +390,27 @@ class ProfileScanner(commands.Cog):
             embed = discord.Embed(
                 title="🛰️ Scan setup",
                 description=(
-                    "1) Pick a scan. 2) Upload a clear screenshot here (PNG/JPEG/WEBP). "
-                    "3) I’ll DM results."
+                    "Pick the scan type that matches your screenshot. "
+                    "Upload a clear PNG/JPEG/WEBP here and I’ll DM the results."
                 ),
                 color=0x3498DB,
             )
             embed.add_field(
                 name="Profile scan",
-                value="Open your profile screen so stats and the header are fully visible.",
+                value=(
+                    "Use your **profile screen** with the header + stats visible:\n"
+                    "• CP, Kills, Likes, VIP\n"
+                    "• Alliance + Server"
+                ),
                 inline=False,
             )
             embed.add_field(
                 name="Duel score scan",
-                value="Use the Duel Week off-day results screen with the score visible.",
+                value=(
+                    "Use the **Duel Week off-day results** screen:\n"
+                    "• Player name\n"
+                    "• Score"
+                ),
                 inline=False,
             )
             view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
@@ -465,7 +473,7 @@ class ProfileScanner(commands.Cog):
         )
         if not attachment:
             await message.reply(
-                "Send a PNG, JPEG, or WEBP screenshot to continue the scan."
+                "Send a PNG/JPEG/WEBP screenshot of the screen you picked to continue."
             )
             return
 
@@ -1253,7 +1261,7 @@ class ScanMenuView(discord.ui.View):
             requested_at=datetime.now(timezone.utc),
         )
         await interaction.response.send_message(
-            "🛰️ Profile scan selected. Upload a full-screen profile screenshot here.",
+            "🛰️ Profile scan selected. Upload a full-screen profile screenshot (header + stats visible).",
         )
 
     @discord.ui.button(label="Duel score scan", style=discord.ButtonStyle.secondary, emoji="⚔️")
@@ -1264,7 +1272,7 @@ class ScanMenuView(discord.ui.View):
             requested_at=datetime.now(timezone.utc),
         )
         await interaction.response.send_message(
-            "⚔️ Duel score scan selected. Upload the Duel Week off-day results screenshot.",
+            "⚔️ Duel score scan selected. Upload the Duel Week off-day results screenshot (name + score visible).",
         )
 
 

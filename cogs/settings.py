@@ -12,11 +12,8 @@ from utils.assets import MARCIA_QUOTES
 from database import (
     add_ignored_channel,
     get_ignored_channels,
-    get_profile_channel,
     get_settings,
     remove_ignored_channel,
-    set_profile_channel,
-    clear_profile_channel,
     update_setting,
 )
 
@@ -92,12 +89,6 @@ class SetupFeatureSelect(discord.ui.Select):
                 description="Verification checkpoint",
                 value="verify_channel_id",
                 emoji="🛂",
-            ),
-            discord.SelectOption(
-                label="Profile scan intake",
-                description="Where screenshots are scanned",
-                value="profile_channel_id",
-                emoji="🛰️",
             ),
             discord.SelectOption(
                 label="Auto-role",
@@ -251,7 +242,6 @@ class Settings(commands.Cog):
             "welcome_channel_id": "Welcome channel",
             "rules_channel_id": "Rules channel",
             "verify_channel_id": "Verify channel",
-            "profile_channel_id": "Profile scan intake",
             "feedback_channel_id": "Feedback & suggestions channel",
             "analytics_channel_id": "Global analytics channel",
             "auto_role_id": "Auto-role",
@@ -288,16 +278,6 @@ class Settings(commands.Cog):
                 return await msg.reply("❌ Couldn't find that role. Try `/setup` again.")
             await update_setting(interaction.guild.id, "auto_role_id", role.id, interaction.guild.name)
             return await msg.reply(f"✅ Auto-role set to **{role.name}**.")
-
-        if feature_key == "profile_channel_id":
-            if content == "clear":
-                await clear_profile_channel(interaction.guild.id)
-                return await msg.reply("✅ Profile scan intake cleared.")
-            channel = _channel_from_message(msg, interaction.guild)
-            if not channel:
-                return await msg.reply("❌ Couldn't read that channel. Try again.")
-            await set_profile_channel(interaction.guild.id, channel.id)
-            return await msg.reply(f"✅ Profile scans now ingest in {channel.mention}.")
 
         if content == "clear":
             await update_setting(interaction.guild.id, feature_key, None, interaction.guild.name)
@@ -340,7 +320,6 @@ class Settings(commands.Cog):
         """Displays the current server configuration and setup status."""
         data = await get_settings(ctx.guild.id)
         ignored_channels = await get_ignored_channels(ctx.guild.id)
-        profile_channel_id = await get_profile_channel(ctx.guild.id)
         is_marcia_server = ctx.guild.id == 1454704176662843525
         self.is_marcia_server = is_marcia_server
 
@@ -359,7 +338,6 @@ class Settings(commands.Cog):
             embed.add_field(name="👋 Welcome Sector", value=self._channel_status(ctx.guild, data['welcome_channel_id'])[0], inline=True)
             embed.add_field(name="📜 Rules Sector", value=self._channel_status(ctx.guild, data['rules_channel_id'])[0], inline=True)
             embed.add_field(name="🛂 Verify Sector", value=self._channel_status(ctx.guild, data['verify_channel_id'])[0], inline=True)
-            embed.add_field(name="🛰️ Profile Intake", value=self._channel_status(ctx.guild, profile_channel_id)[0], inline=True)
             if is_marcia_server:
                 embed.add_field(
                     name="💡 Feedback Sector",
@@ -492,7 +470,6 @@ class Settings(commands.Cog):
 
     async def _build_audit_embed(self, guild: discord.Guild | None) -> discord.Embed:
         data = await get_settings(guild.id) if guild else {}
-        profile_channel_id = await get_profile_channel(guild.id) if guild else None
 
         embed = discord.Embed(
             title="🛰️ Marcia | Sector Audit",
@@ -506,7 +483,6 @@ class Settings(commands.Cog):
             "Welcome": self._channel_status(guild, data.get("welcome_channel_id")),
             "Rules": self._channel_status(guild, data.get("rules_channel_id")),
             "Verify": self._channel_status(guild, data.get("verify_channel_id")),
-            "Profile Intake": self._channel_status(guild, profile_channel_id),
             "Auto-Role": self._role_status(guild, data.get("auto_role_id")),
         }
         if guild and guild.id == 1454704176662843525:
@@ -557,11 +533,6 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🛂 Verify channel",
             value="Checkpoint for verification instructions.",
-            inline=False,
-        )
-        embed.add_field(
-            name="🛰️ Profile scan intake",
-            value="Where `/scan` screenshots are read and logged.",
             inline=False,
         )
         if self.is_marcia_server:

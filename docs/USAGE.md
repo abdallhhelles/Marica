@@ -7,9 +7,8 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 
 ## Owner launch checklist
 1. **/setup** → link only the channels you need (start with **rules** + **events**).
-2. **/setup** → **Profile scan intake** to choose where I watch for screenshots.
-3. **/setup_trade** in your trade channel to anchor the Fish-Link terminal.
-4. **/refresh_commands** if slash commands ever desync.
+2. **/setup_trade** in your trade channel to anchor the Fish-Link terminal.
+3. **/refresh_commands** if slash commands ever desync.
 
 ## What I do (high level)
 - **Operations control:** Full event scheduling with opt-in reminders and DM countdowns.
@@ -19,7 +18,7 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 - **Automation:** Duel directives, role tiering, and guardrails that respect muted channels.
 
 ## Core commands (owners/admins)
-- **/setup** — configure channels, status, and profile intake.
+- **/setup** — configure channels and status.
 - **/setup_trade** — place the Fish-Link UI in your trade channel.
 - **/event** — mission console (create, reuse templates, list upcoming, remove).
 - **/analytics** — usage + inventory stats.
@@ -72,7 +71,7 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 - **Cooldown UX:** I report exact remaining time.
 
 ## Profiles & OCR scanning
-- **Set intake channel:** `/setup_profile_channel #channel`.
+- **Run a scan:** `/scan` in a server, then upload the screenshot in DMs.
 - **Auto-capture:** CP, kills, likes, VIP, level, server, alliance.
 - **Review scans:** `/profile_stats [@member]`.
 - **Leaderboard stats:** `/profile_leaderboard <stat>`.
@@ -98,4 +97,4 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 
 ---
 
-If you want me lean and quiet, keep only the channels you use. If you want full ops control, wire up events, trades, and profile intake—and I’ll do the rest.
+If you want me lean and quiet, keep only the channels you use. If you want full ops control, wire up events and trades—and I’ll do the rest.
