@@ -27,6 +27,8 @@ from database import (
     set_profile_scan_valid,
     upsert_profile_snapshot,
     add_duel_score,
+    get_scanner_config,
+    SCANNER_CONFIG_KEYS,
 )
 from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
 from utils.async_utils import create_tracked_task
@@ -75,7 +77,7 @@ OWNER_SCORE_ROI = (0.690722, 0.740952, 0.197938, 0.058095)
 
 BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
 EASYOCR_LANGS = ["en"]
-EASYOCR_MIN_CONF = 0.45
+EASYOCR_MIN_CONF = 0.35
 EASYOCR_FIELDS = {
     "name": "player_name",
     "cp": "cp",
@@ -302,6 +304,18 @@ class ProfileScanner(commands.Cog):
         self._scan_menu_locks: dict[int, asyncio.Lock] = {}
         self._scan_semaphore = asyncio.Semaphore(bot.config.profile_scan_concurrency)
 
+    @staticmethod
+    def _scan_required_keys() -> tuple[str, ...]:
+        return SCANNER_CONFIG_KEYS
+
+    @classmethod
+    def _missing_scan_keys(cls, config: dict | None) -> list[str]:
+        return [
+            key
+            for key in cls._scan_required_keys()
+            if not config or key not in config or config.get(key) is None
+        ]
+
     async def cog_load(self):
         for idx in range(max(1, self.scan_worker_count)):
             task = create_tracked_task(
@@ -367,6 +381,30 @@ class ProfileScanner(commands.Cog):
                 ephemeral=True,
             )
 
+        scan_config = await get_scanner_config(ctx.guild.id)
+        missing_keys = self._missing_scan_keys(scan_config)
+        if missing_keys:
+            return await self._safe_send(
+                ctx,
+                content=(
+                    "Profile scanning isn't configured on this server yet. "
+                    f"Missing keys: {', '.join(missing_keys)}. "
+                    "Ask an admin to run `/setup` to initialize scanning."
+                ),
+                ephemeral=True,
+            )
+
+        profile_enabled = bool(scan_config.get("profile_scan_enabled"))
+        duel_enabled = bool(scan_config.get("duel_scan_enabled"))
+        if not profile_enabled and not duel_enabled:
+            return await self._safe_send(
+                ctx,
+                content=(
+                    "Scanning is disabled for this server. Ask an admin to enable scanning in `/setup`."
+                ),
+                ephemeral=True,
+            )
+
         try:
             dm_channel = await ctx.author.create_dm()
         except Exception:  # pragma: no cover - Discord edge
@@ -413,7 +451,13 @@ class ProfileScanner(commands.Cog):
                 ),
                 inline=False,
             )
-            view = ScanMenuView(self, ctx.author.id, ctx.guild.id)
+            view = ScanMenuView(
+                self,
+                ctx.author.id,
+                ctx.guild.id,
+                profile_enabled=profile_enabled,
+                duel_enabled=duel_enabled,
+            )
             await dm_channel.send(embed=embed, view=view)
             self._scan_menu_cooldowns[ctx.author.id] = now
             return await self._safe_send(
@@ -702,11 +746,9 @@ class ProfileScanner(commands.Cog):
     ) -> str:
         crop = _crop_norm(image, roi)
         if use_easyocr and self._easyocr_reader:
-            proc = self._preprocess_crop(crop)
-            detections = self._easyocr_reader.readtext(proc)
-            if detections:
-                detections.sort(key=lambda item: item[2], reverse=True)
-                return detections[0][1].strip()
+            best_text, _ = self._easyocr_read_best(crop)
+            if best_text:
+                return best_text
         processed = _prep_duel_image(crop)
         candidates = []
         for psm in (7, 6):
@@ -916,7 +958,7 @@ class ProfileScanner(commands.Cog):
 
         if not (easyocr and cv2 and np):
             self._easyocr_ready = False
-            self._easyocr_failure_reason = "Profile scanning isn't configured on this bot."
+            self._easyocr_failure_reason = "EasyOCR dependencies are missing on this bot."
             self.log.warning(self._easyocr_failure_reason)
             return False
 
@@ -974,14 +1016,14 @@ class ProfileScanner(commands.Cog):
                 if crop is None:
                     continue
 
-                proc = self._preprocess_crop(crop)
-                detections = self._easyocr_reader.readtext(proc)
-                if not detections:
+                allowlist = None
+                if field in {"cp", "kills", "likes", "vip"}:
+                    allowlist = "0123456789.,KkMmBb"
+                elif field == "server":
+                    allowlist = "0123456789"
+                best_text, best_conf = self._easyocr_read_best(crop, allowlist=allowlist)
+                if not best_text:
                     continue
-
-                detections.sort(key=lambda item: item[2], reverse=True)
-                best_text = detections[0][1].strip()
-                best_conf = float(detections[0][2])
                 raw_lines.append(f"{field}: {best_text} ({best_conf:.2f})")
 
                 if field in VERIFY_FIELDS:
@@ -1001,7 +1043,9 @@ class ProfileScanner(commands.Cog):
                     if value is not None:
                         results[mapped] = value
                 elif mapped == "server":
-                    results[mapped] = best_text
+                    results[mapped] = _normalize_server_value(best_text)
+                elif mapped == "alliance":
+                    results[mapped] = _clean_label(best_text, "alliance", "guild")
                 else:
                     results[mapped] = best_text
 
@@ -1068,8 +1112,31 @@ class ProfileScanner(commands.Cog):
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
         gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
         gray = cv2.bilateralFilter(gray, 7, 75, 75)
+        gray = cv2.equalizeHist(gray)
         _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return gray
+
+    def _easyocr_candidates(self, crop):
+        processed = self._preprocess_crop(crop)
+        return [crop, processed] if processed is not None else [crop]
+
+    def _easyocr_read_best(self, crop, *, allowlist: str | None = None) -> tuple[str, float]:
+        if not self._easyocr_reader:
+            return "", 0.0
+
+        best_text = ""
+        best_conf = 0.0
+        for candidate in self._easyocr_candidates(crop):
+            detections = self._easyocr_reader.readtext(candidate, allowlist=allowlist)
+            if not detections:
+                continue
+            detections.sort(key=lambda item: item[2], reverse=True)
+            text = detections[0][1].strip()
+            conf = float(detections[0][2])
+            if text and conf >= best_conf:
+                best_text = text
+                best_conf = conf
+        return best_text, best_conf
 
     def _build_payload(
         self,
@@ -1237,11 +1304,21 @@ class ProfileReviewSelect(discord.ui.Select):
 
 
 class ScanMenuView(discord.ui.View):
-    def __init__(self, cog: ProfileScanner, author_id: int, guild_id: int):
+    def __init__(
+        self,
+        cog: ProfileScanner,
+        author_id: int,
+        guild_id: int,
+        *,
+        profile_enabled: bool,
+        duel_enabled: bool,
+    ):
         super().__init__(timeout=120)
         self.cog = cog
         self.author_id = author_id
         self.guild_id = guild_id
+        self.profile_enabled = profile_enabled
+        self.duel_enabled = duel_enabled
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.author_id:
@@ -1255,6 +1332,11 @@ class ScanMenuView(discord.ui.View):
 
     @discord.ui.button(label="Profile scan", style=discord.ButtonStyle.primary, emoji="🛰️")
     async def profile_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.profile_enabled:
+            return await interaction.response.send_message(
+                "Profile scan is disabled for this server.",
+                ephemeral=True,
+            )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
             scan_type="profile",
             guild_id=self.guild_id,
@@ -1266,6 +1348,11 @@ class ScanMenuView(discord.ui.View):
 
     @discord.ui.button(label="Duel score scan", style=discord.ButtonStyle.secondary, emoji="⚔️")
     async def duel_score_scan(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.duel_enabled:
+            return await interaction.response.send_message(
+                "Duel scan is disabled for this server.",
+                ephemeral=True,
+            )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
             scan_type="duel",
             guild_id=self.guild_id,
