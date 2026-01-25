@@ -9,7 +9,7 @@ import os
 import sys
 from collections import deque
 from datetime import timedelta
-from importlib import metadata
+import importlib
 from pathlib import Path
 import random
 import time
@@ -94,6 +94,8 @@ class MarciaBot(commands.Bot):
         self._message_invocation_ids: dict[int, str] = {}
         self._ai_memory: dict[int, deque[dict[str, str]]] = {}
         self._ai_memory_limit = 12
+        self.ocr_enabled = False
+        self.ocr_missing: list[str] = []
 
     async def close(self):
         if self._metrics_task:
@@ -235,29 +237,24 @@ class MarciaBot(commands.Bot):
         self._recent_message_commands[message.id] = now
         return True
 
-    def _warn_dependency_conflicts(self) -> None:
-        try:
-            googletrans_version = metadata.version("googletrans")
-        except metadata.PackageNotFoundError:
-            return
-
-        try:
-            httpx_version = metadata.version("httpx")
-        except metadata.PackageNotFoundError:
-            httpx_version = "missing"
-
-        if googletrans_version == "4.0.0rc1":
-            logger.warning(
-                "Dependency conflict detected: googletrans==%s requires httpx==0.13.3, "
-                "but httpx==%s is installed. Remove googletrans or re-pin httpx to the "
-                "version in requirements.txt.",
-                googletrans_version,
-                httpx_version,
-            )
+    def _check_ocr_dependencies(self) -> None:
+        missing: list[str] = []
+        for module in ("easyocr", "torch", "cv2"):
+            try:
+                importlib.import_module(module)
+            except Exception as exc:  # pragma: no cover - import guard
+                logger.warning("OCR dependency missing: %s (%s)", module, exc)
+                missing.append(module)
+        self.ocr_missing = missing
+        self.ocr_enabled = not missing
+        if self.ocr_enabled:
+            logger.info("OCR dependencies detected; OCR enabled.")
+        else:
+            logger.warning("OCR disabled; missing modules: %s", ", ".join(missing))
 
     async def setup_hook(self):
         """Pre-connection setup: Initializing DB, Loading Cogs, and Persistence."""
-        self._warn_dependency_conflicts()
+        self._check_ocr_dependencies()
         logger.info("📡 Connecting to Central Intelligence Database...")
         try:
             await init_db()

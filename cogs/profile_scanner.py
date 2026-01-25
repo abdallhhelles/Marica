@@ -424,6 +424,13 @@ class ProfileScanner(commands.Cog):
                 ),
                 ephemeral=True,
             )
+        if not getattr(self.bot, "ocr_enabled", False):
+            missing = ", ".join(getattr(self.bot, "ocr_missing", []) or ["unknown"])
+            return await self._safe_send(
+                ctx,
+                content=f"OCR not available on this host, missing {missing}.",
+                ephemeral=True,
+            )
 
         scan_config = await get_scanner_config(ctx.guild.id)
         missing_keys = self._missing_scan_keys(scan_config)

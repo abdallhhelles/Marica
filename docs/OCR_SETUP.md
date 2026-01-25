@@ -45,7 +45,7 @@ EasyOCR uses bounding boxes from `ocr/boxes_ratios.json`. If your screenshot lay
 
 ## Hosting guidance
 * **Containers / game panels:** add both `pip install -r requirements.txt` and `apt-get install -y tesseract-ocr` (or OS equivalent) directly to your startup command; consoles are often non-interactive.
-* **Conflicting packages:** third-party images sometimes bundle `googletrans==4.0.0rc1`, which forces `httpx==0.13.3`. The bot will detect this conflict and warn you at startup. Since `googletrans` is not used by this bot, you should uninstall it (`pip uninstall googletrans`) to avoid the conflict with the required `httpx==0.28.1` version.
+* **Translation dependencies:** translation uses the public Google Translate endpoint over `httpx`; avoid installing legacy `googletrans` packages that pin incompatible `httpx` versions.
 
 ## Diagnostics reference
 

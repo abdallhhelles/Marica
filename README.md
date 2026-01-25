@@ -87,7 +87,7 @@ apt-get update && apt-get install -y tesseract-ocr \
 
 Notes:
 * Keep the command on one line in panel settings; do not rely on interactive consoles.
-* Remove or pin conflicting preinstalls (e.g., `googletrans==4.0.0rc1` forces `httpx==0.13.3` and breaks the bot). Lock `httpx` to the version in `requirements.txt` if your host injects extras.
+* Translation uses the public Google Translate endpoint over `httpx`; avoid installing legacy `googletrans` packages that pin incompatible `httpx` versions.
 
 ### Local development
 Clone the repo, create `.env`, install dependencies (include OCR if you need scanning), and run `python main.py` from the repo root. The bot pins its working directory automatically.
