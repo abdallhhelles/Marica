@@ -12,8 +12,11 @@ from utils.assets import MARCIA_QUOTES
 from database import (
     add_ignored_channel,
     get_ignored_channels,
+    get_scanner_config,
     get_settings,
     remove_ignored_channel,
+    SCANNER_CONFIG_KEYS,
+    upsert_scanner_config,
     update_setting,
 )
 
@@ -148,6 +151,26 @@ class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.is_marcia_server = False
+
+    async def _ensure_scanner_config(self, guild_id: int) -> tuple[dict | None, list[str]]:
+        config = await get_scanner_config(guild_id)
+        missing = [
+            key
+            for key in SCANNER_CONFIG_KEYS
+            if not config or key not in config or config.get(key) is None
+        ]
+        if missing:
+            config = await upsert_scanner_config(
+                guild_id,
+                profile_scan_enabled=1,
+                duel_scan_enabled=1,
+            )
+            missing = [
+                key
+                for key in SCANNER_CONFIG_KEYS
+                if not config or key not in config or config.get(key) is None
+            ]
+        return config, missing
 
     async def _safe_send(self, ctx, *, ephemeral: bool = False, **kwargs):
         interaction = getattr(ctx, "interaction", None)
@@ -320,6 +343,7 @@ class Settings(commands.Cog):
         """Displays the current server configuration and setup status."""
         data = await get_settings(ctx.guild.id)
         ignored_channels = await get_ignored_channels(ctx.guild.id)
+        scan_config, scan_missing = await self._ensure_scanner_config(ctx.guild.id)
         is_marcia_server = ctx.guild.id == 1454704176662843525
         self.is_marcia_server = is_marcia_server
 
@@ -372,6 +396,21 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🚫 Ignored Channels",
             value=ignored_value,
+            inline=False,
+        )
+        if scan_config:
+            enabled = {
+                "profile_scan_enabled": "✅ Enabled" if scan_config.get("profile_scan_enabled") else "⏸️ Disabled",
+                "duel_scan_enabled": "✅ Enabled" if scan_config.get("duel_scan_enabled") else "⏸️ Disabled",
+            }
+            scan_lines = [f"**{key}**: {value}" for key, value in enabled.items()]
+        else:
+            scan_lines = ["⚠️ Missing scan configuration."]
+        if scan_missing:
+            scan_lines.append(f"Missing keys: {', '.join(scan_missing)}")
+        embed.add_field(
+            name="🧪 Scan Configuration",
+            value="\n".join(scan_lines),
             inline=False,
         )
 
