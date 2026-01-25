@@ -660,10 +660,10 @@ class Events(commands.Cog):
                         day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now_server.weekday()]
                         try:
                             await chan.send(
-                                f"Good morning @everyone,\n\n"
-                                f"📡 **MARCIA OS | DUEL DIRECTIVE – {day_name.upper()}**\n\n"
+                                f"Up and on-grid, @everyone.\n\n"
+                                f"📡 **MARCIA // DUEL DIRECTIVE – {day_name.upper()}**\n\n"
                                 f"{info}\n\n"
-                                f"Stay sharp and keep those points climbing. I'm tracking your progress.",
+                                f"Points don't climb themselves. Execute clean and report stronger.",
                                 allowed_mentions=discord.AllowedMentions(everyone=True),
                             )
                             await mark_task_complete(task_id, date_str=date_key)
