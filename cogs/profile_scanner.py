@@ -65,6 +65,12 @@ else:  # pragma: no cover - optional dependency guard
 
 
 NUMBER_RE = re.compile(r"(?P<value>[\d.,\s]+)\s*(?P<suffix>[kmbKMB]?)")
+SCAN_TYPE_PROFILE = "profile"
+SCAN_TYPE_DUEL_SCORE = "duel_score"
+SCAN_TYPE_LABELS = {
+    SCAN_TYPE_PROFILE: "profile",
+    SCAN_TYPE_DUEL_SCORE: "duel score",
+}
 LABEL_HINTS = {
     "cp": ("cp", "power", "battle power", "total power", "combat power"),
     "kills": ("kills", "defeats", "defeated", "eliminations", "total kills"),
@@ -73,9 +79,9 @@ LABEL_HINTS = {
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state", "world"),
 }
-DUEL_WEEK_ROI_DEFAULT = (0.362887, 0.211429, 0.278351, 0.049524)
-OWNER_NAME_ROI_DEFAULT = (0.331959, 0.737143, 0.25567, 0.035238)
-OWNER_SCORE_ROI_DEFAULT = (0.690722, 0.740952, 0.197938, 0.058095)
+DUEL_WEEK_ROI_DEFAULT = (0.149573, 0.200632, 0.25641, 0.065956)
+OWNER_NAME_ROI_DEFAULT = (0.329915, 0.742101, 0.275214, 0.031991)
+OWNER_SCORE_ROI_DEFAULT = (0.684615, 0.742101, 0.194872, 0.057662)
 
 
 def _parse_roi(raw: str) -> tuple[float, float, float, float] | None:
@@ -604,7 +610,7 @@ class ProfileScanner(commands.Cog):
             )
             return
 
-        if pending.scan_type == "duel" and not (cv2 and pytesseract and np):
+        if pending.scan_type == SCAN_TYPE_DUEL_SCORE and not (cv2 and pytesseract and np):
             await message.reply(
                 "Duel score scan is offline right now. Ask an admin to enable scanning on this bot."
             )
@@ -618,7 +624,7 @@ class ProfileScanner(commands.Cog):
             await message.reply("I couldn't read that image.")
             return
 
-        if pending.scan_type == "profile" and cv2 and pytesseract and np:
+        if pending.scan_type == SCAN_TYPE_PROFILE and cv2 and pytesseract and np:
             try:
                 arr = np.frombuffer(image_bytes, dtype=np.uint8)
                 image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -642,7 +648,7 @@ class ProfileScanner(commands.Cog):
         await self._scan_queue.put(job)
         position = self._scan_queue.qsize()
         queue_note = f"Global queue position: {position}."
-        scan_label = "profile scan" if pending.scan_type == "profile" else "duel score scan"
+        scan_label = f"{SCAN_TYPE_LABELS.get(pending.scan_type, pending.scan_type)} scan"
         await message.reply(
             f"📡 {scan_label.title()} queued. {queue_note} I'll DM results when ready."
         )
@@ -663,7 +669,7 @@ class ProfileScanner(commands.Cog):
         member = guild.get_member(job.user.id) if guild else None
         user = member or job.user
 
-        if job.scan_type == "profile":
+        if job.scan_type == SCAN_TYPE_PROFILE:
             image_url = job.attachment.url
             cached_path = await self._persist_profile_image(
                 job.guild_id,
@@ -722,7 +728,7 @@ class ProfileScanner(commands.Cog):
                 view.bind_message(message)
             return
 
-        if job.scan_type == "duel":
+        if job.scan_type == SCAN_TYPE_DUEL_SCORE:
             loop = asyncio.get_running_loop()
             use_easyocr = await self._ensure_easyocr()
             result = await loop.run_in_executor(
@@ -1422,7 +1428,7 @@ class ScanMenuView(discord.ui.View):
                 ephemeral=True,
             )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
-            scan_type="profile",
+            scan_type=SCAN_TYPE_PROFILE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
@@ -1438,7 +1444,7 @@ class ScanMenuView(discord.ui.View):
                 ephemeral=True,
             )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
-            scan_type="duel",
+            scan_type=SCAN_TYPE_DUEL_SCORE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
@@ -1521,7 +1527,7 @@ class ProfileScanReviewView(discord.ui.View):
             return
         self._finalized = True
         self.cog._pending_scans[self.user_id] = PendingScan(
-            scan_type="profile",
+            scan_type=SCAN_TYPE_PROFILE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
@@ -1618,7 +1624,7 @@ class DuelScanReviewView(discord.ui.View):
             return
         self._finalized = True
         self.cog._pending_scans[self.user_id] = PendingScan(
-            scan_type="duel",
+            scan_type=SCAN_TYPE_DUEL_SCORE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
