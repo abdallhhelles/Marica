@@ -487,6 +487,7 @@ class Utility(commands.Cog):
                 [
                     "`/scan` • scan a screenshot in DMs",
                     "`/profile_review` • validate or purge scans",
+                    "`/scan_status` • scan config status (admins)",
                 ],
             ),
             (
