@@ -28,6 +28,7 @@ from database import (
     upsert_profile_snapshot,
     add_duel_score,
     get_scanner_config,
+    upsert_scanner_config,
     SCANNER_CONFIG_KEYS,
 )
 from utils.assets import PROFILE_SEALS, PROFILE_TAGLINES
@@ -387,12 +388,18 @@ class ProfileScanner(commands.Cog):
         scan_config = await get_scanner_config(ctx.guild.id)
         missing_keys = self._missing_scan_keys(scan_config)
         if missing_keys:
+            scan_config = await upsert_scanner_config(
+                ctx.guild.id,
+                profile_scan_enabled=1,
+                duel_scan_enabled=1,
+            )
+            missing_keys = self._missing_scan_keys(scan_config)
+        if missing_keys:
             return await self._safe_send(
                 ctx,
                 content=(
-                    "Profile scanning isn't configured on this server yet. "
-                    f"Missing keys: {', '.join(missing_keys)}. "
-                    "Ask an admin to run `/setup` to initialize scanning."
+                    "Profile scanning isn't available for this server yet. "
+                    f"Missing keys: {', '.join(missing_keys)}."
                 ),
                 ephemeral=True,
             )
