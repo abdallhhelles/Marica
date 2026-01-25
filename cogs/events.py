@@ -36,6 +36,7 @@ JOIN_EVENT_EMOJI = "🤝"
 RSVP_EMOJIS = {
     JOIN_EVENT_EMOJI: "going",
 }
+MISSED_EVENT_GRACE = timedelta(minutes=10)
 
 DUEL_DATA = {
     0: (
@@ -594,10 +595,11 @@ class Events(commands.Cog):
         """Reloads active missions from SQL on startup."""
         await self.bot.wait_until_ready()
         all_missions = await get_all_active_missions()
+        now_utc = datetime.now(timezone.utc)
         for m in all_missions:
             try:
                 utc_dt = datetime.fromisoformat(m['target_utc']).astimezone(timezone.utc)
-                if utc_dt > datetime.now(timezone.utc):
+                if utc_dt > now_utc:
                     task_key = f"{m['guild_id']}_{m['codename']}"
                     self.running_tasks[task_key] = create_tracked_task(
                         self.manage_reminders(
@@ -611,6 +613,28 @@ class Events(commands.Cog):
                         name=f"mission-reminder-{task_key}",
                         logger=logger,
                     )
+                elif now_utc - utc_dt <= MISSED_EVENT_GRACE:
+                    logger.info(
+                        "Recovering missed mission %s in guild %s (late by %s).",
+                        m['codename'],
+                        m['guild_id'],
+                        now_utc - utc_dt,
+                    )
+                    await self._announce_event_start(
+                        m['guild_id'],
+                        m['codename'],
+                        m['description'],
+                        m.get('location'),
+                        m.get('ping_role_id'),
+                    )
+                    await self._notify_dm_participants(
+                        m['guild_id'],
+                        m['codename'],
+                        0,
+                        m['description'],
+                        m.get('location'),
+                    )
+                    await delete_mission(m['guild_id'], m['codename'])
                 else:
                     await delete_mission(m['guild_id'], m['codename'])
             except: pass
