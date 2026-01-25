@@ -539,6 +539,25 @@ class ProfileScanner(commands.Cog):
             parsed, raw_text, ocr_note = await self._perform_ocr(
                 job.image_bytes, filename=job.filename, persisted_path=cached_path
             )
+            if not self._has_profile_metrics(parsed):
+                if ocr_note and any(
+                    phrase in ocr_note
+                    for phrase in (
+                        "isn't configured",
+                        "not enabled",
+                        "Scan templates are missing",
+                        "Scan templates are empty",
+                        "required system tools are missing",
+                    )
+                ):
+                    await job.message.reply(
+                        "Profile scan is offline right now. Ask an admin to enable scanning for this bot."
+                    )
+                    return
+                await job.message.reply(
+                    "I couldn't read that screenshot. Send a full-screen profile image with stats clearly visible."
+                )
+                return
             payload = self._build_payload(
                 user, image_url, parsed, raw_text, cached_path
             )
