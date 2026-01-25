@@ -617,12 +617,16 @@ class ProfileScanner(commands.Cog):
             )
             return
 
-        if pending.scan_type == SCAN_TYPE_DUEL_SCORE and not (cv2 and pytesseract and np):
-            await message.reply(
-                "Duel score scan is offline right now. Ask an admin to enable scanning on this bot."
-            )
-            self._pending_scans.pop(message.author.id, None)
-            return
+        if pending.scan_type == SCAN_TYPE_DUEL_SCORE:
+            duel_ready = bool(cv2 and np)
+            if duel_ready and not pytesseract:
+                duel_ready = await self._ensure_easyocr()
+            if not duel_ready:
+                await message.reply(
+                    "Duel score scan is offline right now. Ask an admin to enable scanning on this bot."
+                )
+                self._pending_scans.pop(message.author.id, None)
+                return
 
         try:
             image_bytes = await attachment.read()

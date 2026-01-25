@@ -39,8 +39,8 @@ This document summarizes the changes made to resolve OCR functionality issues an
 **Problem:** `googletrans==4.0.0rc1` pins `httpx==0.13.3`, but the bot requires `httpx==0.28.1`.
 
 **Solution:**
-- Translation uses the public Google Translate endpoint directly over `httpx`
-- Updated documentation to discourage installing legacy `googletrans` packages
+- Translation uses `deep-translator` (Google backend)
+- Updated documentation to discourage installing legacy `googletrans` packages or to isolate them in a separate venv
 
 **Documentation Updated:**
 - `docs/OCR_SETUP.md` - Added guidance to avoid legacy `googletrans`

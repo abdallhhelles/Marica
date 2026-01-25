@@ -1,4 +1,4 @@
-# Low-memory installation (≤512 MB RAM)
+# Low-memory installation (≤1 GB RAM)
 
 Tiny game panels often get OOM-killed when torch or EasyOCR wheels are built on-device. Use one of these paths to deploy Marica without live-compiling heavy dependencies.
 
@@ -33,6 +33,6 @@ If storage is tight, you can mix the lite requirements with a small OCR wheel ca
    ```
 
 ## Notes
-* Torch wheels are large (~900 MB). Do not attempt to build from source on a 512 MB host.
+* Torch wheels are large (~900 MB). Do not attempt to build from source on a 1 GB host.
 * Make sure the wheel cache matches the host’s Python version (e.g., cp312) and CPU architecture (x86_64 vs aarch64).
 * The system `tesseract-ocr` binary still needs to be installed through the OS package manager.

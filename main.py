@@ -10,6 +10,7 @@ import sys
 from collections import deque
 from datetime import timedelta
 import importlib
+from importlib import metadata
 from pathlib import Path
 import random
 import time
@@ -252,8 +253,29 @@ class MarciaBot(commands.Bot):
         else:
             logger.warning("OCR disabled; missing modules: %s", ", ".join(missing))
 
+    @staticmethod
+    def _warn_googletrans_conflict() -> None:
+        if importlib.util.find_spec("googletrans") is None:
+            return
+        try:
+            googletrans_version = metadata.version("googletrans")
+        except metadata.PackageNotFoundError:
+            return
+        try:
+            httpx_version = metadata.version("httpx")
+        except metadata.PackageNotFoundError:
+            httpx_version = "missing"
+        logger.warning(
+            "Legacy googletrans detected (%s). Remove it from the bot env or install it "
+            "in a separate venv (e.g., /home/container/venv_googletrans) to avoid "
+            "httpx conflicts. Current httpx=%s.",
+            googletrans_version,
+            httpx_version,
+        )
+
     async def setup_hook(self):
         """Pre-connection setup: Initializing DB, Loading Cogs, and Persistence."""
+        self._warn_googletrans_conflict()
         self._check_ocr_dependencies()
         logger.info("📡 Connecting to Central Intelligence Database...")
         try:
