@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import logging
+import os
 import re
 import random
 import time
@@ -72,11 +73,47 @@ LABEL_HINTS = {
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state", "world"),
 }
-DUEL_WEEK_ROI = (0.362887, 0.211429, 0.278351, 0.049524)
-OWNER_NAME_ROI = (0.331959, 0.737143, 0.25567, 0.035238)
-OWNER_SCORE_ROI = (0.690722, 0.740952, 0.197938, 0.058095)
+DUEL_WEEK_ROI_DEFAULT = (0.362887, 0.211429, 0.278351, 0.049524)
+OWNER_NAME_ROI_DEFAULT = (0.331959, 0.737143, 0.25567, 0.035238)
+OWNER_SCORE_ROI_DEFAULT = (0.690722, 0.740952, 0.197938, 0.058095)
 
-BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
+
+def _parse_roi(raw: str) -> tuple[float, float, float, float] | None:
+    parts = [part.strip() for part in raw.split(",") if part.strip()]
+    if len(parts) != 4:
+        return None
+    try:
+        values = tuple(float(part) for part in parts)
+    except ValueError:
+        return None
+    if any(value <= 0 for value in values):
+        return None
+    if any(value > 1 for value in values):
+        return None
+    return values  # type: ignore[return-value]
+
+
+def _load_roi_env(name: str, default: tuple[float, float, float, float]):
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    parsed = _parse_roi(raw)
+    if parsed is None:
+        logging.getLogger("MarciaOS.ProfileScanner").warning(
+            "Invalid %s ROI value %r; expected 4 comma-separated ratios.", name, raw
+        )
+        return default
+    return parsed
+
+
+DUEL_WEEK_ROI = _load_roi_env("OCR_DUEL_WEEK_ROI", DUEL_WEEK_ROI_DEFAULT)
+OWNER_NAME_ROI = _load_roi_env("OCR_DUEL_NAME_ROI", OWNER_NAME_ROI_DEFAULT)
+OWNER_SCORE_ROI = _load_roi_env("OCR_DUEL_SCORE_ROI", OWNER_SCORE_ROI_DEFAULT)
+
+BOXES_PATH = Path(
+    os.getenv("OCR_BOXES_FILE")
+    or (Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json")
+)
 EASYOCR_LANGS = ["en"]
 EASYOCR_MIN_CONF = 0.35
 EASYOCR_FIELDS = {
