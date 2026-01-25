@@ -319,24 +319,28 @@ def main():
                 out[field] = text
                 confs[field] = conf
 
-            # Cleaning specific fields
-            if "power_cp" in out:
-                out["power_cp_clean"] = clean_number(out["power_cp"])
+            # Cleaning specific fields (match the actual field names in boxes_ratios.json)
+            if "cp" in out:
+                out["cp_clean"] = clean_number(out["cp"])
             if "kills" in out:
                 out["kills_clean"] = clean_number(out["kills"])
-            if "state" in out:
-                out["state_clean"] = clean_number(out["state"])
+            if "server" in out:
+                out["server_clean"] = clean_number(out["server"])
+            if "vip" in out:
+                out["vip_clean"] = clean_number(out["vip"])
 
-            # Print results
-            warn_fields = [k for k, c in confs.items() if c < MIN_CONF]
+            # Print results (exclude verification fields from low-confidence warnings)
+            warn_fields = [k for k, c in confs.items() if c < MIN_CONF and k not in {"account_btn", "settings_btn"}]
             warn = f"  ⚠ low conf: {', '.join(warn_fields)}" if warn_fields else ""
 
             print(f"=== {fname} ==={warn}")
             print(f"Name:     {out.get('name','')}  (conf {confs.get('name',0):.2f})")
-            print(f"Power:    {out.get('power_cp','')}  -> {out.get('power_cp_clean','')} (conf {confs.get('power_cp',0):.2f})")
+            print(f"CP:       {out.get('cp','')}  -> {out.get('cp_clean','')} (conf {confs.get('cp',0):.2f})")
             print(f"Kills:    {out.get('kills','')}  -> {out.get('kills_clean','')} (conf {confs.get('kills',0):.2f})")
             print(f"Alliance: {out.get('alliance','')}  (conf {confs.get('alliance',0):.2f})")
-            print(f"State:    {out.get('state','')}  -> {out.get('state_clean','')} (conf {confs.get('state',0):.2f})")
+            print(f"Server:   {out.get('server','')}  -> {out.get('server_clean','')} (conf {confs.get('server',0):.2f})")
+            print(f"Likes:    {out.get('likes','')} (conf {confs.get('likes',0):.2f})")
+            print(f"VIP:      {out.get('vip','')}  -> {out.get('vip_clean','')} (conf {confs.get('vip',0):.2f})")
             print()
             
             success_count += 1
