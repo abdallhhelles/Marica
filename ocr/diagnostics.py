@@ -20,6 +20,9 @@ import sys
 import platform
 from typing import List, Optional
 
+# Minimum Python version required for optimal OCR functionality
+MIN_PYTHON_VERSION = (3, 8)
+
 BOXES_PATH = Path(__file__).resolve().parent / "boxes_ratios.json"
 
 
@@ -59,7 +62,7 @@ class OcrDiagnostics:
         lines.append(f"  Platform: {platform.system()} {platform.release()}")
         lines.append(f"  Python: {self.python_version}")
         if not self.python_compatible:
-            lines.append("  ⚠️  WARNING: Python 3.8+ recommended for OCR features")
+            lines.append(f"  ⚠️  WARNING: Python {MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}+ recommended for OCR features")
         lines.append("")
         
         # Dependency status
@@ -132,9 +135,13 @@ def _has_spec(module: str) -> bool:
 
 
 def _get_python_version() -> tuple[str, bool]:
-    """Get Python version and check if it's compatible (3.8+)."""
+    """Get Python version and check if it's compatible.
+    
+    Returns:
+        Tuple of (version_string, is_compatible)
+    """
     version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    compatible = sys.version_info >= (3, 8)
+    compatible = sys.version_info >= MIN_PYTHON_VERSION
     return version, compatible
 
 
@@ -211,13 +218,17 @@ def _validate_torch_compatibility(torch_version: str | None) -> list[str]:
             import torchvision
             tv_version = torchvision.__version__
             
-            # Basic version check - torch 2.3.x should work with torchvision 0.18.x
+            # PyTorch and torchvision major versions should generally match
+            # For example: PyTorch 2.x should use torchvision 0.1x
+            # Note: This logic may need updates as new PyTorch versions are released
             torch_major = torch_version.split('.')[0] if '.' in torch_version else '0'
             tv_major = tv_version.split('.')[0] if '.' in tv_version else '0'
             
-            if torch_major != tv_major and torch_major != '2':
+            # As of 2024, PyTorch 2.x is current; adjust this check for future versions
+            if torch_major != tv_major and torch_major not in ('2', '1'):
                 warnings.append(
-                    f"PyTorch {torch_version} and torchvision {tv_version} may be incompatible"
+                    f"PyTorch {torch_version} and torchvision {tv_version} may be incompatible. "
+                    "Check compatibility at https://pytorch.org/get-started/previous-versions/"
                 )
         except Exception:
             pass
@@ -301,7 +312,7 @@ def collect_ocr_diagnostics() -> OcrDiagnostics:
     # Collect warnings
     warnings: list[str] = []
     if not python_compatible:
-        warnings.append("Python 3.8+ is recommended for optimal compatibility")
+        warnings.append(f"Python {MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}+ is recommended for optimal compatibility")
     if torch_present and not cuda_available and not torch_cpu_only:
         warnings.append("CUDA not available - OCR will run on CPU (slower)")
     if torch_version:
