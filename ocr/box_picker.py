@@ -3,7 +3,13 @@ import json
 import cv2
 
 INPUT_DIR = "shots"
-OUT_FILE = "boxes_ratios.json"
+BOXES_FILE_NAME = "boxes_ratios.json"
+BASE_DIR = os.path.dirname(__file__)
+
+
+def resolve_boxes_output() -> str:
+    env_path = os.getenv("OCR_BOXES_FILE")
+    return env_path if env_path else os.path.join(BASE_DIR, BOXES_FILE_NAME)
 
 FIELDS = ["name", "power_cp", "kills", "alliance", "state"]
 
@@ -96,10 +102,11 @@ def main():
         "template_ratios": boxes_ratios
     }
 
-    with open(OUT_FILE, "w", encoding="utf-8") as f:
+    out_file = resolve_boxes_output()
+    with open(out_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    print(f"Done. Saved to '{OUT_FILE}'.")
+    print(f"Done. Saved to '{out_file}'.")
     print("Next step: OCR runner will convert ratios back to pixels for each screenshot.")
 
 

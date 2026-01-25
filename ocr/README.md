@@ -9,8 +9,10 @@ repeatable templates and fast local validation.
 - Save profile screenshots to the top-level `shots/` folder (create it if needed)
 
 ## Workflow
-1. **Pick bounding boxes**: run `python ocr/box_picker.py`. Drag a box for each field and press Enter to save. This writes normalized ratios to `ocr/boxes_ratios.json`.
+1. **Pick bounding boxes**: run `python ocr/box_picker.py`. Drag a box for each field and press Enter to save. This writes normalized ratios to `ocr/boxes_ratios.json` (or to `OCR_BOXES_FILE` if the environment variable is set).
 2. **Run OCR**: place screenshots in `shots/` and run `python ocr/ocr_runner.py`. The script crops each image using the saved ratios, runs EasyOCR, and prints parsed values.
+
+If you need to store templates elsewhere, set `OCR_BOXES_FILE=/path/to/boxes_ratios.json` before running either script.
 
 If either script reports `Input folder 'shots' is missing`, create `shots/` and add at least one screenshot before running again.
 
