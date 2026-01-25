@@ -46,14 +46,19 @@ def check_torch_cpu() -> tuple[bool, str]:
         import torch
         version = torch.__version__
         
-        if '+cpu' in version:
-            cuda_available = torch.cuda.is_available()
-            if cuda_available:
-                return True, f"✓ PyTorch {version} (CPU build with CUDA available)"
-            else:
-                return True, f"✓ PyTorch {version} (CPU-only mode)"
+        # Check for CPU build markers
+        is_cpu_build = '+cpu' in version
+        cuda_available = torch.cuda.is_available()
+        
+        if is_cpu_build and not cuda_available:
+            return True, f"✓ PyTorch {version} (CPU-only mode)"
+        elif is_cpu_build and cuda_available:
+            return True, f"✓ PyTorch {version} (CPU build with CUDA available)"
+        elif cuda_available:
+            return True, f"✓ PyTorch {version} (CUDA GPU available)"
         else:
-            return True, f"⚠ PyTorch {version} (not a CPU-only build, may require CUDA)"
+            # No explicit +cpu marker and no CUDA - likely CPU-only
+            return True, f"✓ PyTorch {version} (CPU mode - no CUDA detected)"
     except ImportError:
         return False, "✗ PyTorch is NOT installed"
     except Exception as e:
