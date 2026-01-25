@@ -16,3 +16,17 @@ If either script reports `Input folder 'shots' is missing`, create `shots/` and 
 
 ## Diagnostics
 - Run `python ocr/diagnostics.py` locally to confirm dependencies, the Tesseract binary, and templates are available.
+
+## Validation & Testing
+
+### Quick validation
+```bash
+python ocr/validate_easyocr.py
+```
+Fast check specifically for EasyOCR dependencies with clear pass/fail indicators.
+
+### Unit tests
+```bash
+python -m unittest tests.test_ocr_dependencies
+```
+Automated tests for all OCR dependencies including voice support (PyNaCl).
