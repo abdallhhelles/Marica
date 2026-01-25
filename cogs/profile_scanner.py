@@ -367,14 +367,11 @@ class ProfileScanner(commands.Cog):
     # --------------------
     # Commands
     # --------------------
-    @commands.hybrid_group(
+    @commands.hybrid_command(
         name="scan",
         description="Start a scan and get the upload prompt in DMs.",
-        invoke_without_command=True,
     )
     async def scan(self, ctx):
-        if ctx.invoked_subcommand is not None:
-            return
         if not ctx.guild:
             return await self._safe_send(
                 ctx,
@@ -439,7 +436,8 @@ class ProfileScanner(commands.Cog):
                 title="🛰️ Scan setup",
                 description=(
                     "Pick the scan type that matches your screenshot. "
-                    "Upload a clear PNG/JPEG/WEBP here and I’ll DM the results."
+                    "Upload a clear PNG/JPEG/WEBP here and I’ll DM the results. "
+                    "For best accuracy: full-screen, no crop, no overlays, crisp text."
                 ),
                 color=0x3498DB,
             )
@@ -476,8 +474,8 @@ class ProfileScanner(commands.Cog):
                 ephemeral=True,
             )
 
-    @scan.command(
-        name="status",
+    @commands.hybrid_command(
+        name="scan_status",
         description="Show scan configuration status.",
     )
     @commands.has_permissions(manage_guild=True)
@@ -655,7 +653,8 @@ class ProfileScanner(commands.Cog):
                     )
                     return
                 await job.message.reply(
-                    "I couldn't read that screenshot. Send a full-screen profile image with stats clearly visible."
+                    "I couldn't read that screenshot. Send a full-screen profile image with the header "
+                    "and stats clearly visible."
                 )
                 return
             payload = self._build_payload(
