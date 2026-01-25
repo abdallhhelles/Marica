@@ -41,7 +41,33 @@ import easyocr
 import numpy as np
 
 INPUT_DIR = "shots"
-BOXES_FILE = "boxes_ratios.json"
+BOXES_FILE_NAME = "boxes_ratios.json"
+BASE_DIR = os.path.dirname(__file__)
+
+
+def resolve_boxes_file() -> str:
+    """Resolve the OCR template file path with sensible fallbacks."""
+    env_path = os.getenv("OCR_BOXES_FILE")
+    candidates = []
+    if env_path:
+        candidates.append(env_path)
+    candidates.append(os.path.join(BASE_DIR, BOXES_FILE_NAME))
+    candidates.append(os.path.join(os.getcwd(), BOXES_FILE_NAME))
+
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return candidate
+
+    if env_path:
+        raise SystemExit(
+            f"OCR template file not found. OCR_BOXES_FILE was set to '{env_path}', "
+            "but the file does not exist."
+        )
+
+    raise SystemExit(
+        "OCR template file not found. Looked for "
+        f"'{BOXES_FILE_NAME}' in {BASE_DIR} and the current working directory."
+    )
 
 # If you want Arabic later add "ar" too: ["en", "ar"]
 LANGS = ["en"]
@@ -243,21 +269,19 @@ def main():
     """Main OCR processing pipeline."""
     logger.info("Starting OCR runner...")
     
-    # Validate boxes file exists
-    if not os.path.exists(BOXES_FILE):
-        logger.error(f"Bounding boxes file not found: {BOXES_FILE}")
-        raise SystemExit(f"Missing {BOXES_FILE}. Run box_picker.py first.")
+    boxes_file = resolve_boxes_file()
+    logger.info(f"Using OCR template file: {boxes_file}")
 
     # Load bounding box configuration
     try:
-        with open(BOXES_FILE, "r", encoding="utf-8") as f:
+        with open(boxes_file, "r", encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in {BOXES_FILE}: {e}")
-        raise SystemExit(f"Failed to parse {BOXES_FILE}. Please check JSON syntax.")
+        logger.error(f"Invalid JSON in {boxes_file}: {e}")
+        raise SystemExit(f"Failed to parse {boxes_file}. Please check JSON syntax.")
     except Exception as e:
-        logger.error(f"Error reading {BOXES_FILE}: {e}")
-        raise SystemExit(f"Failed to read {BOXES_FILE}: {e}")
+        logger.error(f"Error reading {boxes_file}: {e}")
+        raise SystemExit(f"Failed to read {boxes_file}: {e}")
 
     boxes = data.get("template_ratios", {})
     if not boxes:
