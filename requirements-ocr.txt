@@ -1,12 +1,28 @@
+# OCR Dependencies for Marica Profile Scanner
+# 
+# This file contains dependencies for the OCR (Optical Character Recognition) system
+# All packages are configured for CPU-only operation (no CUDA/GPU required)
+# 
+# Installation:
+#   pip install --no-cache-dir -r requirements-ocr.txt
+#
+# Note: This requires ~1-2GB of disk space and may take several minutes to install
+# For low-memory systems, see docs/LOW_MEMORY_INSTALL.md
+
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Core OCR deps
-pillow
-pytesseract
-opencv-python-headless
-numpy
+# Core image processing and OCR
+pillow>=9.0.0
+pytesseract>=0.3.10
+opencv-python-headless>=4.5.0
+numpy>=1.21.0,<2.0.0
 
-# EasyOCR + PyTorch stack (CPU wheels, no NVIDIA CUDA blobs)
-easyocr
+# EasyOCR + PyTorch stack (CPU-only wheels, no CUDA dependencies)
+easyocr>=1.6.0
 torch==2.3.1+cpu
 torchvision==0.18.1+cpu
+
+# Note: If you encounter compatibility issues:
+# - Ensure pip is up to date: pip install --upgrade pip
+# - Try installing torch and torchvision separately first
+# - For alternative PyTorch versions, see: https://pytorch.org/get-started/locally/
