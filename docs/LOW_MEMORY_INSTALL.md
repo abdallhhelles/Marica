@@ -4,7 +4,7 @@ Tiny game panels often get OOM-killed when torch or EasyOCR wheels are built on-
 
 ## Option A: Skip OCR entirely
 * Install the lightweight requirements: `pip install -r requirements-lite.txt`
-* OCR features (e.g., `/scan_profile`) stay disabled; the rest of the bot runs normally.
+* OCR features (e.g., `/scan`) stay disabled; the rest of the bot runs normally.
 
 ## Option B: Preload wheels from a larger machine
 1. On a machine with more RAM and the **same Python version/architecture** as your host, download all wheels:

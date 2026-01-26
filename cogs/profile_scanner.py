@@ -763,18 +763,6 @@ class ProfileScanner(commands.Cog):
             if isinstance(message, discord.Message):
                 view.bind_message(message)
 
-    async def _maybe_release_ocr(self) -> None:
-        if not self.bot.config.profile_scan_release_ocr:
-            return
-        if self._easyocr_reader or self._easyocr_boxes:
-            self.log.info("Releasing EasyOCR resources after scan to reduce memory usage.")
-        self._easyocr_reader = None
-        self._easyocr_boxes = None
-        self._easyocr_ready = None
-        self._easyocr_failure_reason = None
-        await asyncio.get_running_loop().run_in_executor(None, gc.collect)
-            return
-
         if job.scan_type == SCAN_TYPE_DUEL_SCORE:
             if now_game().weekday() != 6:
                 await job.message.reply(
@@ -826,6 +814,17 @@ class ProfileScanner(commands.Cog):
                 return
             if isinstance(message, discord.Message):
                 view.bind_message(message)
+
+    async def _maybe_release_ocr(self) -> None:
+        if not self.bot.config.profile_scan_release_ocr:
+            return
+        if self._easyocr_reader or self._easyocr_boxes:
+            self.log.info("Releasing EasyOCR resources after scan to reduce memory usage.")
+        self._easyocr_reader = None
+        self._easyocr_boxes = None
+        self._easyocr_ready = None
+        self._easyocr_failure_reason = None
+        await asyncio.get_running_loop().run_in_executor(None, gc.collect)
 
     def _duel_score_extract(self, image_bytes: bytes, use_easyocr: bool = False) -> dict:
         if not (cv2 and np):
