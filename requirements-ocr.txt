@@ -12,15 +12,15 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Core image processing and OCR
-pillow>=9.0.0
+pillow==11.1.0
 pytesseract>=0.3.10
-opencv-python-headless>=4.5.0
-numpy>=1.21.0,<2.0.0
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
 
 # EasyOCR + PyTorch stack (CPU-only wheels, no CUDA dependencies)
-easyocr>=1.6.0
-torch==2.3.1+cpu
-torchvision==0.18.1+cpu
+easyocr==1.7.2
+torch==2.6.0
+torchvision==0.21.0
 
 # Note: If you encounter compatibility issues:
 # - Ensure pip is up to date: pip install --upgrade pip

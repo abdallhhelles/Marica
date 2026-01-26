@@ -5,10 +5,12 @@ FEATURES: DM intake, scan parsing, profile views, and leaderboard queries.
 """
 
 import asyncio
+import gc
 import importlib.util
 import io
 import json
 import logging
+import os
 import re
 import random
 import time
@@ -64,6 +66,12 @@ else:  # pragma: no cover - optional dependency guard
 
 
 NUMBER_RE = re.compile(r"(?P<value>[\d.,\s]+)\s*(?P<suffix>[kmbKMB]?)")
+SCAN_TYPE_PROFILE = "profile"
+SCAN_TYPE_DUEL_SCORE = "duel_score"
+SCAN_TYPE_LABELS = {
+    SCAN_TYPE_PROFILE: "profile",
+    SCAN_TYPE_DUEL_SCORE: "duel score",
+}
 LABEL_HINTS = {
     "cp": ("cp", "power", "battle power", "total power", "combat power"),
     "kills": ("kills", "defeats", "defeated", "eliminations", "total kills"),
@@ -72,11 +80,47 @@ LABEL_HINTS = {
     "alliance": ("alliance", "all", "guild"),
     "server": ("server", "state", "world"),
 }
-DUEL_WEEK_ROI = (0.362887, 0.211429, 0.278351, 0.049524)
-OWNER_NAME_ROI = (0.331959, 0.737143, 0.25567, 0.035238)
-OWNER_SCORE_ROI = (0.690722, 0.740952, 0.197938, 0.058095)
+DUEL_WEEK_ROI_DEFAULT = (0.149573, 0.200632, 0.25641, 0.065956)
+OWNER_NAME_ROI_DEFAULT = (0.329915, 0.742101, 0.275214, 0.031991)
+OWNER_SCORE_ROI_DEFAULT = (0.684615, 0.742101, 0.194872, 0.057662)
 
-BOXES_PATH = Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json"
+
+def _parse_roi(raw: str) -> tuple[float, float, float, float] | None:
+    parts = [part.strip() for part in raw.split(",") if part.strip()]
+    if len(parts) != 4:
+        return None
+    try:
+        values = tuple(float(part) for part in parts)
+    except ValueError:
+        return None
+    if any(value <= 0 for value in values):
+        return None
+    if any(value > 1 for value in values):
+        return None
+    return values  # type: ignore[return-value]
+
+
+def _load_roi_env(name: str, default: tuple[float, float, float, float]):
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    parsed = _parse_roi(raw)
+    if parsed is None:
+        logging.getLogger("MarciaOS.ProfileScanner").warning(
+            "Invalid %s ROI value %r; expected 4 comma-separated ratios.", name, raw
+        )
+        return default
+    return parsed
+
+
+DUEL_WEEK_ROI = _load_roi_env("OCR_DUEL_WEEK_ROI", DUEL_WEEK_ROI_DEFAULT)
+OWNER_NAME_ROI = _load_roi_env("OCR_DUEL_NAME_ROI", OWNER_NAME_ROI_DEFAULT)
+OWNER_SCORE_ROI = _load_roi_env("OCR_DUEL_SCORE_ROI", OWNER_SCORE_ROI_DEFAULT)
+
+BOXES_PATH = Path(
+    os.getenv("OCR_BOXES_FILE")
+    or (Path(__file__).resolve().parent.parent / "ocr" / "boxes_ratios.json")
+)
 EASYOCR_LANGS = ["en"]
 EASYOCR_MIN_CONF = 0.35
 EASYOCR_FIELDS = {
@@ -134,10 +178,11 @@ def _extract_number(chunk: str) -> int | None:
 
 
 def _normalize_server_value(value: str) -> str:
-    match = re.search(r"\d+", value)
+    cleaned = value.replace("#", " ").strip()
+    match = re.search(r"\d+", cleaned)
     if match:
         return match.group(0)
-    return value.strip()
+    return cleaned
 
 
 def _clean_label(value: str, *labels: str) -> str:
@@ -239,6 +284,7 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
         number = match.group(1)
         suffix = match.group(2)
         raw = number.replace(",", "")
+        has_decimal = "." in raw
         if raw.count(".") > 1:
             parts = raw.split(".")
             raw = parts[0] + "." + "".join(parts[1:])
@@ -261,9 +307,29 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
                 "score_int": score_int,
                 "score_text": _format_duel_score_text(score_int, suffix or None, raw),
                 "has_suffix": bool(suffix),
+                "has_decimal": has_decimal,
                 "digits": len(re.sub(r"\\D", "", raw)),
             }
         )
+        if suffix in {"M", "B"} and not has_decimal and score_int >= 100_000_000 and raw.isdigit():
+            raw_decimal = f"{raw[:-1]}.{raw[-1]}"
+            try:
+                value_decimal = float(raw_decimal)
+            except ValueError:
+                continue
+            alt_score_int = int(value_decimal * multiplier)
+            if alt_score_int > 0:
+                candidates.append(
+                    {
+                        "score_int": alt_score_int,
+                        "score_text": _format_duel_score_text(
+                            alt_score_int, suffix or None, raw_decimal
+                        ),
+                        "has_suffix": True,
+                        "has_decimal": True,
+                        "digits": len(re.sub(r"\\D", "", raw_decimal)),
+                    }
+                )
 
     if not candidates:
         return None, None
@@ -272,6 +338,7 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
         candidates,
         key=lambda item: (
             bool(item["has_suffix"]),
+            bool(item["has_decimal"]),
             int(item["score_int"]),
             int(item["digits"]),
         ),
@@ -379,6 +446,13 @@ class ProfileScanner(commands.Cog):
                     "Run `/scan` inside the server where you want the stats to count. "
                     "I'll DM you the upload prompt."
                 ),
+                ephemeral=True,
+            )
+        if not getattr(self.bot, "ocr_enabled", False):
+            missing = ", ".join(getattr(self.bot, "ocr_missing", []) or ["unknown"])
+            return await self._safe_send(
+                ctx,
+                content=f"OCR not available on this host, missing {missing}.",
                 ephemeral=True,
             )
 
@@ -567,12 +641,16 @@ class ProfileScanner(commands.Cog):
             )
             return
 
-        if pending.scan_type == "duel" and not (cv2 and pytesseract and np):
-            await message.reply(
-                "Duel score scan is offline right now. Ask an admin to enable scanning on this bot."
-            )
-            self._pending_scans.pop(message.author.id, None)
-            return
+        if pending.scan_type == SCAN_TYPE_DUEL_SCORE:
+            duel_ready = bool(cv2 and np)
+            if duel_ready and not pytesseract:
+                duel_ready = await self._ensure_easyocr()
+            if not duel_ready:
+                await message.reply(
+                    "Duel score scan is offline right now. Ask an admin to enable scanning on this bot."
+                )
+                self._pending_scans.pop(message.author.id, None)
+                return
 
         try:
             image_bytes = await attachment.read()
@@ -581,7 +659,7 @@ class ProfileScanner(commands.Cog):
             await message.reply("I couldn't read that image.")
             return
 
-        if pending.scan_type == "profile" and cv2 and pytesseract and np:
+        if pending.scan_type == SCAN_TYPE_PROFILE and cv2 and pytesseract and np:
             try:
                 arr = np.frombuffer(image_bytes, dtype=np.uint8)
                 image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -605,7 +683,7 @@ class ProfileScanner(commands.Cog):
         await self._scan_queue.put(job)
         position = self._scan_queue.qsize()
         queue_note = f"Global queue position: {position}."
-        scan_label = "profile scan" if pending.scan_type == "profile" else "duel score scan"
+        scan_label = f"{SCAN_TYPE_LABELS.get(pending.scan_type, pending.scan_type)} scan"
         await message.reply(
             f"📡 {scan_label.title()} queued. {queue_note} I'll DM results when ready."
         )
@@ -620,13 +698,14 @@ class ProfileScanner(commands.Cog):
                 self.log.exception("Profile scan worker %s failed", worker_id)
             finally:
                 self._scan_queue.task_done()
+                await self._maybe_release_ocr()
 
     async def _process_scan_job(self, job: ScanJob) -> None:
         guild = self.bot.get_guild(job.guild_id)
         member = guild.get_member(job.user.id) if guild else None
         user = member or job.user
 
-        if job.scan_type == "profile":
+        if job.scan_type == SCAN_TYPE_PROFILE:
             image_url = job.attachment.url
             cached_path = await self._persist_profile_image(
                 job.guild_id,
@@ -683,9 +762,25 @@ class ProfileScanner(commands.Cog):
                 return
             if isinstance(message, discord.Message):
                 view.bind_message(message)
+
+    async def _maybe_release_ocr(self) -> None:
+        if not self.bot.config.profile_scan_release_ocr:
+            return
+        if self._easyocr_reader or self._easyocr_boxes:
+            self.log.info("Releasing EasyOCR resources after scan to reduce memory usage.")
+        self._easyocr_reader = None
+        self._easyocr_boxes = None
+        self._easyocr_ready = None
+        self._easyocr_failure_reason = None
+        await asyncio.get_running_loop().run_in_executor(None, gc.collect)
             return
 
-        if job.scan_type == "duel":
+        if job.scan_type == SCAN_TYPE_DUEL_SCORE:
+            if now_game().weekday() != 6:
+                await job.message.reply(
+                    "Duel score scans are only available on Sunday (Duel Week off-day)."
+                )
+                return
             loop = asyncio.get_running_loop()
             use_easyocr = await self._ensure_easyocr()
             result = await loop.run_in_executor(
@@ -1385,7 +1480,7 @@ class ScanMenuView(discord.ui.View):
                 ephemeral=True,
             )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
-            scan_type="profile",
+            scan_type=SCAN_TYPE_PROFILE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
@@ -1400,8 +1495,13 @@ class ScanMenuView(discord.ui.View):
                 "Duel scan is disabled for this server.",
                 ephemeral=True,
             )
+        if now_game().weekday() != 6:
+            return await interaction.response.send_message(
+                "Duel score scans are only available on Sunday (Duel Week off-day).",
+                ephemeral=True,
+            )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
-            scan_type="duel",
+            scan_type=SCAN_TYPE_DUEL_SCORE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
@@ -1484,7 +1584,7 @@ class ProfileScanReviewView(discord.ui.View):
             return
         self._finalized = True
         self.cog._pending_scans[self.user_id] = PendingScan(
-            scan_type="profile",
+            scan_type=SCAN_TYPE_PROFILE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )
@@ -1581,7 +1681,7 @@ class DuelScanReviewView(discord.ui.View):
             return
         self._finalized = True
         self.cog._pending_scans[self.user_id] = PendingScan(
-            scan_type="duel",
+            scan_type=SCAN_TYPE_DUEL_SCORE,
             guild_id=self.guild_id,
             requested_at=datetime.now(timezone.utc),
         )

@@ -81,6 +81,7 @@ class MarciaConfig:
     profile_scan_review_timeout: int
     profile_scan_workers: int
     profile_scan_concurrency: int
+    profile_scan_release_ocr: bool
 
 
 def load_config() -> MarciaConfig:
@@ -111,6 +112,7 @@ def load_config() -> MarciaConfig:
         profile_scan_review_timeout=_get_int("PROFILE_SCAN_REVIEW_TIMEOUT", 90),
         profile_scan_workers=_get_int("PROFILE_SCAN_WORKERS", 1),
         profile_scan_concurrency=_get_int("PROFILE_SCAN_CONCURRENCY", 2),
+        profile_scan_release_ocr=_get_bool("PROFILE_SCAN_RELEASE_OCR", True),
     )
 
 

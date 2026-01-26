@@ -35,19 +35,15 @@ This document summarizes the changes made to resolve OCR functionality issues an
 - Unit test added: `tests/test_ocr_dependencies.TestVoiceDependencies.test_pynacl_available`
 - Test passes successfully with PyNaCl installed
 
-### 3. googletrans and httpx Conflict ✓
-**Problem:** `googletrans==4.0.0rc1` requires `httpx==0.13.3`, but the bot requires `httpx==0.28.1`.
+### 3. Legacy googletrans conflict guidance ✓
+**Problem:** `googletrans==4.0.0rc1` pins `httpx==0.13.3`, but the bot requires `httpx==0.28.1`.
 
 **Solution:**
-- Analysis shows `googletrans` is NOT used in the codebase
-- The bot already has conflict detection in `main.py` (line 238-256) that warns users at startup
-- Updated documentation to clarify:
-  - `googletrans` is not used by the bot
-  - Users should uninstall it if present: `pip uninstall googletrans`
-  - This resolves the httpx version conflict
+- Translation uses `deep-translator` (Google backend)
+- Updated documentation to discourage installing legacy `googletrans` packages or to isolate them in a separate venv
 
 **Documentation Updated:**
-- `docs/OCR_SETUP.md` - Added clear guidance on googletrans conflict
+- `docs/OCR_SETUP.md` - Added guidance to avoid legacy `googletrans`
 
 ### 4. Testing the /scan Command ✓
 **Problem:** No clear documentation on how to test the OCR functionality.
@@ -90,7 +86,7 @@ python ocr/ocr_runner.py
 - `docs/OCR_SETUP.md` - Comprehensive updates including:
   - Validation procedures
   - Testing instructions
-  - googletrans conflict resolution
+  - legacy googletrans conflict guidance
 - `ocr/README.md` - Added validation tools section
 
 ## Installation Instructions
@@ -168,7 +164,7 @@ All issues from the problem statement have been addressed:
 
 1. ✅ **EasyOCR Dependencies** - Already properly configured in requirements-ocr.txt, validation tools added
 2. ✅ **PyNaCl for Voice** - Added to all requirements files, tested and working
-3. ✅ **googletrans Conflict** - Documented that it's not used, should be uninstalled
+3. ✅ **Legacy googletrans Conflict** - Documented that it's not required and should be avoided
 4. ✅ **Testing /scan Command** - Comprehensive testing documentation added
 
 The bot now has:
