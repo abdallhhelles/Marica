@@ -15,7 +15,7 @@ A lore-driven, UTC-2–anchored command lead for **Dark War Survival** alliances
 - `/leaderboard`, `/profile`, and `/inventory` track XP, scan stats, and drop collections.
 
 ## Profile Scans
-- `/scan_profile` intake set via `/setup` so screenshots stay scoped to the right channel.
+- `/scan` kicks off DM intake so screenshots stay scoped to the right server.
 - `/profile_review` lets admins validate or purge scan data for accuracy.
 
 ## Community & Safety
@@ -30,6 +30,6 @@ A lore-driven, UTC-2–anchored command lead for **Dark War Survival** alliances
 ## Command Directory (quick view)
 - **Admin:** `/setup`, `/setup_trade`, `/refresh_commands`, `/event`, `/analytics`
 - **Members:** `/event` (upcoming ops), `/profile`, `/leaderboard`, `/inventory`, `/scavenge`, `/features`, `/commands`, `/heroes`
-- **Profile scans:** `/scan_profile`; `/leaderboard` export sends TSV via DM
+- **Profile scans:** `/scan` (DM intake); `/leaderboard` export sends TSV via DM
 - **Utility:** `/poll`, `/remindme`, `/clear`, translation via flag reactions
 - **Trading:** Fish-Link buttons + trade access in `/profile` + `/inventory`

@@ -50,7 +50,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 * Python 3.8+
 * Base deps: `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
-### OCR add-on (enables `/scan_profile`)
+### OCR add-on (enables `/scan`)
 * Python OCR deps live in `requirements-ocr.txt` (Pillow, pytesseract, opencv-python-headless, numpy, EasyOCR, torch/torchvision pinned to the PyTorch **CPU** wheels, no NVIDIA downloads)
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
@@ -133,6 +133,9 @@ TOKEN=your_discord_bot_token_here
 
 **Metrics**
 * `MARCIA_METRICS_INTERVAL` — Seconds between metrics snapshots (default: `120`).
+* `MARCIA_LOG_METRICS_SNAPSHOT` — Emit metrics snapshot logs (default: `false`).
+* `MARCIA_LOG_COMMAND_CONTEXT` — Log command context lines like `CMD start` (default: `false`).
+* `MARCIA_LOG_COMMAND_LATENCY` — Log per-command latency events (default: `false`).
 
 **Data persistence**
 * Default database: `data/marcia_os.db` (auto-created). Override with `MARCIA_DB_PATH` if your host mounts storage elsewhere.

@@ -75,6 +75,8 @@ class MarciaConfig:
     http_breaker_failures: int
     http_breaker_reset: float
     metrics_interval: float
+    log_metrics_snapshot: bool
+    log_command_context: bool
     log_command_latency: bool
     ocr_space_api_key: str | None
     ocr_space_timeout: float
@@ -106,6 +108,8 @@ def load_config() -> MarciaConfig:
         http_breaker_failures=_get_int("MARCIA_HTTP_BREAKER_FAILURES", 3),
         http_breaker_reset=_get_float("MARCIA_HTTP_BREAKER_RESET", 30.0),
         metrics_interval=_get_float("MARCIA_METRICS_INTERVAL", 120.0),
+        log_metrics_snapshot=_get_bool("MARCIA_LOG_METRICS_SNAPSHOT", False),
+        log_command_context=_get_bool("MARCIA_LOG_COMMAND_CONTEXT", False),
         log_command_latency=_get_bool("MARCIA_LOG_COMMAND_LATENCY", False),
         ocr_space_api_key=_get_env("OCR_SPACE_API_KEY"),
         ocr_space_timeout=_get_float("OCR_SPACE_TIMEOUT", 60.0),

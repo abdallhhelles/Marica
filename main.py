@@ -313,7 +313,8 @@ class MarciaBot(commands.Bot):
     async def _metrics_loop(self) -> None:
         while True:
             await asyncio.sleep(self.config.metrics_interval)
-            log_metrics_snapshot()
+            if self.config.log_metrics_snapshot:
+                log_metrics_snapshot()
 
     async def _is_ignored_channel(self, guild_id: int, channel_id: int) -> bool:
         """Return True when a channel is configured to be ignored, logging failures."""
@@ -638,6 +639,8 @@ class MarciaBot(commands.Bot):
         interaction_id: int | None,
         invocation_id: str,
     ) -> None:
+        if not self.config.log_command_context:
+            return
         user_tag = str(user) if user else "Unknown"
         user_display = getattr(user, "display_name", None) or user_tag
         user_id = getattr(user, "id", None)
@@ -645,21 +648,16 @@ class MarciaBot(commands.Bot):
         guild_id = getattr(guild, "id", None)
         channel_name = getattr(channel, "name", None) or "DM"
         channel_id = getattr(channel, "id", None)
+        user_label = f"{user_display} ({user_id})" if user_id else user_display
+        guild_label = f"{guild_name} ({guild_id})" if guild_id else guild_name
+        channel_label = f"{channel_name} ({channel_id})" if channel_id else channel_name
         logger.info(
-            "CMD start | name=%s | source=%s | user=%s (display=%s, id=%s) | "
-            "guild=%s (id=%s) | channel=%s (id=%s) | message_id=%s | "
-            "interaction_id=%s | invocation_id=%s",
+            "CMD start | /%s | user=%s | guild=%s | channel=%s | source=%s | invocation=%s",
             command_name,
+            user_label,
+            guild_label,
+            channel_label,
             source,
-            user_tag,
-            user_display,
-            user_id,
-            guild_name,
-            guild_id,
-            channel_name,
-            channel_id,
-            message_id,
-            interaction_id,
             invocation_id,
         )
 
