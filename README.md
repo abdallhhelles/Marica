@@ -127,6 +127,7 @@ TOKEN=your_discord_bot_token_here
 * `PROFILE_SCAN_WORKERS` — Number of queued scan workers (default: `1`).
 * `PROFILE_SCAN_CONCURRENCY` — Max concurrent OCR jobs (default: `2`).
 * `PROFILE_SCAN_REVIEW_TIMEOUT` — Seconds before auto-accepting scan review (default: `90`).
+* `PROFILE_SCAN_RELEASE_OCR` — Release EasyOCR resources after each scan to reduce RAM (default: `true`).
 * `OCR_SPACE_API_KEY` — Optional OCR.space key for fallback.
 * `OCR_SPACE_TIMEOUT` — Seconds to wait on OCR.space (default: `60`).
 

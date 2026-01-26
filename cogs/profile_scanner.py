@@ -5,6 +5,7 @@ FEATURES: DM intake, scan parsing, profile views, and leaderboard queries.
 """
 
 import asyncio
+import gc
 import importlib.util
 import io
 import json
@@ -177,10 +178,11 @@ def _extract_number(chunk: str) -> int | None:
 
 
 def _normalize_server_value(value: str) -> str:
-    match = re.search(r"\d+", value)
+    cleaned = value.replace("#", " ").strip()
+    match = re.search(r"\d+", cleaned)
     if match:
         return match.group(0)
-    return value.strip()
+    return cleaned
 
 
 def _clean_label(value: str, *labels: str) -> str:
@@ -282,6 +284,7 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
         number = match.group(1)
         suffix = match.group(2)
         raw = number.replace(",", "")
+        has_decimal = "." in raw
         if raw.count(".") > 1:
             parts = raw.split(".")
             raw = parts[0] + "." + "".join(parts[1:])
@@ -304,9 +307,29 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
                 "score_int": score_int,
                 "score_text": _format_duel_score_text(score_int, suffix or None, raw),
                 "has_suffix": bool(suffix),
+                "has_decimal": has_decimal,
                 "digits": len(re.sub(r"\\D", "", raw)),
             }
         )
+        if suffix in {"M", "B"} and not has_decimal and score_int >= 100_000_000 and raw.isdigit():
+            raw_decimal = f"{raw[:-1]}.{raw[-1]}"
+            try:
+                value_decimal = float(raw_decimal)
+            except ValueError:
+                continue
+            alt_score_int = int(value_decimal * multiplier)
+            if alt_score_int > 0:
+                candidates.append(
+                    {
+                        "score_int": alt_score_int,
+                        "score_text": _format_duel_score_text(
+                            alt_score_int, suffix or None, raw_decimal
+                        ),
+                        "has_suffix": True,
+                        "has_decimal": True,
+                        "digits": len(re.sub(r"\\D", "", raw_decimal)),
+                    }
+                )
 
     if not candidates:
         return None, None
@@ -315,6 +338,7 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
         candidates,
         key=lambda item: (
             bool(item["has_suffix"]),
+            bool(item["has_decimal"]),
             int(item["score_int"]),
             int(item["digits"]),
         ),
@@ -674,6 +698,7 @@ class ProfileScanner(commands.Cog):
                 self.log.exception("Profile scan worker %s failed", worker_id)
             finally:
                 self._scan_queue.task_done()
+                await self._maybe_release_ocr()
 
     async def _process_scan_job(self, job: ScanJob) -> None:
         guild = self.bot.get_guild(job.guild_id)
@@ -737,9 +762,25 @@ class ProfileScanner(commands.Cog):
                 return
             if isinstance(message, discord.Message):
                 view.bind_message(message)
+
+    async def _maybe_release_ocr(self) -> None:
+        if not self.bot.config.profile_scan_release_ocr:
+            return
+        if self._easyocr_reader or self._easyocr_boxes:
+            self.log.info("Releasing EasyOCR resources after scan to reduce memory usage.")
+        self._easyocr_reader = None
+        self._easyocr_boxes = None
+        self._easyocr_ready = None
+        self._easyocr_failure_reason = None
+        await asyncio.get_running_loop().run_in_executor(None, gc.collect)
             return
 
         if job.scan_type == SCAN_TYPE_DUEL_SCORE:
+            if now_game().weekday() != 6:
+                await job.message.reply(
+                    "Duel score scans are only available on Sunday (Duel Week off-day)."
+                )
+                return
             loop = asyncio.get_running_loop()
             use_easyocr = await self._ensure_easyocr()
             result = await loop.run_in_executor(
@@ -1452,6 +1493,11 @@ class ScanMenuView(discord.ui.View):
         if not self.duel_enabled:
             return await interaction.response.send_message(
                 "Duel scan is disabled for this server.",
+                ephemeral=True,
+            )
+        if now_game().weekday() != 6:
+            return await interaction.response.send_message(
+                "Duel score scans are only available on Sunday (Duel Week off-day).",
                 ephemeral=True,
             )
         self.cog._pending_scans[interaction.user.id] = PendingScan(
