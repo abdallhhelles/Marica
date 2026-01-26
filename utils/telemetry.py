@@ -65,6 +65,7 @@ class MetricsStore:
 
 
 METRICS = MetricsStore()
+_LAST_SNAPSHOT: dict[str, dict] | None = None
 
 
 def record_command_latency(
@@ -131,7 +132,11 @@ def record_reconnect(*, shard_id: int | None = None, reason: str) -> None:
 
 
 def log_metrics_snapshot() -> None:
+    global _LAST_SNAPSHOT
     snapshot = METRICS.snapshot()
+    if snapshot == _LAST_SNAPSHOT:
+        return
+    _LAST_SNAPSHOT = snapshot
     _log_event("metrics_snapshot", **snapshot)
 
 

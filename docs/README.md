@@ -91,7 +91,7 @@ These steps are for the owner’s private deployment only.
 * Python 3.8+
 * `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
 
-### Profile scan add-on (OCR, enables `/scan_profile`)
+### Profile scan add-on (OCR, enables `/scan`)
 * All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt` (PyTorch entries are pinned to **CPU-only** wheels to keep installs light on GPU-less hosts)
 * System `tesseract-ocr` binary
 * Checklist and template workflow: [OCR_SETUP.md](OCR_SETUP.md)
@@ -101,7 +101,7 @@ These steps are for the owner’s private deployment only.
 
 * Use the lightweight install to skip OCR: `pip install -r requirements-lite.txt` (scanning stays disabled, everything else works).
 * If you need OCR, prebuild wheels on a bigger machine and upload them to the host. Install with `pip install --no-index --find-links /path/to/wheels -r requirements.txt`.
-* Or set `OCR_SPACE_API_KEY` to let `/scan_profile` call the OCR.space API instead of loading torch/EasyOCR locally.
+* Or set `OCR_SPACE_API_KEY` to let `/scan` call the OCR.space API instead of loading torch/EasyOCR locally.
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
@@ -173,6 +173,9 @@ TOKEN=your_discord_bot_token_here
 
 **Metrics**
 * `MARCIA_METRICS_INTERVAL` — Seconds between metrics snapshots (default: `120`).
+* `MARCIA_LOG_METRICS_SNAPSHOT` — Emit metrics snapshot logs (default: `false`).
+* `MARCIA_LOG_COMMAND_CONTEXT` — Log command context lines like `CMD start` (default: `false`).
+* `MARCIA_LOG_COMMAND_LATENCY` — Log per-command latency events (default: `false`).
 
 **Data persistence**
 * Default database: `data/marcia_os.db` (auto-created). Override with `MARCIA_DB_PATH` if your host mounts storage elsewhere.
