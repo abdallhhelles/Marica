@@ -31,6 +31,7 @@ def _pin_working_directory() -> None:
 _pin_working_directory()
 
 import discord
+import httpx
 from discord import app_commands
 from discord.errors import HTTPException
 from discord.ext import commands
@@ -49,6 +50,14 @@ from cogs.trading import FishControlView
 from database import init_db, increment_command_usage, is_channel_ignored
 
 logger = logging.getLogger("MarciaOS")
+OLLAMA_CONFIG_CHANNEL_NAME = "ai-config"
+OLLAMA_HEALTH_UP_TTL = 45.0
+OLLAMA_HEALTH_DOWN_TTL = 30.0
+OLLAMA_CONFIG_POLL_INTERVAL = 45.0
+OLLAMA_REQUEST_TIMEOUT = httpx.Timeout(90.0, connect=3.0)
+OLLAMA_HEALTH_TIMEOUT = httpx.Timeout(2.0, connect=2.0)
+OLLAMA_MODEL = "qwen2.5:7b"
+OLLAMA_SYSTEM_PROMPT = "You are a Discord bot. Be concise."
 
 
 def configure_logging() -> None:
@@ -97,10 +106,17 @@ class MarciaBot(commands.Bot):
         self._ai_memory_limit = 12
         self.ocr_enabled = False
         self.ocr_missing: list[str] = []
+        self._ollama_base_url: str | None = None
+        self._ollama_channel_id: int | None = None
+        self._ollama_health_up: bool | None = None
+        self._ollama_health_expires_at = 0.0
+        self._ollama_config_task: asyncio.Task | None = None
 
     async def close(self):
         if self._metrics_task:
             self._metrics_task.cancel()
+        if self._ollama_config_task:
+            self._ollama_config_task.cancel()
         await self.http_client.aclose()
         await super().close()
 
@@ -144,7 +160,29 @@ class MarciaBot(commands.Bot):
         )
 
     async def _generate_ai_reply(self, message: discord.Message) -> tuple[str | None, bool]:
+        fallback_reason = None
+        if await self._is_ollama_available():
+            reply, error = await self._generate_ollama_reply(message)
+            if reply:
+                return reply, False
+            if error:
+                fallback_reason = error
+
+        reply, was_rate_limited = await self._generate_cloud_ai_reply(message, fallback_reason=fallback_reason)
+        return reply, was_rate_limited
+
+    async def _generate_cloud_ai_reply(
+        self,
+        message: discord.Message,
+        *,
+        fallback_reason: str | None = None,
+    ) -> tuple[str | None, bool]:
         if not self.config.ai_api_key:
+            if fallback_reason:
+                logger.warning(
+                    "AI fallback skipped (no cloud provider configured). fallback_reason=%s",
+                    fallback_reason,
+                )
             return None, False
         base_url = self.config.ai_base_url.rstrip("/")
         if base_url.endswith("/chat/completions"):
@@ -167,6 +205,7 @@ class MarciaBot(commands.Bot):
         }
         if self.config.ai_app_url:
             headers["HTTP-Referer"] = self.config.ai_app_url
+        start = time.monotonic()
         try:
             response = await self.http_client.request(
                 "ai",
@@ -197,7 +236,63 @@ class MarciaBot(commands.Bot):
             )
             return None, False
         reply = data.get("choices", [{}])[0].get("message", {}).get("content")
+        latency_ms = (time.monotonic() - start) * 1000
+        logger.info(
+            "AI response provider=cloud model=%s latency_ms=%.0f fallback_reason=%s",
+            self.config.ai_model,
+            latency_ms,
+            fallback_reason or "none",
+        )
         return self._sanitize_marcia_reply(reply), False
+
+    async def _generate_ollama_reply(self, message: discord.Message) -> tuple[str | None, str | None]:
+        base_url = self._ollama_base_url
+        if not base_url:
+            return None, "ollama-url-missing"
+        endpoint = f"{base_url.rstrip('/')}/api/chat"
+        payload = {
+            "model": OLLAMA_MODEL,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": OLLAMA_SYSTEM_PROMPT},
+                {"role": "user", "content": message.content},
+            ],
+            "options": {
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "num_predict": 200,
+            },
+        }
+        start = time.monotonic()
+        try:
+            response = await self.http_client.request(
+                "ollama",
+                "POST",
+                endpoint,
+                json=payload,
+                retries=0,
+                retry_for_status=(),
+                safe=False,
+                timeout=OLLAMA_REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            data = response.json()
+            reply = data.get("message", {}).get("content")
+            if not reply:
+                raise ValueError("missing response message")
+        except Exception as exc:
+            reason = getattr(exc, "response", None)
+            status = reason.status_code if reason is not None else "no-status"
+            logger.warning("Ollama request failed (%s): %s", status, exc)
+            self._set_ollama_health(False, reason="request-failed")
+            return None, "ollama-request-failed"
+        latency_ms = (time.monotonic() - start) * 1000
+        logger.info(
+            "AI response provider=ollama model=%s latency_ms=%.0f fallback_reason=none",
+            OLLAMA_MODEL,
+            latency_ms,
+        )
+        return self._sanitize_marcia_reply(reply), None
 
     @staticmethod
     def _sanitize_marcia_reply(reply: str | None) -> str | None:
@@ -309,6 +404,109 @@ class MarciaBot(commands.Bot):
                 name="metrics-loop",
                 logger=logger,
             )
+        if not self._ollama_config_task:
+            self._ollama_config_task = create_tracked_task(
+                self._ollama_config_loop(),
+                name="ollama-config-loop",
+                logger=logger,
+            )
+
+    async def _ollama_config_loop(self) -> None:
+        await self.wait_until_ready()
+        while True:
+            try:
+                await self._refresh_ollama_config()
+            except Exception:
+                logger.exception("Ollama config refresh failed")
+            await asyncio.sleep(OLLAMA_CONFIG_POLL_INTERVAL)
+
+    async def _refresh_ollama_config(self) -> None:
+        channel = self._resolve_ollama_config_channel()
+        if channel is None:
+            return
+        message = None
+        async for candidate in channel.history(limit=1):
+            message = candidate
+        if message is None:
+            return
+        ollama_url = self._parse_ollama_url(message.content)
+        if not ollama_url:
+            return
+        if ollama_url != self._ollama_base_url:
+            logger.info("Ollama URL updated via #%s", channel.name)
+            self._ollama_base_url = ollama_url
+            self._set_ollama_health(None, reason="url-updated")
+
+    def _resolve_ollama_config_channel(self) -> discord.TextChannel | None:
+        if self._ollama_channel_id is not None:
+            cached = self.get_channel(self._ollama_channel_id)
+            if isinstance(cached, discord.TextChannel):
+                return cached
+            self._ollama_channel_id = None
+        for guild in self.guilds:
+            channel = discord.utils.get(guild.text_channels, name=OLLAMA_CONFIG_CHANNEL_NAME)
+            if channel:
+                self._ollama_channel_id = channel.id
+                return channel
+        return None
+
+    @staticmethod
+    def _parse_ollama_url(content: str) -> str | None:
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("OLLAMA_URL="):
+                _, value = line.split("=", 1)
+                value = value.strip()
+                return value.rstrip("/") if value else None
+        return None
+
+    async def _is_ollama_available(self) -> bool:
+        if not self._ollama_base_url:
+            return False
+        now = time.monotonic()
+        if self._ollama_health_up is not None and now < self._ollama_health_expires_at:
+            return self._ollama_health_up
+        await self._check_ollama_health()
+        return bool(self._ollama_health_up)
+
+    async def _check_ollama_health(self) -> None:
+        base_url = self._ollama_base_url
+        if not base_url:
+            return
+        endpoint = f"{base_url.rstrip('/')}/api/tags"
+        try:
+            response = await self.http_client.request(
+                "ollama-health",
+                "GET",
+                endpoint,
+                retries=0,
+                retry_for_status=(),
+                safe=False,
+                timeout=OLLAMA_HEALTH_TIMEOUT,
+            )
+            response.raise_for_status()
+            response.json()
+        except Exception as exc:
+            logger.warning("Ollama health check failed: %s", exc)
+            self._set_ollama_health(False, reason="health-failed")
+            return
+        self._set_ollama_health(True, reason="health-ok")
+
+    def _set_ollama_health(self, status: bool | None, *, reason: str) -> None:
+        previous = self._ollama_health_up
+        self._ollama_health_up = status
+        now = time.monotonic()
+        if status is None:
+            self._ollama_health_expires_at = 0.0
+        else:
+            ttl = OLLAMA_HEALTH_UP_TTL if status else OLLAMA_HEALTH_DOWN_TTL
+            self._ollama_health_expires_at = now + ttl
+        if previous is None or previous == status:
+            return
+        state = "up" if status else "down"
+        logger.info("Ollama status transitioned to %s (%s)", state, reason)
 
     async def _metrics_loop(self) -> None:
         while True:
