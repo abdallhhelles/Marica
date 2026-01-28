@@ -74,6 +74,8 @@ class MarciaConfig:
     http_backoff: float
     http_breaker_failures: int
     http_breaker_reset: float
+    ollama_request_timeout: float
+    ollama_health_timeout: float
     metrics_interval: float
     log_metrics_snapshot: bool
     log_command_context: bool
@@ -107,6 +109,8 @@ def load_config() -> MarciaConfig:
         http_backoff=_get_float("MARCIA_HTTP_BACKOFF", 0.6),
         http_breaker_failures=_get_int("MARCIA_HTTP_BREAKER_FAILURES", 3),
         http_breaker_reset=_get_float("MARCIA_HTTP_BREAKER_RESET", 30.0),
+        ollama_request_timeout=_get_float("MARCIA_OLLAMA_REQUEST_TIMEOUT", 90.0),
+        ollama_health_timeout=_get_float("MARCIA_OLLAMA_HEALTH_TIMEOUT", 2.0),
         metrics_interval=_get_float("MARCIA_METRICS_INTERVAL", 120.0),
         log_metrics_snapshot=_get_bool("MARCIA_LOG_METRICS_SNAPSHOT", False),
         log_command_context=_get_bool("MARCIA_LOG_COMMAND_CONTEXT", False),
