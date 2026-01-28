@@ -54,8 +54,6 @@ OLLAMA_CONFIG_CHANNEL_NAME = "ai-config"
 OLLAMA_HEALTH_UP_TTL = 45.0
 OLLAMA_HEALTH_DOWN_TTL = 30.0
 OLLAMA_CONFIG_POLL_INTERVAL = 45.0
-OLLAMA_REQUEST_TIMEOUT = httpx.Timeout(90.0, connect=3.0)
-OLLAMA_HEALTH_TIMEOUT = httpx.Timeout(2.0, connect=2.0)
 OLLAMA_MODEL = "qwen2.5:7b"
 
 
@@ -110,6 +108,14 @@ class MarciaBot(commands.Bot):
         self._ollama_health_up: bool | None = None
         self._ollama_health_expires_at = 0.0
         self._ollama_config_task: asyncio.Task | None = None
+        self._ollama_request_timeout = httpx.Timeout(
+            config.ollama_request_timeout,
+            connect=3.0,
+        )
+        self._ollama_health_timeout = httpx.Timeout(
+            config.ollama_health_timeout,
+            connect=2.0,
+        )
 
     async def close(self):
         if self._metrics_task:
@@ -276,7 +282,7 @@ class MarciaBot(commands.Bot):
                 retries=0,
                 retry_for_status=(),
                 safe=False,
-                timeout=OLLAMA_REQUEST_TIMEOUT,
+                timeout=self._ollama_request_timeout,
             )
             response.raise_for_status()
             data = response.json()
@@ -487,7 +493,7 @@ class MarciaBot(commands.Bot):
                 retries=0,
                 retry_for_status=(),
                 safe=False,
-                timeout=OLLAMA_HEALTH_TIMEOUT,
+                timeout=self._ollama_health_timeout,
             )
             response.raise_for_status()
             response.json()
