@@ -928,7 +928,21 @@ class Events(commands.Cog):
             if settings and settings['event_channel_id']:
                 chan = ctx.guild.get_channel(settings['event_channel_id'])
                 if chan and not await is_channel_ignored(ctx.guild.id, chan.id):
-                    await chan.send("🛰️ **Operation Scheduled**", embed=preview)
+                    try:
+                        await chan.send("🛰️ **Operation Scheduled**", embed=preview)
+                    except discord.Forbidden:
+                        logger.warning(
+                            "Missing access to post scheduled mission in %s (%s).",
+                            ctx.guild.name,
+                            chan.id,
+                        )
+                    except discord.HTTPException as exc:
+                        logger.warning(
+                            "Failed to post scheduled mission in %s (%s): %s",
+                            ctx.guild.name,
+                            chan.id,
+                            exc,
+                        )
         except Exception:
             await ctx.author.send("❌ Use: `YYYY-MM-DD HH:MM`.")
 
@@ -972,16 +986,32 @@ class Events(commands.Cog):
                     f"React with {JOIN_EVENT_EMOJI} to join this event and receive DM reminders."
                     f"\n\n*Drone: {drone}*"
                 )
-                sent = await chan.send(
-                    msg,
-                    allowed_mentions=discord.AllowedMentions(everyone=True, roles=bool(role)),
-                )
-
+                sent = None
                 try:
-                    await sent.add_reaction(JOIN_EVENT_EMOJI)
-                except Exception:
-                    logger.warning("Could not add join reaction for %s", name)
-                await upsert_rsvp_prompt(guild_id, name, sent.id)
+                    sent = await chan.send(
+                        msg,
+                        allowed_mentions=discord.AllowedMentions(everyone=True, roles=bool(role)),
+                    )
+                except discord.Forbidden:
+                    logger.warning(
+                        "Missing access to send mission reminder in %s (%s).",
+                        chan.guild.name,
+                        chan.id,
+                    )
+                except discord.HTTPException as exc:
+                    logger.warning(
+                        "Failed to send mission reminder in %s (%s): %s",
+                        chan.guild.name,
+                        chan.id,
+                        exc,
+                    )
+
+                if sent:
+                    try:
+                        await sent.add_reaction(JOIN_EVENT_EMOJI)
+                    except Exception:
+                        logger.warning("Could not add join reaction for %s", name)
+                    await upsert_rsvp_prompt(guild_id, name, sent.id)
             else:
                 if mins == 0:
                     await self._announce_event_start(
@@ -1062,6 +1092,13 @@ class Events(commands.Cog):
                 "Missing access to send event kickoff in %s (%s).",
                 chan.guild.name,
                 chan.id,
+            )
+        except discord.HTTPException as exc:
+            logger.warning(
+                "Failed to send event kickoff in %s (%s): %s",
+                chan.guild.name,
+                chan.id,
+                exc,
             )
 
     async def _notify_dm_participants(self, guild_id: int, codename: str, mins: int, desc: str, location: str | None) -> None:
