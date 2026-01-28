@@ -57,7 +57,6 @@ OLLAMA_CONFIG_POLL_INTERVAL = 45.0
 OLLAMA_REQUEST_TIMEOUT = httpx.Timeout(90.0, connect=3.0)
 OLLAMA_HEALTH_TIMEOUT = httpx.Timeout(2.0, connect=2.0)
 OLLAMA_MODEL = "qwen2.5:7b"
-OLLAMA_SYSTEM_PROMPT = "You are a Discord bot. Be concise."
 
 
 def configure_logging() -> None:
@@ -250,12 +249,16 @@ class MarciaBot(commands.Bot):
         if not base_url:
             return None, "ollama-url-missing"
         endpoint = f"{base_url.rstrip('/')}/api/chat"
+        system_prompt = self._build_marcia_system_prompt()
+        history = list(self._ai_memory.get(message.channel.id, []))
+        current = {"role": "user", "content": f"{message.author.display_name}: {message.content}"}
         payload = {
             "model": OLLAMA_MODEL,
             "stream": False,
             "messages": [
-                {"role": "system", "content": OLLAMA_SYSTEM_PROMPT},
-                {"role": "user", "content": message.content},
+                {"role": "system", "content": system_prompt},
+                *history,
+                current,
             ],
             "options": {
                 "temperature": 0.7,
