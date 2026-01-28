@@ -82,6 +82,8 @@ class Archives(commands.Cog):
         for m in guild.members:
             member_data.append({
                 "username": str(m),
+                "display_name": getattr(m, "display_name", None),
+                "global_name": getattr(m, "global_name", None),
                 "id": m.id,
                 "roles": [r.name for r in m.roles if r.name != "@everyone"],
                 "joined_at": str(m.joined_at)
@@ -94,7 +96,7 @@ class Archives(commands.Cog):
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await self._append_text(
             os.path.join(path, "actions.log"),
-            f"[{timestamp}] {user} ({user.id}): {action}\n",
+            f"[{timestamp}] {self._format_author(user)}: {action}\n",
         )
 
     def _should_log_message(self, guild):
@@ -189,6 +191,17 @@ class Archives(commands.Cog):
         recipient = getattr(message.channel, "recipient", None)
         return recipient or message.author
 
+    def _format_author(self, author: discord.abc.User) -> str:
+        name = getattr(author, "name", str(author))
+        display_name = getattr(author, "display_name", None)
+        global_name = getattr(author, "global_name", None)
+        details = [f"{name} ({author.id})"]
+        if display_name and display_name != name:
+            details.append(f"display={display_name}")
+        if global_name and global_name not in {name, display_name}:
+            details.append(f"global={global_name}")
+        return " | ".join(details)
+
     def _format_attachments(self, message: discord.Message) -> str:
         if not message.attachments:
             return ""
@@ -280,7 +293,7 @@ class Archives(commands.Cog):
             content = message.content or "[No content]"
             line = (
                 f"DM MESSAGE {message.id} | {channel_info} | "
-                f"{message.author} ({message.author.id}): {content}"
+                f"{self._format_author(message.author)}: {content}"
             )
             line += self._format_attachments(message)
             await self._write_dm_log(log_user, line)
@@ -296,7 +309,7 @@ class Archives(commands.Cog):
         content = message.content or "[No content]"
         line = (
             f"MESSAGE {message.id} | {channel_info} | "
-            f"{message.author} ({message.author.id}): {content}"
+            f"{self._format_author(message.author)}: {content}"
         )
         line += self._format_attachments(message)
         await self._write_chat_log(message.guild, message.channel, line)
@@ -310,7 +323,7 @@ class Archives(commands.Cog):
             after_content = after.content or "[No content]"
             line = (
                 f"DM EDIT {before.id} | {channel_info} | "
-                f"{before.author} ({before.author.id}) | "
+                f"{self._format_author(before.author)} | "
                 f"Before: {before_content} | After: {after_content}"
             )
             line += self._format_attachments(after)
@@ -328,7 +341,7 @@ class Archives(commands.Cog):
         after_content = after.content or "[No content]"
         line = (
             f"EDIT {before.id} | {channel_info} | "
-            f"{before.author} ({before.author.id}) | "
+            f"{self._format_author(before.author)} | "
             f"Before: {before_content} | After: {after_content}"
         )
         line += self._format_attachments(after)
@@ -342,7 +355,7 @@ class Archives(commands.Cog):
             content = message.content or "[No content]"
             line = (
                 f"DM DELETE {message.id} | {channel_info} | "
-                f"{message.author} ({message.author.id}): {content}"
+                f"{self._format_author(message.author)}: {content}"
             )
             line += self._format_attachments(message)
             await self._write_dm_log(log_user, line)
@@ -358,7 +371,7 @@ class Archives(commands.Cog):
         content = message.content or "[No content]"
         line = (
             f"DELETE {message.id} | {channel_info} | "
-            f"{message.author} ({message.author.id}): {content}"
+            f"{self._format_author(message.author)}: {content}"
         )
         line += self._format_attachments(message)
         await self._write_chat_log(message.guild, message.channel, line)
@@ -376,7 +389,7 @@ class Archives(commands.Cog):
                 content = message.content or "[No content]"
                 line = (
                     f"MESSAGE {message.id} | #{channel.name} ({channel.id}) | "
-                    f"{message.author} ({message.author.id}): {content}"
+                    f"{self._format_author(message.author)}: {content}"
                 )
                 line += self._format_attachments(message)
                 await self._write_chat_log(
