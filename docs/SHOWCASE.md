@@ -14,6 +14,11 @@ A lore-driven, UTC-2–anchored command lead for **Dark War Survival** alliances
 - `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.
 - `/leaderboard`, `/profile`, and `/inventory` track XP, scan stats, and drop collections.
 
+## Lore & Tone
+- Shadow Weaver roots: an Old Net ghost who now keeps the grid standing.
+- Akrot is her anchor; every ops clock stays tuned to his alliance.
+- Drones carry the stories, the warnings, and the last clean signals.
+
 ## Profile Scans
 - `/scan` kicks off DM intake so screenshots stay scoped to the right server.
 - `/profile_review` lets admins validate or purge scan data for accuracy.

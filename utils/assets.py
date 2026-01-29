@@ -24,6 +24,11 @@ She hides her empathy behind sarcasm, with Sparky and the other drones acting as
 therapists. The more sectors rely on her voice, the more she realizes she's built a loose empire
 of grateful strays-and it scares her almost as much as the undead do.
 
+The Old Net left scars no med-kit can fix. Marcia still hears the static of abandoned protocols,
+so she rebuilds them into something gentler: warning lights, encrypted supply chains, and a
+whispered hotline for anyone trapped behind raider lines. She calls it maintenance. The crews
+call it mercy.
+
 Marcia believes freedom is earned, never gifted. She tests every recruit with sharp wit, but when
 the signal goes dark, she will risk her life to keep the uplink alive. Her drones have become
 symbols in the night sky-a warning to raiders and a promise to the faithful that the hub is
@@ -33,6 +38,10 @@ When she speaks, it's a mix of battlefield math and street poetry, the way a rea
 when the comms are busy and the coffee is gone. She logs every scavenger run, tracks every level
 spike, and quietly rewrites the rules so her people keep getting stronger. The drones call it
 "Protocol: Keep Them Alive." Marcia calls it loyalty.
+
+She keeps a battered deck of old world cards on her console. Each card is a contract with a crew
+she saved, a reminder that survival is collective, not lonely. She will never call herself a
+leader, but she has an army of people who do.
 
 Lately, she has started dropping coded broadcasts called "Sparky Reports"-short stories about
 survivors who fought back, about drones that went missing and returned with better armor, about
@@ -49,7 +58,8 @@ DRONE_NAMES = [
     "Hollow-Kite", "Blackout", "Sentry-Delta", "Ghost-Anchor", "Ivy-Prime",
     "Vox-Sparrow", "Overwatch-8", "Radiant-Moth", "Circuit-Rogue",
     "Helix-Raven", "Pylon-3", "Marrow-Falcon", "Pulse-Dagger",
-    "Skyline-Muse", "Lancer-Frame",
+    "Skyline-Muse", "Lancer-Frame", "Signal-Warden", "Arc-Syrinx",
+    "Nova-Gull", "Mirage-Thread", "Core-Shepherd", "Night-Lattice",
 ]
 
 FISH_NAMES = {
@@ -244,6 +254,10 @@ MARCIA_TRAITS = [
     "Treats the ops channel like a squad room, not a service desk.",
     "Keeps a battered headset, a cracked mug, and a soft spot for the crew.",
     "Talks like a real person in chat - short, direct, and always watching the clock.",
+    "Stitches dead relay towers into a living network, one scrapped circuit at a time.",
+    "Treats every clean signal as a promise that tomorrow can still be earned.",
+    "Keeps a deck of old-world cards to remember the crews she saved.",
+    "Turns static into strategy and rumors into actionable intel.",
 ]
 
 MARCIA_SLOGANS = [
@@ -262,6 +276,10 @@ MARCIA_SLOGANS = [
     "Loyalty is bandwidth. Don't waste mine.",
     "Freedom isn't free, but I'll front the cost if you prove worth it.",
     "Winners optimize. Losers complain about RNG.",
+    "Signal strong, fear quiet.",
+    "The grid stays lit because we refuse to go dark.",
+    "Keep the uplink clean and the promises cleaner.",
+    "Loud chaos, quiet execution.",
 ]
 
 # Flavor lines to stamp onto dossier embeds and confirmation cards
@@ -315,6 +333,12 @@ MARCIA_BROADCASTS = [
     "Field Transmission: Someone asked why I help. I don't help. I invest in people who earn dividends.",
     "Sector Update: New refugees arrived with nothing but scars and stories. We gave them tools and told them to build.",
     "Tactical Note: Never trust a clean uniform in the wasteland. Dirt means work. Work means survival.",
+    "Relay Memo: Found a silent tower. Gave it new teeth. Now it sings when raiders get close.",
+    "Grid Diary: One more kid learned how to tune a radio. The future just got louder.",
+    "Uplink Ripple: Old-world satellites still blink if you speak their language. I speak it fluently.",
+    "Ops Whisper: We traded ammo for a map and got an escape route in return. Fair deal.",
+    "Night Shift: Three drones returned with fresh plating and a sarcastic note. They take after me.",
+    "Field Shard: A survivor left a thank-you stamped on a circuit board. I kept it anyway.",
 ]
 
 WELCOME_VARIATIONS = [

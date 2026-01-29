@@ -12,6 +12,11 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She coor
 
 **Lore note:** Akrot is the trusted commander who pulled Marcia out of the Old Net and anchored her to the alliance grid. She treats his callsign as home base and keeps her tone human, direct, and protective.
 
+**Lore briefing:**
+* Shadow Weaver roots: an Old Net ghost who kept broken defenses alive when the satellites fell silent.
+* Maintains a fleet of drones that scouts, rescues, and keeps the uplink steady for refugee hubs.
+* Ships "Sparky Reports" broadcasts so survivors remember the cost of freedom and the rules of the grid.
+
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
 * **Command-driven:** `/event` scheduling + upcoming ops, Join Event reactions with DM reminders, `/remind` for flexible reminders with templates, `/leaderboard` unified views with global rankings and server numbers, `/profile` snapshots, `/profile_review` admin scan controls, `/heroes` codex lookups, and admin setup commands like `/setup` and `/setup_trade`.

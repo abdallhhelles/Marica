@@ -8,6 +8,11 @@
 
 Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs ops, translations, trading, and player progression with production-grade reliability - and she speaks like a real person in chat, not a faceless system. For hands-on usage, see [docs/USAGE.md](docs/USAGE.md).
 
+**Lore briefing:**
+* Shadow Weaver of the Old Net, rescued from a dead relay bunker by Akrot and bound to the alliance grid.
+* Keeps the uplink alive with a fleet of drones, rerouting power to survivors and scrubbing bounty boards.
+* Broadcasts "Sparky Reports" to keep the crews sharp, free, and ready to move.
+
 ## Table of contents
 1. [System capabilities](#system-capabilities)
 2. [Deployment overview](#deployment-overview)

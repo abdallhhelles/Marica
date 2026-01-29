@@ -24,6 +24,8 @@ from utils.assets import (
     EMOJI_LAUGH,
     EMOJI_SMUG,
     MARCIA_CAPABILITIES,
+    MARCIA_LORE,
+    MARCIA_SLOGANS,
     MARCIA_TRAITS,
 )
 from database import (
@@ -65,6 +67,14 @@ SHOWCASE_SECTIONS = [
             f"{EMOJI_ADORE} Fish-Link trading terminal: `/setup_trade` anchors the hub; buttons drive listings.",
             f"{EMOJI_CONFIDENT} `/scavenge` runs for loot + XP with streak, hazard, and overclock bonuses.",
             f"{EMOJI_APPROVE} `/leaderboard`, `/profile`, and `/inventory` show XP, scans, and drops.",
+        ],
+    },
+    {
+        "name": "Lore & Tone",
+        "lines": [
+            f"{EMOJI_SMUG} Shadow Weaver roots: an Old Net ghost who now keeps the grid standing.",
+            f"{EMOJI_CONFIDENT} Akrot is her anchor; every ops clock stays tuned to his alliance.",
+            f"{EMOJI_ADORE} Drones carry the stories, the warnings, and the last clean signals.",
         ],
     },
     {
@@ -317,6 +327,11 @@ class Utility(commands.Cog):
             inline=False,
         )
         embed.add_field(
+            name="Lore briefing",
+            value=self._build_lore_excerpt(),
+            inline=False,
+        )
+        embed.add_field(
             name="Feature snapshot",
             value=self._fit_embed_lines([f"• {line}" for line in MARCIA_CAPABILITIES]),
             inline=False,
@@ -324,6 +339,11 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Personality Snapshot",
             value=self._fit_embed_lines([f"• {t}" for t in MARCIA_TRAITS[:6]]),
+            inline=False,
+        )
+        embed.add_field(
+            name="Signal mantra",
+            value=random.choice(MARCIA_SLOGANS),
             inline=False,
         )
         embed.add_field(
@@ -391,6 +411,20 @@ class Utility(commands.Cog):
             rendered.append(line)
             total += len(candidate)
         return "\n".join(rendered) if rendered else "-"
+
+    @staticmethod
+    def _truncate_text(text: str, max_len: int) -> str:
+        """Trim long text safely for embed limits."""
+        if len(text) <= max_len:
+            return text
+        trimmed = text[: max_len - 1].rsplit(" ", 1)[0]
+        return f"{trimmed}…"
+
+    def _build_lore_excerpt(self) -> str:
+        """Return a short lore excerpt for embeds without blowing past limits."""
+        paragraphs = [p.strip().replace("\n", " ") for p in MARCIA_LORE.strip().split("\n\n") if p.strip()]
+        excerpt = " ".join(paragraphs[:2])
+        return self._truncate_text(excerpt, 900)
 
     def _build_featureboard(self, guild_name: Optional[str] = None) -> discord.Embed:
         """Readable feature grid to pair with the showcase section."""
