@@ -77,6 +77,16 @@ ROLE_TITLES = [
 ]
 
 HEART_EMOJI = "❤️"
+LIKE_TITLES = [
+    (0, "No Signal"),
+    (50, "Bronze Beacon"),
+    (200, "Silver Relay"),
+    (750, "Gold Conduit"),
+    (2500, "Platinum Signal"),
+    (6000, "Obsidian Crown"),
+    (15000, "Mythic Crest"),
+    (40000, "Sovereign Halo"),
+]
 
 RARITY_COLORS = {
     "Common": 0x95a5a6,
@@ -339,6 +349,15 @@ class Leveling(commands.Cog):
             return role_name(tier)
         return f"{ROLE_PREFIX} {tier:03d}"
 
+    def _like_title(self, likes: int) -> str:
+        title = LIKE_TITLES[0][1]
+        for threshold, name in LIKE_TITLES:
+            if likes >= threshold:
+                title = name
+            else:
+                break
+        return title
+
     async def _send_profile_overview(self, ctx, member: discord.Member | None = None):
         """Send the combined profile view with XP and scanned stats."""
         if not ctx.guild:
@@ -386,10 +405,12 @@ class Leveling(commands.Cog):
             cooldown_label = "Ready"
 
         discord_likes = data["discord_likes"] if data else 0
+        like_title = self._like_title(discord_likes)
         discord_section = [
             f"**Level** {lvl} • **Tier** {tier_title}",
             f"**XP** {xp:,} / {next_xp_req:,} `{bar}` ({pct}%)",
             f"❤️ **Signal Honors (Lifetime)** {discord_likes:,}",
+            f"🏅 **Honor Title** {like_title}",
             f"📦 **Stash** {stash_line}",
             f"⛏️ **Scavenge** {zone['name']} • {cooldown_label} • {scavenge_streak} streak",
         ]
