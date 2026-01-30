@@ -389,7 +389,7 @@ class Leveling(commands.Cog):
         discord_section = [
             f"**Level** {lvl} • **Tier** {tier_title}",
             f"**XP** {xp:,} / {next_xp_req:,} `{bar}` ({pct}%)",
-            f"❤️ **Discord Likes (Lifetime)** {discord_likes:,}",
+            f"❤️ **Signal Honors (Lifetime)** {discord_likes:,}",
             f"📦 **Stash** {stash_line}",
             f"⛏️ **Scavenge** {zone['name']} • {cooldown_label} • {scavenge_streak} streak",
         ]
