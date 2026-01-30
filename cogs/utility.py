@@ -6,6 +6,7 @@ FEATURES: Flag-based translation, Polls, Reminders, and Marcia Manuals.
 import asyncio
 import logging
 import random
+import time
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -163,6 +164,7 @@ class Utility(commands.Cog):
         self._app_owner = None
         self._feedback_owner = None
         self._feedback_dedupe: dict[tuple, float] = {}
+        self._translation_dedupe: dict[tuple[int, str], float] = {}
         self._share_link = "https://bit.ly/49z28IZ"
         self._about_cache: dict[str | None, discord.Embed] = {}
 
@@ -628,6 +630,17 @@ class Utility(commands.Cog):
         emoji = str(payload.emoji)
         if emoji not in FLAG_LANG:
             return
+
+        now = time.monotonic()
+        cache_key = (payload.message_id, emoji)
+        last_seen = self._translation_dedupe.get(cache_key)
+        if last_seen and now - last_seen < 300:
+            return
+        self._translation_dedupe[cache_key] = now
+        stale_cutoff = now - 1800
+        for key, timestamp in list(self._translation_dedupe.items()):
+            if timestamp < stale_cutoff:
+                self._translation_dedupe.pop(key, None)
 
         channel = self.bot.get_channel(payload.channel_id)
         if channel is None:
