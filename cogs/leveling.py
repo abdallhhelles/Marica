@@ -25,6 +25,7 @@ from utils.assets import (
 )
 from database import (
     DB_PATH,
+    add_discord_like,
     add_to_inventory,
     get_duel_leaderboard,
     get_duel_scores_for_user,
@@ -42,6 +43,7 @@ from database import (
     top_global_xp,
     top_profile_stat,
     top_xp_leaderboard,
+    remove_discord_like,
     update_scavenge_time,
     update_user_xp,
     transfer_inventory,
@@ -72,6 +74,18 @@ ROLE_TITLES = [
     "Obsidian Overseer",
     "Skyfall Director",
     "Uplink Sovereign",
+]
+
+HEART_EMOJI = "❤️"
+LIKE_TITLES = [
+    (0, "No Signal"),
+    (50, "Bronze Beacon"),
+    (200, "Silver Relay"),
+    (750, "Gold Conduit"),
+    (2500, "Platinum Signal"),
+    (6000, "Obsidian Crown"),
+    (15000, "Mythic Crest"),
+    (40000, "Sovereign Halo"),
 ]
 
 RARITY_COLORS = {
@@ -279,12 +293,70 @@ class Leveling(commands.Cog):
                             pass
                 await self.apply_role_rewards(message.author, new_level)
 
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if str(payload.emoji) != HEART_EMOJI:
+            return
+        if not payload.guild_id:
+            return
+        if payload.user_id == getattr(self.bot.user, "id", None):
+            return
+
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(payload.channel_id)
+            except discord.HTTPException:
+                return
+
+        if await is_channel_ignored(payload.guild_id, channel.id):
+            return
+
+        try:
+            message = await channel.fetch_message(payload.message_id)
+        except discord.HTTPException:
+            return
+
+        if message.author.bot or message.author.id == payload.user_id:
+            return
+
+        await add_discord_like(
+            payload.guild_id,
+            payload.message_id,
+            payload.user_id,
+            message.author.id,
+        )
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        if str(payload.emoji) != HEART_EMOJI:
+            return
+        if not payload.guild_id:
+            return
+        if payload.user_id == getattr(self.bot.user, "id", None):
+            return
+
+        await remove_discord_like(
+            payload.guild_id,
+            payload.message_id,
+            payload.user_id,
+        )
+
     def _tier_title_for_level(self, level: int) -> str:
         tier = max(ROLE_STEP, (level // ROLE_STEP) * ROLE_STEP)
         role_name = getattr(self, "_tier_role_name", None)
         if callable(role_name):
             return role_name(tier)
         return f"{ROLE_PREFIX} {tier:03d}"
+
+    def _like_title(self, likes: int) -> str:
+        title = LIKE_TITLES[0][1]
+        for threshold, name in LIKE_TITLES:
+            if likes >= threshold:
+                title = name
+            else:
+                break
+        return title
 
     async def _send_profile_overview(self, ctx, member: discord.Member | None = None):
         """Send the combined profile view with XP and scanned stats."""
@@ -310,29 +382,18 @@ class Leveling(commands.Cog):
 
         tier_title = self._tier_title_for_level(lvl)
         embed = discord.Embed(
-            title=f"📇 Sector Dossier | {member.display_name}",
+            title=f"🧬 Sector Dossier | {member.display_name}",
             description=(
-                "Fast-glance ops card for progression, stash, and profile intel."
+                "Modern ops readout with Discord intel and in-game scans separated clean."
             ),
-            color=0x3498db,
+            color=0x4f6df5,
         )
         embed.set_thumbnail(url=member.display_avatar.url)
-
-        progression = [
-            f"**Level:** {lvl}",
-            f"**Tier:** {tier_title}",
-            f"**XP:** {xp:,} / {next_xp_req:,}",
-            f"`{bar}` ({pct}%)",
-        ]
-        embed.add_field(
-            name="Progress", value="\n".join(progression), inline=True
-        )
 
         inv = await get_inventory(ctx.guild.id, member.id)
         item_count = sum(item['quantity'] for item in inv)
         unique_count = len({item['item_id'] for item in inv})
-        stash_line = f"📦 {item_count} items | {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique"
-        embed.add_field(name="Stash", value=stash_line, inline=True)
+        stash_line = f"{item_count} items • {unique_count}/{len(ALL_SCAVENGE_ITEMS)} unique"
 
         last_scavenge_ts = data["last_scavenge_ts"] if data else 0
         scavenge_streak = data["scavenge_streak"] if data else 0
@@ -342,12 +403,22 @@ class Leveling(commands.Cog):
             cooldown_label = self._format_cooldown(cooldown_remaining) if cooldown_remaining > 0 else "Ready"
         else:
             cooldown_label = "Ready"
-        scavenge_status = [
-            f"Zone: **{zone['name']}**",
-            f"Cooldown: {cooldown_label}",
-            f"Streak: {scavenge_streak} run(s)",
+
+        discord_likes = data["discord_likes"] if data else 0
+        like_title = self._like_title(discord_likes)
+        discord_section = [
+            f"**Level** {lvl} • **Tier** {tier_title}",
+            f"**XP** {xp:,} / {next_xp_req:,} `{bar}` ({pct}%)",
+            f"❤️ **Signal Honors (Lifetime)** {discord_likes:,}",
+            f"🏅 **Honor Title** {like_title}",
+            f"📦 **Stash** {stash_line}",
+            f"⛏️ **Scavenge** {zone['name']} • {cooldown_label} • {scavenge_streak} streak",
         ]
-        embed.add_field(name="Scavenge Status", value="\n".join(scavenge_status), inline=True)
+        embed.add_field(
+            name="Discord Ops",
+            value="\n".join(discord_section),
+            inline=False,
+        )
 
         snapshot = await get_profile_snapshot(ctx.guild.id, member.id)
         if snapshot and snapshot.get("scan_valid", 1):
@@ -364,7 +435,9 @@ class Leveling(commands.Cog):
             if snapshot.get("last_image_url"):
                 ingame.append(f"🖼️ [Latest scan]({snapshot['last_image_url']})")
             embed.add_field(
-                name="In-game Profile Scan", value="\n".join(ingame), inline=False
+                name="In-Game Intel",
+                value="\n".join(ingame),
+                inline=False,
             )
 
             if snapshot.get("last_updated"):
@@ -372,7 +445,7 @@ class Leveling(commands.Cog):
                 embed.set_footer(text=f"Last scanned {dt.strftime('%Y-%m-%d %H:%M UTC')}")
         else:
             embed.add_field(
-                name="Profile Scan",
+                name="In-Game Intel",
                 value="No valid profile scan stats stored yet. Run `/scan` to capture your card.",
                 inline=False,
             )

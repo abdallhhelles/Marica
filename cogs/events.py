@@ -573,6 +573,30 @@ class Events(commands.Cog):
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
 
+    async def _resolve_event_channel(self, guild_id: int) -> discord.abc.Messageable | None:
+        settings = await get_settings(guild_id)
+        if not settings or not settings.get("event_channel_id"):
+            return None
+
+        channel_id = settings["event_channel_id"]
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except discord.HTTPException as exc:
+                logger.warning(
+                    "Failed to fetch event channel %s in guild %s: %s",
+                    channel_id,
+                    guild_id,
+                    exc,
+                )
+                return None
+
+        if channel is None or await is_channel_ignored(guild_id, channel.id):
+            return None
+
+        return channel
+
     @staticmethod
     def _build_event_menu_embed() -> discord.Embed:
         embed = discord.Embed(
@@ -957,13 +981,9 @@ class Events(commands.Cog):
             if not any(m['guild_id'] == guild_id and m['codename'] == name for m in missions):
                 return
 
-            settings = await get_settings(guild_id)
             if mins == 60:
-                if not (settings and settings['event_channel_id']):
-                    continue
-
-                chan = self.bot.get_channel(settings['event_channel_id'])
-                if not chan or await is_channel_ignored(guild_id, chan.id):
+                chan = await self._resolve_event_channel(guild_id)
+                if not chan:
                     continue
 
                 drone = random.choice(DRONE_NAMES)
@@ -1052,12 +1072,8 @@ class Events(commands.Cog):
         location: str | None,
         ping_role_id: int | None,
     ) -> None:
-        settings = await get_settings(guild_id)
-        if not (settings and settings.get("event_channel_id")):
-            return
-
-        chan = self.bot.get_channel(settings["event_channel_id"])
-        if not chan or await is_channel_ignored(guild_id, chan.id):
+        chan = await self._resolve_event_channel(guild_id)
+        if not chan:
             return
 
         role = None
