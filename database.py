@@ -350,7 +350,19 @@ async def init_db():
                 last_msg_ts REAL DEFAULT 0,
                 last_scavenge_ts REAL DEFAULT 0,
                 scavenge_streak INTEGER DEFAULT 0,
+                discord_likes INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
+            )
+        ''')
+
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS discord_message_likes (
+                guild_id INTEGER,
+                message_id INTEGER,
+                user_id INTEGER,
+                author_id INTEGER,
+                created_at TEXT,
+                PRIMARY KEY (message_id, user_id)
             )
         ''')
 
@@ -441,6 +453,7 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_guild ON user_inventory(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_inventory_transfers_guild ON inventory_transfers(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_feedback_guild ON feedback_entries(guild_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_discord_likes_guild ON discord_message_likes(guild_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_duel_scores_guild_week ON duel_scores(guild_id, week_key)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_duel_scores_user ON duel_scores(guild_id, user_id)")
 
@@ -449,6 +462,10 @@ async def init_db():
         if "scavenge_streak" not in existing_columns:
             await db.execute(
                 "ALTER TABLE user_stats ADD COLUMN scavenge_streak INTEGER DEFAULT 0"
+            )
+        if "discord_likes" not in existing_columns:
+            await db.execute(
+                "ALTER TABLE user_stats ADD COLUMN discord_likes INTEGER DEFAULT 0"
             )
         await db.execute("CREATE INDEX IF NOT EXISTS idx_metrics_guild ON activity_metrics(guild_id)")
         await db.execute(
@@ -1278,13 +1295,75 @@ async def get_user_stats(guild_id: int, user_id: int):
         await db.commit()
         async with db.execute(
             """
-            SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts, scavenge_streak
+            SELECT guild_id, user_id, xp, level, last_msg_ts, last_scavenge_ts, scavenge_streak, discord_likes
             FROM user_stats
             WHERE guild_id = ? AND user_id = ?
             """,
             (guild_id, user_id),
         ) as cursor:
             return await cursor.fetchone()
+
+
+async def add_discord_like(guild_id: int, message_id: int, user_id: int, author_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await _ensure_user(db, guild_id, author_id)
+        cursor = await db.execute(
+            """
+            INSERT OR IGNORE INTO discord_message_likes (guild_id, message_id, user_id, author_id, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (guild_id, message_id, user_id, author_id, datetime.now(timezone.utc).isoformat()),
+        )
+        if cursor.rowcount:
+            await db.execute(
+                """
+                UPDATE user_stats
+                SET discord_likes = discord_likes + 1
+                WHERE guild_id = ? AND user_id = ?
+                """,
+                (guild_id, author_id),
+            )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def remove_discord_like(guild_id: int, message_id: int, user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT author_id
+            FROM discord_message_likes
+            WHERE guild_id = ? AND message_id = ? AND user_id = ?
+            """,
+            (guild_id, message_id, user_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if not row:
+            return False
+
+        author_id = row["author_id"]
+        await db.execute(
+            """
+            DELETE FROM discord_message_likes
+            WHERE guild_id = ? AND message_id = ? AND user_id = ?
+            """,
+            (guild_id, message_id, user_id),
+        )
+        await db.execute(
+            """
+            UPDATE user_stats
+            SET discord_likes = CASE
+                WHEN discord_likes > 0 THEN discord_likes - 1
+                ELSE 0
+            END
+            WHERE guild_id = ? AND user_id = ?
+            """,
+            (guild_id, author_id),
+        )
+        await db.commit()
+        return True
 
 
 async def update_user_xp(guild_id: int, user_id: int, xp_delta: int, new_level: int | None = None):
