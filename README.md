@@ -135,6 +135,8 @@ TOKEN=your_discord_bot_token_here
 * `PROFILE_SCAN_RELEASE_OCR` — Release EasyOCR resources after each scan to reduce RAM (default: `true`).
 * `OCR_SPACE_API_KEY` — Optional OCR.space key for fallback.
 * `OCR_SPACE_TIMEOUT` — Seconds to wait on OCR.space (default: `60`).
+* `OCR_MAX_PIXELS` — Cap image size before OCR (default: `12000000`, set `0` to disable).
+* `OCR_CV2_THREADS` — Optional OpenCV thread cap (example: `2`) to reduce CPU pressure.
 
 **Metrics**
 * `MARCIA_METRICS_INTERVAL` — Seconds between metrics snapshots (default: `120`).

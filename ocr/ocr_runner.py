@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import sys
+from typing import Optional
 
 # Configure logging
 logging.basicConfig(
@@ -43,6 +44,30 @@ import numpy as np
 INPUT_DIR = "shots"
 BOXES_FILE_NAME = "boxes_ratios.json"
 BASE_DIR = os.path.dirname(__file__)
+
+
+def _get_env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid %s value %r; using %d", name, raw, default)
+        return default
+
+
+MAX_IMAGE_PIXELS = _get_env_int("OCR_MAX_PIXELS", 12_000_000)
+CV2_THREADS: Optional[int] = None
+raw_threads = os.getenv("OCR_CV2_THREADS")
+if raw_threads:
+    try:
+        CV2_THREADS = int(raw_threads)
+    except ValueError:
+        logger.warning("Invalid OCR_CV2_THREADS value %r; skipping cv2 thread limit", raw_threads)
+if CV2_THREADS is not None:
+    cv2.setNumThreads(CV2_THREADS)
+    logger.info("OpenCV threads capped at %d", CV2_THREADS)
 
 
 def resolve_boxes_file() -> str:
@@ -88,7 +113,6 @@ except ImportError:
 # CPU-only processing may produce slightly lower confidence scores
 MIN_CONF = 0.40 if not GPU else 0.45
 logger.info(f"OCR confidence threshold set to {MIN_CONF:.2f}")
-
 
 def list_images(folder: str):
     """List all valid image files in the specified folder.
@@ -265,6 +289,21 @@ def clean_number(s: str):
     return digits
 
 
+def resize_if_needed(img, *, max_pixels: int) -> tuple[object, bool]:
+    """Downscale oversized images to cap total pixels for memory safety."""
+    if max_pixels <= 0:
+        return img, False
+    height, width = img.shape[:2]
+    total_pixels = height * width
+    if total_pixels <= max_pixels:
+        return img, False
+    scale = (max_pixels / total_pixels) ** 0.5
+    new_width = max(1, int(width * scale))
+    new_height = max(1, int(height * scale))
+    resized = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    return resized, True
+
+
 def main():
     """Main OCR processing pipeline."""
     logger.info("Starting OCR runner...")
@@ -325,6 +364,16 @@ def main():
                 print(f"{fname}: could not read image, skipping.")
                 error_count += 1
                 continue
+
+            img, was_resized = resize_if_needed(img, max_pixels=MAX_IMAGE_PIXELS)
+            if was_resized:
+                logger.info(
+                    "Resized %s to %dx%d to respect OCR_MAX_PIXELS=%d",
+                    fname,
+                    img.shape[1],
+                    img.shape[0],
+                    MAX_IMAGE_PIXELS,
+                )
 
             out = {"file": fname}
             confs = {}

@@ -7,14 +7,15 @@ Thank you for your interest in contributing to Marcia! This guide outlines the c
 ### Directory Structure
 
 ```
-Marcia/
+Marica/
 ├── cogs/         # Feature modules (Discord commands)
 ├── utils/        # Shared utilities and helpers
 ├── config/       # Static configuration templates
-├── legacy/       # Deprecated migration data
 ├── data/         # Runtime data (auto-generated)
 ├── docs/         # User documentation
-└── ocr/          # OCR profile scanning system
+├── ocr/          # OCR profile scanning system
+├── shots/        # Cached profile screenshots & temp OCR inputs
+└── tests/        # Automated test coverage
 ```
 
 ### Adding New Features
