@@ -47,7 +47,7 @@ from utils.telemetry import (
     record_reconnect,
 )
 from cogs.trading import FishControlView
-from database import init_db, increment_command_usage, is_channel_ignored
+from database import get_settings, init_db, increment_command_usage, is_channel_ignored
 
 logger = logging.getLogger("MarciaOS")
 OLLAMA_CONFIG_CHANNEL_NAME = "ai-config"
@@ -607,6 +607,15 @@ class MarciaBot(commands.Bot):
                 return True
         return False
 
+    async def _ai_replies_enabled(self, guild_id: int) -> bool:
+        settings = await get_settings(guild_id)
+        if not settings:
+            return True
+        value = settings.get("ai_replies_enabled")
+        if value is None:
+            return True
+        return bool(value)
+
     async def on_message(self, message):
         """Centralized message handling and personality logic."""
         if message.author.bot:
@@ -704,7 +713,7 @@ class MarciaBot(commands.Bot):
         is_bot_mentioned = self.user.mentioned_in(message) and not message.mention_everyone
         is_reply = await self._is_reply_to_bot(message)
         
-        if is_bot_mentioned or is_reply:
+        if (is_bot_mentioned or is_reply) and await self._ai_replies_enabled(message.guild.id):
             async with message.channel.typing():
                 await asyncio.sleep(1)
                 self._remember_ai_message(
