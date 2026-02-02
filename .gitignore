@@ -134,8 +134,7 @@ data/*.db
 data/backups/
 data/logs/
 
-# Legacy and temporary files
-legacy/*.json
+# Temporary files
 
 # Spyder project settings
 .spyderproject

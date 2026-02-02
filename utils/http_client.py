@@ -119,8 +119,10 @@ class HttpClient:
                 if response.status_code in retry_for_status and safe and attempt < attempts:
                     await self._sleep_backoff(attempt)
                     continue
-
-                breaker.record_success()
+                if response.is_success:
+                    breaker.record_success()
+                else:
+                    breaker.record_failure()
                 record_external_call(
                     service=service,
                     duration_ms=duration_ms,

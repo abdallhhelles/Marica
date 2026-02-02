@@ -11,21 +11,20 @@ All notable changes to Marcia are documented in this file.
   - `utils/bug_logging.py` - Error logging and Discord notifications
   - `utils/patch_notes.py` - Release notes persistence
 - Created `config/` directory for configuration templates
-- Created `legacy/` directory for deprecated migration data
-- Added README files to `utils/`, `config/`, and `legacy/` directories
+- Added README files to `utils/` and `config/` directories
 - Added type hints to database helper functions for better code safety
 - Enhanced project structure documentation in main README
+- Documented runtime cache directories (`shots/`) and test coverage (`tests/`)
 
 ### Changed
 - Reorganized project file structure for better maintainability
 - Updated all import statements across 16 Python files to use new structure
 - Moved configuration JSON files to `config/` directory
-- Moved legacy data file (`levels.json`) to `legacy/` directory
 - Updated `.gitignore` to exclude:
   - `.local/` directory (pip artifacts)
   - `data/*.db` and `data/backups/` (database files)
   - `data/logs/` (log files)
-  - `legacy/*.json` (legacy migration data)
+- Removed obsolete refactoring and verification documentation to reduce clutter
 
 ### Improved
 - Better separation of concerns across modules
@@ -71,9 +70,6 @@ Marica/
 │   ├── README.md
 │   ├── templates.json
 │   └── trade_config.json
-├── legacy/            # Legacy migration data (NEW)
-│   ├── README.md
-│   └── levels.json    # (if present)
 ├── data/              # Runtime data (auto-created)
 │   ├── marcia_os.db   # Main database
 │   ├── backups/       # Database backups
@@ -86,6 +82,8 @@ Marica/
 │   ├── box_picker.py
 │   ├── diagnostics.py
 │   └── ocr_runner.py
+├── shots/             # Cached profile screenshots & temp OCR inputs
+├── tests/             # Automated test coverage
 ├── main.py            # Bot entry point
 ├── database.py        # Database operations
 └── requirements.txt   # Python dependencies

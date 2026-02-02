@@ -10,8 +10,8 @@ Marica/
 ├── data/                 # Runtime data (SQLite DB, logs, backups)
 ├── docs/                 # Documentation (usage, setup, structure)
 ├── ocr/                  # Profile scan OCR tooling + templates
-├── legacy/               # Legacy migration artifacts
 ├── shots/                # Cached profile screenshots & temp OCR inputs
+├── tests/                # Automated test coverage
 ├── main.py               # Bot entry + boot sequence
 └── database.py           # Database schema + queries
 ```
@@ -29,3 +29,4 @@ Marica/
 - **Guild isolation:** Data is always scoped by guild ID in `database.py`.
 - **OCR assets:** `ocr/boxes_ratios.json` defines template crop ratios.
 - **Cached scans:** Stored under `shots/profiles/<guild_id>/`.
+- **Runtime transcripts:** Created under `archives/` when moderation logging is enabled.
