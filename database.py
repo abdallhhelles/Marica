@@ -167,9 +167,17 @@ async def init_db():
                 feedback_channel_id INTEGER,
                 analytics_channel_id INTEGER,
                 auto_role_id INTEGER,
-                server_offset_hours INTEGER DEFAULT -2
+                server_offset_hours INTEGER DEFAULT -2,
+                ai_replies_enabled INTEGER DEFAULT 1
             )
         ''')
+        try:
+            await db.execute(
+                "ALTER TABLE settings ADD COLUMN ai_replies_enabled INTEGER DEFAULT 1"
+            )
+        except aiosqlite.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
 
         await db.execute('''
             CREATE TABLE IF NOT EXISTS ignored_channels (

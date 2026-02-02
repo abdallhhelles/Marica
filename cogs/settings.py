@@ -99,6 +99,12 @@ class SetupFeatureSelect(discord.ui.Select):
                 value="auto_role_id",
                 emoji="🔏",
             ),
+            discord.SelectOption(
+                label="AI mention replies",
+                description="Toggle auto-replies to mentions",
+                value="ai_replies_enabled",
+                emoji="🤖",
+            ),
         ]
         if cog.is_marcia_server:
             options.extend([
@@ -268,13 +274,20 @@ class Settings(commands.Cog):
             "feedback_channel_id": "Feedback & suggestions channel",
             "analytics_channel_id": "Global analytics channel",
             "auto_role_id": "Auto-role",
+            "ai_replies_enabled": "AI mention replies",
         }
         label = feature_labels.get(feature_key, "Feature")
 
-        await interaction.response.send_message(
-            f"📡 **{label}** - mention it here, paste an ID, or type `clear` to unset.",
-            ephemeral=True,
-        )
+        if feature_key == "ai_replies_enabled":
+            await interaction.response.send_message(
+                f"🤖 **{label}** - type `on` or `off` to toggle mention replies.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                f"📡 **{label}** - mention it here, paste an ID, or type `clear` to unset.",
+                ephemeral=True,
+            )
 
         def check(msg: discord.Message):
             return msg.author.id == interaction.user.id and msg.channel == interaction.channel
@@ -291,6 +304,15 @@ class Settings(commands.Cog):
         content = msg.content.strip().lower()
         if content == "cancel":
             return await msg.reply(_marcia_line("Abort confirmed."))
+
+        if feature_key == "ai_replies_enabled":
+            if content in {"on", "enable", "enabled", "yes", "y"}:
+                await update_setting(interaction.guild.id, "ai_replies_enabled", 1, interaction.guild.name)
+                return await msg.reply("✅ AI mention replies enabled.")
+            if content in {"off", "disable", "disabled", "no", "n"}:
+                await update_setting(interaction.guild.id, "ai_replies_enabled", 0, interaction.guild.name)
+                return await msg.reply("✅ AI mention replies disabled.")
+            return await msg.reply("❌ I need `on` or `off` to update AI mention replies.")
 
         if feature_key == "auto_role_id":
             if content == "clear":
@@ -374,7 +396,10 @@ class Settings(commands.Cog):
                     inline=True,
                 )
             embed.add_field(name="🔏 Auto-Role", value=self._role_status(ctx.guild, data['auto_role_id'])[0], inline=True)
-            
+            ai_enabled = data.get("ai_replies_enabled", 1)
+            ai_status = "✅ Enabled" if ai_enabled else "⏸️ Disabled"
+            embed.add_field(name="🤖 AI Replies", value=ai_status, inline=True)
+
             embed.set_footer(text="System Clock: UTC-2 (Dark War Survival global time)")
         else:
             embed.description = "⚠️ **CRITICAL ERROR:** No configuration found in databank. Initialize sectors immediately."
@@ -588,6 +613,11 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🔏 Auto-role",
             value="Role granted to new arrivals. Keep Marcia’s role **above** it.",
+            inline=False,
+        )
+        embed.add_field(
+            name="🤖 AI mention replies",
+            value="Toggle whether Marcia responds to mentions and direct replies.",
             inline=False,
         )
         embed.add_field(
