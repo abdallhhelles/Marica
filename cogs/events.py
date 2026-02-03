@@ -238,6 +238,73 @@ class TemplateEditModal(discord.ui.Modal, title="Edit Template Before Sending"):
         )
 
 
+class EventDraftModal(discord.ui.Modal):
+    def __init__(
+        self,
+        *,
+        title: str,
+        name: str = "",
+        desc: str = "",
+        date_value: str = "",
+        time_value: str = "",
+        location: str = "",
+        ping_target: str = "",
+        on_submit_callback,
+    ):
+        super().__init__(title=title)
+        self.event_name = discord.ui.TextInput(
+            label="Event name",
+            default=name,
+            max_length=100,
+        )
+        self.event_desc = discord.ui.TextInput(
+            label="Briefing",
+            style=discord.TextStyle.paragraph,
+            default=desc,
+            max_length=1500,
+        )
+        self.event_date = discord.ui.TextInput(
+            label="Date (YYYY-MM-DD, UTC-2)",
+            default=date_value,
+            max_length=10,
+        )
+        self.event_time = discord.ui.TextInput(
+            label="Time (HH:MM, UTC-2)",
+            default=time_value,
+            max_length=5,
+        )
+        self.event_location = discord.ui.TextInput(
+            label="Location (optional)",
+            default=location,
+            required=False,
+            max_length=200,
+        )
+        self.event_ping = discord.ui.TextInput(
+            label="Ping target (everyone, role, or none)",
+            default=ping_target,
+            required=False,
+            max_length=100,
+        )
+        self.add_item(self.event_name)
+        self.add_item(self.event_desc)
+        self.add_item(self.event_date)
+        self.add_item(self.event_time)
+        self.add_item(self.event_location)
+        self.add_item(self.event_ping)
+        self.on_submit_callback = on_submit_callback
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.on_submit_callback(
+            interaction,
+            self.event_name.value.strip(),
+            self.event_desc.value.strip(),
+            self.event_date.value.strip(),
+            self.event_time.value.strip(),
+            self.event_location.value.strip(),
+            self.event_ping.value.strip(),
+        )
+
+
 class TemplatePreviewView(discord.ui.View):
     def __init__(
         self,
@@ -266,13 +333,13 @@ class TemplatePreviewView(discord.ui.View):
             view=self,
         )
 
-    @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="✅", row=0)
+    @discord.ui.button(label="Schedule Template", style=discord.ButtonStyle.success, emoji="✅", row=0)
     async def use_template(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.cog.use_template_callback(
+        await self.cog.open_event_draft_modal(
             interaction,
-            self.template_name,
             self.ctx,
-            template_desc_override=self.template_desc,
+            name=self.template_name,
+            desc=self.template_desc,
         )
 
     @discord.ui.button(label="Edit Before Sending", style=discord.ButtonStyle.primary, emoji="✏️", row=0)
@@ -366,6 +433,68 @@ class TemplateMenuView(discord.ui.View):
             except discord.HTTPException:
                 pass
 
+
+class EventDraftView(discord.ui.View):
+    def __init__(self, cog, ctx, draft: dict, message_id: int | None = None):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+        self.draft = draft
+        self.message_id = message_id
+
+    @discord.ui.button(label="Confirm & Schedule", style=discord.ButtonStyle.success, emoji="✅", row=0)
+    async def confirm_event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        await self.cog.finalize_mission(
+            self.ctx,
+            self.draft["name"],
+            self.draft["desc"],
+            self.draft["t_str"],
+            self.draft["location"],
+            self.draft["ping_role_id"],
+        )
+        try:
+            await interaction.followup.edit_message(
+                message_id=interaction.message.id,
+                content="✅ Mission scheduled. I’ll post the preview in the events channel.",
+                embed=None,
+                view=None,
+            )
+        except discord.HTTPException:
+            pass
+
+    @discord.ui.button(label="Edit Details", style=discord.ButtonStyle.primary, emoji="✏️", row=0)
+    async def edit_event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.open_event_draft_modal(
+            interaction,
+            self.ctx,
+            name=self.draft["name"],
+            desc=self.draft["desc"],
+            date_value=self.draft["date_value"],
+            time_value=self.draft["time_value"],
+            location=self.draft["location"],
+            ping_target=self.draft["ping_raw"],
+            existing_message_id=interaction.message.id if interaction.message else None,
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="🛑", row=0)
+    async def cancel_event(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="📡 Draft cancelled. Run `/event` when you're ready to reschedule.",
+            embed=None,
+            view=None,
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message_id is not None and self.ctx.interaction:
+            try:
+                await self.ctx.interaction.followup.edit_message(message_id=self.message_id, view=self)
+            except discord.HTTPException:
+                pass
+
+
 class EventMenuView(discord.ui.View):
     def __init__(self, cog, ctx, settings: dict):
         super().__init__(timeout=120)
@@ -393,8 +522,7 @@ class EventMenuView(discord.ui.View):
     async def custom_event(self, it, btn):
         if not await self._require_manage_events(it):
             return
-        await it.response.send_message("📡 Setup signal sent to DMs.", ephemeral=True)
-        await self.cog.create_mission_flow(self.ctx)
+        await self.cog.open_event_draft_modal(it, self.ctx)
 
     @discord.ui.button(label="Use Template", style=discord.ButtonStyle.success, emoji="📋", row=0)
     async def template_event(self, it, btn):
@@ -426,6 +554,35 @@ class EventMenuView(discord.ui.View):
             )
         embed = self.cog._build_upcoming_events_embed(it.guild, missions)
         await it.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Share Upcoming", style=discord.ButtonStyle.secondary, emoji="📣", row=1)
+    async def share_upcoming(self, it, btn):
+        if not await self._require_manage_events(it):
+            return
+        missions = await get_upcoming_missions(it.guild.id, limit=10)
+        if not missions:
+            return await it.response.send_message(
+                "📡 *No upcoming events logged for this sector.*",
+                ephemeral=True,
+            )
+        embed = self.cog._build_upcoming_events_embed(it.guild, missions)
+        channel = it.guild.get_channel(self.event_channel_id) if self.event_channel_id else None
+        if channel and not await is_channel_ignored(it.guild.id, channel.id):
+            try:
+                await channel.send("🛰️ **Upcoming Operations**", embed=embed)
+                return await it.response.send_message(
+                    f"✅ Posted the queue in {channel.mention}.",
+                    ephemeral=True,
+                )
+            except discord.Forbidden:
+                return await it.response.send_message(
+                    "❌ I can't post in the events channel. Check permissions.",
+                    ephemeral=True,
+                )
+        await it.response.send_message(
+            "❌ Events channel not found. Run `/setup` to link one.",
+            ephemeral=True,
+        )
 
     @discord.ui.button(label="Remove Event", style=discord.ButtonStyle.danger, emoji="🗑️", row=1)
     async def remove_event(self, it, btn):
@@ -573,6 +730,122 @@ class Events(commands.Cog):
         kwargs.pop("ephemeral", None)
         return await ctx.send(**kwargs)
 
+    def _parse_ping_target(self, guild: discord.Guild, raw_value: str) -> tuple[int | None, str]:
+        raw = (raw_value or "").strip()
+        if not raw:
+            return -1, "@everyone"
+        lowered = raw.lower()
+        if lowered in {"everyone", "@everyone", "all"}:
+            return -1, "@everyone"
+        if lowered in {"none", "no", "off"}:
+            return None, "none"
+        role_id = None
+        if raw.startswith("<@&") and raw.endswith(">"):
+            try:
+                role_id = int(raw[3:-1])
+            except ValueError:
+                role_id = None
+        elif raw.isdigit():
+            role_id = int(raw)
+        if role_id is not None:
+            role = guild.get_role(role_id)
+            if role:
+                return role.id, role.name
+        return -1, "@everyone"
+
+    async def open_event_draft_modal(
+        self,
+        interaction: discord.Interaction,
+        ctx,
+        *,
+        name: str = "",
+        desc: str = "",
+        date_value: str = "",
+        time_value: str = "",
+        location: str = "",
+        ping_target: str = "",
+        existing_message_id: int | None = None,
+    ) -> None:
+        async def _handle_submit(
+            submit_interaction: discord.Interaction,
+            event_name: str,
+            event_desc: str,
+            date_input: str,
+            time_input: str,
+            location_input: str,
+            ping_input: str,
+        ):
+            if not event_name:
+                return await submit_interaction.response.send_message(
+                    "❌ Please provide an event name.",
+                    ephemeral=True,
+                )
+            t_str = f"{date_input} {time_input}"
+            try:
+                target_dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M")
+            except ValueError:
+                return await submit_interaction.response.send_message(
+                    "❌ Please use `YYYY-MM-DD` and `HH:MM` (UTC-2).",
+                    ephemeral=True,
+                )
+            utc_dt = game_to_utc(target_dt)
+            if utc_dt < datetime.now(timezone.utc):
+                return await submit_interaction.response.send_message(
+                    "❌ That time is in the past. Pick a future window.",
+                    ephemeral=True,
+                )
+            ping_role_id, ping_label = self._parse_ping_target(
+                submit_interaction.guild,
+                ping_input,
+            )
+            draft = {
+                "name": event_name,
+                "desc": event_desc,
+                "t_str": t_str,
+                "utc_dt": utc_dt,
+                "location": location_input or None,
+                "ping_role_id": ping_role_id,
+                "ping_raw": ping_label,
+                "date_value": date_input,
+                "time_value": time_input,
+            }
+            embed = self._build_event_embed(
+                submit_interaction.guild,
+                event_name,
+                event_desc,
+                utc_dt,
+                location_input or None,
+                ping_role_id,
+            )
+            view = EventDraftView(self, ctx, draft, message_id=existing_message_id)
+            if existing_message_id is not None:
+                await submit_interaction.response.defer()
+                await submit_interaction.followup.edit_message(
+                    message_id=existing_message_id,
+                    content="Review the event details below before confirming.",
+                    embed=embed,
+                    view=view,
+                )
+            else:
+                await submit_interaction.response.send_message(
+                    content="Review the event details below before confirming.",
+                    embed=embed,
+                    view=view,
+                    ephemeral=True,
+                )
+
+        modal = EventDraftModal(
+            title="Schedule Event",
+            name=name,
+            desc=desc,
+            date_value=date_value,
+            time_value=time_value,
+            location=location,
+            ping_target=ping_target,
+            on_submit_callback=_handle_submit,
+        )
+        await interaction.response.send_modal(modal)
+
     async def _resolve_event_channel(self, guild_id: int) -> discord.abc.Messageable | None:
         settings = await get_settings(guild_id)
         if not settings or not settings.get("event_channel_id"):
@@ -603,10 +876,11 @@ class Events(commands.Cog):
             title="📡 Mission Control // Marcia",
             description=(
                 "Pick what you want to do:\n"
-                "`New Event` starts a quick DM setup.\n"
-                "`Use Template` starts from a saved briefing.\n"
+                "`New Event` opens a quick form here.\n"
+                "`Use Template` schedules from a saved briefing.\n"
                 "`Archive Template` saves a briefing for reuse.\n"
                 "`Upcoming Events` shows the next ops list.\n"
+                "`Share Upcoming` posts the queue in #events.\n"
                 "`Remove Event` deletes a scheduled op.\n"
                 "Times use the game clock (UTC-2)."
             ),
@@ -995,8 +1269,16 @@ class Events(commands.Cog):
                 quote = random.choice(MARCIA_SYSTEM_LINES)
 
                 greetings = ["Dear", "Hello", "Attention", "Listen up,", "Heads up,"]
-                role_line = f" {role.mention}" if role else ""
-                natural_mention = f"{random.choice(greetings)} @everyone{role_line}"
+                if ping_role_id == -1:
+                    mention_target = "@everyone"
+                elif role:
+                    mention_target = role.mention
+                else:
+                    mention_target = ""
+                if mention_target:
+                    natural_mention = f"{random.choice(greetings)} {mention_target}"
+                else:
+                    natural_mention = f"{random.choice(greetings)}, team"
 
                 msg = (
                     f"{natural_mention},\n\n"
@@ -1010,7 +1292,10 @@ class Events(commands.Cog):
                 try:
                     sent = await chan.send(
                         msg,
-                        allowed_mentions=discord.AllowedMentions(everyone=True, roles=bool(role)),
+                        allowed_mentions=discord.AllowedMentions(
+                            everyone=ping_role_id == -1,
+                            roles=bool(role),
+                        ),
                     )
                 except discord.Forbidden:
                     logger.warning(
@@ -1048,9 +1333,10 @@ class Events(commands.Cog):
     def _build_event_embed(self, guild, name, desc, utc_dt, location=None, ping_role_id=None):
         embed = discord.Embed(
             title=f"📡 {name}",
-            description=desc,
             color=0x5865f2,
         )
+        briefing = desc or "No briefing provided."
+        embed.add_field(name="📝 Briefing", value=briefing, inline=False)
         embed.add_field(name="⏰ Game Time", value=format_game(utc_dt), inline=False)
         if location:
             embed.add_field(name="📍 Location", value=location, inline=True)
