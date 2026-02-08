@@ -34,12 +34,13 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 
 ## Event & mission control
 - **Launch:** `/event`
-- **Create:** **Custom Event** → answer DM prompts.
+- **Create:** **New Event** → fill the quick form in-channel.
   - **Ping target:** `everyone`, a role mention, or `none`.
   - **Time format:** `YYYY-MM-DD HH:MM` (game time). I convert to UTC.
-- **Reuse:** **Use Template** to re-run saved ops.
+- **Reuse:** **Use Template** to schedule from a saved briefing.
 - **Remove:** **Remove Event** to delete a scheduled op.
 - **Upcoming:** **Upcoming Events** to list the queue.
+- **Share:** **Share Upcoming** posts the queue in your events channel.
 
 ### Event flow (what I automate)
 1. I post a preview card to the events channel.
