@@ -151,18 +151,46 @@ DUEL_DATA = {
 
 
 KILL_EVENT_SHIELD_REMINDERS = {
-    0: "🛰️ Midnight sweep. The kill event just lit up, so drop that **24h shield** if you can.",
-    6: "☀️ Dawn check-in. If your shield is shorter, set alarms to refresh it before it fizzles.",
-    12: "🧭 Midday scan. Keep shields up and remind your squad-no free hits on my watch.",
-    18: "🌆 Dusk patrol. If you're on timers, renew now before the evening rush.",
-    22: "🌙 Late op window. Last stretch-top off protection and keep loved ones safe.",
+    0: [
+        "🛰️ Kill day is live with **24h** on the clock. Drop a full shield and lock down your base.",
+        "🌌 Event start. You've got **24h**-fortify now so you don't scramble later.",
+        "🚨 Opening bell. **24h** remain-raise shields and settle in for the long haul.",
+    ],
+    8: [
+        "☀️ Eight hours in. Plenty of time left-keep your bubble solid and timers clean.",
+        "🌤️ Mid-morning pass. Still a long stretch ahead-refresh if your timers look shaky.",
+        "🕊️ Eight-hour check. Protect the base and wake anyone drifting off timers.",
+    ],
+    16: [
+        "🌆 **8h left.** Perfect time to swap into an **8h shield** and cruise to reset.",
+        "🌇 **8 hours remaining.** If you can't hold a 24h, lock an **8h** now.",
+        "🚦 **8h to go.** Flip to an **8h shield** and ride the finish line.",
+    ],
 }
 
 # Reminders for the day BEFORE kill event (Friday)
 KILL_EVENT_PRE_SHIELD_REMINDERS = {
-    21: "🛡️ Kill event starts in 3 hours. Confirm shield timers and notify anyone still unprotected.",
-    22: "🛡️ Kill event starts in 2 hours. Last call to drop shields and lock in protection.",
+    16: [
+        "🛡️ Kill event starts in **8 hours**. Set shields now so no one is caught at reset.",
+        "⏳ Eight hours out. Prep protection and confirm everyone knows the plan.",
+        "📣 **8h warning.** Stage shields and make sure every base is ready.",
+    ],
+    22: [
+        "🛡️ Kill event starts in **2 hours**. Last call to bubble up and lock in protection.",
+        "🚨 Two hours out. Time to shield and get comfortable.",
+        "⌛ **2h ping.** Shield now or be the story tomorrow.",
+    ],
 }
+
+
+def _pick_reminder_line(reminder_map: dict[int, list[str]], hour: int) -> str:
+    return random.choice(reminder_map[hour])
+
+
+def _shield_recommendation(hours_left: int) -> str:
+    if hours_left > 8:
+        return "🛡️ **Shield call:** Go for a **24h shield** to cover the remaining hours."
+    return "🛡️ **Shield call:** An **8h shield** will carry you through the rest of the event."
 
 
 def _marcia_quip():
@@ -979,14 +1007,16 @@ class Events(commands.Cog):
                     chan = guild.get_channel(settings['event_channel_id'])
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         hours_left = max(0, 24 - now_server.hour)
-                        reminder_line = KILL_EVENT_SHIELD_REMINDERS[now_server.hour]
+                        reminder_line = _pick_reminder_line(KILL_EVENT_SHIELD_REMINDERS, now_server.hour)
+                        shield_line = _shield_recommendation(hours_left)
                         try:
                             await chan.send(
                                 "Dear @everyone,\n\n"
                                 "🛡️ **KILL EVENT SHIELD CHECK**\n\n"
                                 f"{reminder_line}\n"
                                 f"⏳ **{hours_left}h** remaining in the kill event.\n"
-                                "If you can't maintain 24h shields, set alarms to refresh before they expire.\n"
+                                f"{shield_line}\n"
+                                "If you can't maintain 24h shields, chain 8h shields and set alarms to refresh.\n"
                                 "Marcia's monitoring the grid-keep your squad protected. 💙",
                                 allowed_mentions=discord.AllowedMentions(everyone=True),
                             )
@@ -1006,7 +1036,7 @@ class Events(commands.Cog):
                     chan = guild.get_channel(settings['event_channel_id'])
                     if chan and not await is_channel_ignored(guild.id, chan.id):
                         hours_until = 24 - now_server.hour
-                        reminder_line = KILL_EVENT_PRE_SHIELD_REMINDERS[now_server.hour]
+                        reminder_line = _pick_reminder_line(KILL_EVENT_PRE_SHIELD_REMINDERS, now_server.hour)
                         try:
                             await chan.send(
                                 "Attention @everyone,\n\n"
