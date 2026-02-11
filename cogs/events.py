@@ -275,8 +275,6 @@ class EventDraftModal(discord.ui.Modal):
         desc: str = "",
         date_value: str = "",
         time_value: str = "",
-        location: str = "",
-        ping_target: str = "",
         on_submit_callback,
     ):
         super().__init__(title=title)
@@ -301,24 +299,10 @@ class EventDraftModal(discord.ui.Modal):
             default=time_value,
             max_length=5,
         )
-        self.event_location = discord.ui.TextInput(
-            label="Location (optional)",
-            default=location,
-            required=False,
-            max_length=200,
-        )
-        self.event_ping = discord.ui.TextInput(
-            label="Ping target (everyone, role, or none)",
-            default=ping_target,
-            required=False,
-            max_length=100,
-        )
         self.add_item(self.event_name)
         self.add_item(self.event_desc)
         self.add_item(self.event_date)
         self.add_item(self.event_time)
-        self.add_item(self.event_location)
-        self.add_item(self.event_ping)
         self.on_submit_callback = on_submit_callback
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -328,8 +312,6 @@ class EventDraftModal(discord.ui.Modal):
             self.event_desc.value.strip(),
             self.event_date.value.strip(),
             self.event_time.value.strip(),
-            self.event_location.value.strip(),
-            self.event_ping.value.strip(),
         )
 
 
@@ -500,8 +482,6 @@ class EventDraftView(discord.ui.View):
             desc=self.draft["desc"],
             date_value=self.draft["date_value"],
             time_value=self.draft["time_value"],
-            location=self.draft["location"],
-            ping_target=self.draft["ping_raw"],
             existing_message_id=interaction.message.id if interaction.message else None,
         )
 
@@ -790,8 +770,6 @@ class Events(commands.Cog):
         desc: str = "",
         date_value: str = "",
         time_value: str = "",
-        location: str = "",
-        ping_target: str = "",
         existing_message_id: int | None = None,
     ) -> None:
         async def _handle_submit(
@@ -800,8 +778,6 @@ class Events(commands.Cog):
             event_desc: str,
             date_input: str,
             time_input: str,
-            location_input: str,
-            ping_input: str,
         ):
             if not event_name:
                 return await submit_interaction.response.send_message(
@@ -822,18 +798,14 @@ class Events(commands.Cog):
                     "❌ That time is in the past. Pick a future window.",
                     ephemeral=True,
                 )
-            ping_role_id, ping_label = self._parse_ping_target(
-                submit_interaction.guild,
-                ping_input,
-            )
             draft = {
                 "name": event_name,
                 "desc": event_desc,
                 "t_str": t_str,
                 "utc_dt": utc_dt,
-                "location": location_input or None,
-                "ping_role_id": ping_role_id,
-                "ping_raw": ping_label,
+                "location": None,
+                "ping_role_id": -1,
+                "ping_raw": "@everyone",
                 "date_value": date_input,
                 "time_value": time_input,
             }
@@ -842,8 +814,8 @@ class Events(commands.Cog):
                 event_name,
                 event_desc,
                 utc_dt,
-                location_input or None,
-                ping_role_id,
+                None,
+                -1,
             )
             view = EventDraftView(self, ctx, draft, message_id=existing_message_id)
             if existing_message_id is not None:
@@ -868,8 +840,6 @@ class Events(commands.Cog):
             desc=desc,
             date_value=date_value,
             time_value=time_value,
-            location=location,
-            ping_target=ping_target,
             on_submit_callback=_handle_submit,
         )
         await interaction.response.send_modal(modal)
