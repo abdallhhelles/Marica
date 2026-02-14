@@ -113,8 +113,11 @@ class HttpClient:
                     except ValueError:
                         retry_after = None
                     record_rate_limit(service=service, retry_after=retry_after)
-                    if safe and attempt < attempts and retry_after:
-                        await asyncio.sleep(retry_after)
+                    if safe and attempt < attempts:
+                        if retry_after and retry_after > 0:
+                            await asyncio.sleep(retry_after)
+                        else:
+                            await self._sleep_backoff(attempt)
                         continue
                 if response.status_code in retry_for_status and safe and attempt < attempts:
                     await self._sleep_backoff(attempt)

@@ -55,6 +55,7 @@ OLLAMA_HEALTH_UP_TTL = 45.0
 OLLAMA_HEALTH_DOWN_TTL = 30.0
 OLLAMA_CONFIG_POLL_INTERVAL = 45.0
 OLLAMA_MODEL = "qwen2.5:7b"
+AI_MEMORY_MAX_CHANNELS = 300
 
 
 def configure_logging() -> None:
@@ -100,6 +101,7 @@ class MarciaBot(commands.Bot):
         self._interaction_started_at: dict[int, tuple[float, str]] = {}
         self._message_invocation_ids: dict[int, str] = {}
         self._ai_memory: dict[int, deque[dict[str, str]]] = {}
+        self._ai_memory_last_seen: dict[int, float] = {}
         self._ai_memory_limit = 12
         self.ocr_enabled = False
         self.ocr_missing: list[str] = []
@@ -314,13 +316,27 @@ class MarciaBot(commands.Bot):
     def _remember_ai_message(self, channel_id: int, *, role: str, content: str | None) -> None:
         if not content:
             return
+        self._prune_ai_memory(channel_id)
         memory = self._ai_memory.setdefault(
             channel_id, deque(maxlen=self._ai_memory_limit)
         )
+        self._ai_memory_last_seen[channel_id] = time.monotonic()
         trimmed = content.strip()
         if len(trimmed) > 400:
             trimmed = f"{trimmed[:397]}..."
         memory.append({"role": role, "content": trimmed})
+
+    def _prune_ai_memory(self, incoming_channel_id: int) -> None:
+        if incoming_channel_id in self._ai_memory_last_seen:
+            return
+        if len(self._ai_memory_last_seen) < AI_MEMORY_MAX_CHANNELS:
+            return
+        stale_channel = min(
+            self._ai_memory_last_seen,
+            key=self._ai_memory_last_seen.get,
+        )
+        self._ai_memory.pop(stale_channel, None)
+        self._ai_memory_last_seen.pop(stale_channel, None)
 
     def _should_process_interaction(self, interaction: discord.Interaction) -> bool:
         now = time.monotonic()
@@ -387,9 +403,9 @@ class MarciaBot(commands.Bot):
         try:
             await init_db()
             logger.info("✔ Database Initialized.")
-        except Exception as e:
-            logger.error(f"✘ Database Failure: {e}")
-            return
+        except Exception:
+            logger.exception("✘ Database Failure during startup")
+            raise
 
         # 1. Register Persistent Views (Makes Trading buttons work after restart)
         self.add_view(FishControlView(self, persistent=True))
