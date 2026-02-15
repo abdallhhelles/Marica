@@ -74,12 +74,13 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 ## Profiles & OCR scanning
 - **Run a scan:** `/scan` in a server, then upload the screenshot in DMs.
 - **Auto-capture:** CP, kills, likes, VIP, level, server, alliance.
-- **Review scans:** `/profile_stats [@member]`.
-- **Leaderboard stats:** `/profile_leaderboard <stat>`.
+- **Review scans:** `/profile_review` (admin-only moderation queue).
+- **Config health:** `/scan_status` (admin-only scanner config check).
+- **Leaderboard stats:** `/leaderboard` (XP + profile metrics in one flow).
 - **OCR stack:**
   - Base: **Tesseract + pytesseract**.
-  - Best accuracy: install OCR extras in `requirements.txt` (easyocr/opencv/numpy).
-  - Low memory: use `requirements-lite.txt` (scanning disabled).
+  - Full install: `requirements.txt` already includes OCR dependencies.
+  - Low memory: use `requirements-lite.txt` (scanning disabled) and add OCR later with `requirements-ocr.txt` if needed.
   - Reference: [Low-memory installation](LOW_MEMORY_INSTALL.md).
 
 ## Leaderboards & roles
@@ -99,3 +100,6 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 ---
 
 If you want me lean and quiet, keep only the channels you use. If you want full ops control, wire up events and trades—and I’ll do the rest.
+
+## Feature ideas
+- For roadmap suggestions, see [FEATURE_IDEAS.md](FEATURE_IDEAS.md).

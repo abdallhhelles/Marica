@@ -20,6 +20,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 4. [Local configuration](#local-configuration)
 5. [Operations & troubleshooting](#operations--troubleshooting)
 6. [Outreach blurb](#outreach-blurb)
+7. [Feature ideas backlog](#feature-ideas-backlog)
 
 ---
 
@@ -33,19 +34,20 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 ### Survivor progression & scavenging
 * **Endless XP tiers:** Message-based XP (60s cooldown) that auto-creates “Sector Rank” roles every 5 levels.
 * **Prestige collections:** Hourly scavenging drops Common → Mythic loot; completing the set grants **Vaultwalker**.
-* **Loot economy:** `/trade_item` lets squadmates exchange scavenged items.
+* **Loot economy:** Fish-Link keeps trade listings and matches centralized through `/setup_trade`, `/profile`, and `/inventory` UI entry points.
 
 ### Commander protocols (events)
 * **Guided creation:** `/event` runs a DM wizard that captures codename, tag, instructions, start time (`YYYY-MM-DD HH:MM` in UTC-2), optional location/voice link, and ping target.
-* **Cadenced reminders:** Posts at T-minus 60/30/15/3/0 minutes with consistent formatting and allowed mentions.
-* **Visibility:** `/events` lists upcoming operations for the current server with UTC-2 timestamps.
-* **Cleanup & reuse:** `/event_remove <codename>` removes an operation; templates can be archived and reused.
+* **Cadenced reminders:** Posts a channel ping at T-minus 60 minutes and sends DM reminders to opt-in members at 30/15/3/0 minutes.
+* **Visibility:** `/event` includes an upcoming operations view for the current server in UTC-2.
+* **Cleanup & reuse:** `/event` includes Remove Event + template reuse flows in one mission-control panel.
 
 ### Profile scanning (OCR)
 * **DM intake:** `/scan` opens a DM flow; uploads happen privately and stats are linked to your server.
 * **Metric extraction:** Parses CP, kills, likes, VIP, level, server, and alliance from uploaded screenshots.
-* **Review & ranking:** `/profile_stats` shows the last snapshot; `/profile_leaderboard` surfaces the top CP/kills/likes/VIP/level.
+* **Review & ranking:** `/profile` shows the latest snapshot; `/leaderboard` surfaces XP and profile metrics (CP/kills/likes/VIP/profile level), with scope and export options.
 * **Health checks:** `python ocr/diagnostics.py` verifies dependencies/templates. See [docs/OCR_SETUP.md](docs/OCR_SETUP.md).
+* **Admin review controls:** `/scan_status` (config health) and `/profile_review` (invalidate/restore/delete recent scans).
 
 ---
 
@@ -53,11 +55,14 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 
 ### Runtime requirements
 * Python 3.8+
-* Base deps: `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
+* Choose one install profile:
+  * **Full install (recommended):** `pip install -r requirements.txt` (includes OCR stack + CPU torch wheels)
+  * **Lite install:** `pip install -r requirements-lite.txt` (no OCR deps)
+* System `tesseract-ocr` binary is still required for local OCR.
 
 ### OCR add-on (enables `/scan`)
-* Python OCR deps live in `requirements-ocr.txt` (Pillow, pytesseract, opencv-python-headless, numpy, EasyOCR, torch/torchvision pinned to the PyTorch **CPU** wheels, no NVIDIA downloads)
-* System `tesseract-ocr` binary
+* If running lite mode, add OCR later with `pip install --no-cache-dir -r requirements-ocr.txt`.
+* OCR deps include Pillow, pytesseract, opencv-python-headless, numpy, EasyOCR, torch/torchvision (CPU wheels).
 * Checklist and template workflow: [docs/OCR_SETUP.md](docs/OCR_SETUP.md)
 * Optional external fallback: set `OCR_SPACE_API_KEY` to offload scans to OCR.space when local OCR is missing.
 * CPU mode is the default; if you later add a CUDA GPU and install matching torch/torchvision wheels, set `GPU = True` in `ocr/ocr_runner.py` for faster local scans.
@@ -70,8 +75,9 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
-   * Base bot: `pip install -r requirements.txt`
-   * Enable OCR locally: `pip install --no-cache-dir -r requirements-ocr.txt`
+   * Full stack (includes OCR): `pip install -r requirements.txt`
+   * OR lite stack: `pip install -r requirements-lite.txt`
+   * If starting lite and enabling OCR later: `pip install --no-cache-dir -r requirements-ocr.txt`
 2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
 3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`). If OCR is enabled, also check `python -m pip show torch torchvision easyocr`.
 4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py`.
@@ -86,7 +92,6 @@ Panels often install only `requirements.txt` and skip system packages. Bake ever
 ```bash
 apt-get update && apt-get install -y tesseract-ocr \
   && pip install -r requirements.txt \
-  && pip install --no-cache-dir -r requirements-ocr.txt \
   && python main.py
 ```
 
@@ -167,3 +172,9 @@ TOKEN=your_discord_bot_token_here
 Use this when someone asks what Marica is or how to try her:
 
 > Hey! I play **Dark War Survival** and built Marica to make life easier for my alliance—translations, ops reminders, trading, and more. She's updated daily with new in-game helpers. Invite her: https://discord.com/oauth2/authorize?client_id=1428179195938476204. Join the beta/test hub: https://discord.gg/TneGDQXG. Check `/commands`, `/features`, or `/showcase` for a quick tour, and run `/setup` right after inviting. I'm open to ideas and feedback!
+
+
+## Feature ideas backlog
+- See [docs/FEATURE_IDEAS.md](docs/FEATURE_IDEAS.md) for prioritized ideas across trading, events, OCR quality, analytics digests, and federation concepts.
+- If you want implementation planning, convert that list into `Now / Next / Later` milestones with effort estimates.
+
