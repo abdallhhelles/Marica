@@ -28,6 +28,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She coor
 4. [Hosting patterns](#hosting-patterns)
 5. [Local configuration](#local-configuration)
 6. [Operations & troubleshooting](#operations--troubleshooting)
+7. [Feature ideas backlog](#feature-ideas-backlog)
 
 ---
 
@@ -85,7 +86,7 @@ For the full map and module list, see [STRUCTURE.md](STRUCTURE.md).
 ### Profile scanning (Profile Scan)
 * **Channel guard:** `/setup` scopes ingestion to a specific channel; other channels are ignored by design.
 * **Metric extraction:** Parses CP, kills, server, and alliance from uploaded screenshots, including the extended **More** tab layouts.
-* **Review & ranking:** `/profile` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/profile_review` lets admins invalidate or delete scans; `/leaderboard` surfaces XP plus CP/kills/likes/VIP (profile scan) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
+* **Review & ranking:** `/profile` shows the last snapshot (CP, kills, likes, VIP, alliance/server, and a self-view check that looks for the in-game Account/Settings buttons); `/profile_review` lets admins invalidate or delete scans; `/scan_status` checks scanner config health; `/leaderboard` surfaces XP plus CP/kills/likes/VIP (profile scan) with 10/25/50/100 row controls, a DM-friendly export, and cached uploads to avoid repeat downloads.
 * **Health checks:** `python ocr/diagnostics.py` verifies dependencies/templates. See [OCR_SETUP.md](OCR_SETUP.md).
 
 ---
@@ -95,11 +96,14 @@ These steps are for the owner’s private deployment only.
 
 ### Runtime requirements
 * Python 3.8+
-* `discord.py`, `httpx`, `python-dotenv`, `aiosqlite`
+* Choose one install profile:
+  * **Full install (recommended):** `pip install -r requirements.txt` (includes OCR stack + CPU torch wheels)
+  * **Lite install:** `pip install -r requirements-lite.txt` (no OCR deps)
+* System `tesseract-ocr` binary is still required for local OCR.
 
 ### Profile scan add-on (OCR, enables `/scan`)
-* All Python OCR deps (Pillow, pytesseract, easyocr, opencv-python-headless, numpy) ship in `requirements.txt` (PyTorch entries are pinned to **CPU-only** wheels to keep installs light on GPU-less hosts)
-* System `tesseract-ocr` binary
+* If running lite mode, add OCR later with `pip install --no-cache-dir -r requirements-ocr.txt`.
+* OCR deps include Pillow, pytesseract, opencv-python-headless, numpy, EasyOCR, torch/torchvision (CPU wheels).
 * Checklist and template workflow: [OCR_SETUP.md](OCR_SETUP.md)
 * Optional external fallback: set `OCR_SPACE_API_KEY` to offload scans to OCR.space when local OCR is missing.
 
@@ -111,9 +115,11 @@ These steps are for the owner’s private deployment only.
 
 ### Deployment checklist (all hosts)
 1. Install Python deps:
-   * `pip install -r requirements.txt` (includes OCR extras)
+   * Full stack (includes OCR): `pip install -r requirements.txt`
+   * OR lite stack: `pip install -r requirements-lite.txt`
+   * If starting lite and enabling OCR later: `pip install --no-cache-dir -r requirements-ocr.txt`
 2. Install Tesseract: `apt-get install -y tesseract-ocr` (Debian/Ubuntu), `brew install tesseract` (macOS), or `choco install tesseract` (Windows).
-3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`).
+3. Verify versions: `tesseract --version` and `python -m pip show httpx` (match `requirements.txt`). If OCR is enabled, also check `python -m pip show torch torchvision easyocr`.
 4. Run diagnostics when OCR is enabled: `python ocr/diagnostics.py`.
 
 ---
@@ -203,3 +209,7 @@ TOKEN=your_discord_bot_token_here
 * **HTTP client conflicts** — Third-party images that preinstall `googletrans==4.0.0rc1` downgrade `httpx`. Remove it or isolate it in a separate venv (e.g., `/home/container/venv_googletrans`) so the bot can keep `httpx==0.28.1`.
 
 ---
+
+
+## Feature ideas backlog
+See [FEATURE_IDEAS.md](FEATURE_IDEAS.md) for prioritized enhancements and roadmap candidates.
