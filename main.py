@@ -142,7 +142,7 @@ class MarciaBot(commands.Bot):
             "- I run XP leveling on message activity, scheduled event reminders, "
             "scavenging contracts with streak tracking, trade matching, and profile scan snapshot caching.\n"
             "- Key commands: /commands, /features, /about, /heroes, "
-            "/event, /remind, /leaderboard, /profile, "
+            "/event, /reminder, /leaderboard, /profile, "
             "/profile_review, /inventory, /scavenge.\n"
             "- Admin tools: /setup, /setup_trade, /refresh_commands, /analytics.\n"
             "- Event flow: /event creates ops, reactions opt in, DM reminders follow.\n"
@@ -617,10 +617,6 @@ class MarciaBot(commands.Bot):
                     global_count,
                     guild_total,
                 )
-                synced = await self.tree.sync()
-                self._slash_sync_completed = True
-                self._last_slash_sync_at = time.time()
-                logger.info("✔ Auto refresh completed (%d slash commands).", len(synced))
                 return
             except Exception:
                 logger.exception("Auto slash refresh failed (attempt %d/3)", attempt)

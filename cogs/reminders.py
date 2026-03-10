@@ -220,7 +220,8 @@ class Reminders(commands.Cog):
         return True
 
     @commands.hybrid_group(
-        name="remind",
+        name="reminder",
+        aliases=["remind"],
         invoke_without_command=True,
         description="Send one-time or recurring reminders, with template controls.",
     )

@@ -29,7 +29,7 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 - **/profile [@member]** — XP, stash, cooldown, and last scan.
 - **/leaderboard** — XP + scan stats (local/global) + export.
 - **/inventory** — items, sets, and bonuses.
-- **/remind** — personal or channel reminders with templates.
+- **/reminder** — personal or channel reminders with templates.
 - **/commands**, **/features**, **/heroes** — onboarding menus.
 
 ## Event & mission control
@@ -54,7 +54,7 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 - Natural @ mentions (e.g., “Dear @everyone”) read smoothly in context.
 
 ## Reminders system
-- **/remind** opens the control deck.
+- **/reminder** opens the control deck.
 - **One-Time Reminder:** choose a channel + message and either send now or schedule once.
 - **Schedule Reminder:** choose channel + message + first run and cadence:
   - `daily`

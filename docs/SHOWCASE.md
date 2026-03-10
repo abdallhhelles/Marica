@@ -6,7 +6,7 @@ A lore-driven, UTC-2–anchored command lead for **Dark War Survival** alliances
 
 ## Ops & Reminders
 - `/event` schedules ops with UTC-2 timing, role pings, and upcoming mission lists.
-- `/remind` opens a control deck for new reminders, templates, and scheduled blasts.
+- `/reminder` opens a control deck for new reminders, templates, and scheduled blasts.
 - `/remindme` sets personal DM timers for solo tasks.
 
 ## Trading & Progression

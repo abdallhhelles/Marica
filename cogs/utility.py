@@ -58,7 +58,7 @@ SHOWCASE_SECTIONS = [
         "name": "Ops & Reminders",
         "lines": [
             f"{EMOJI_IDEA} `/event` schedules ops with UTC-2 timing, pings, and upcoming mission lists.",
-            f"{EMOJI_CONFIDENT} `/remind` manages reminders with templates and scheduled blasts.",
+            f"{EMOJI_CONFIDENT} `/reminder` manages reminders with templates and scheduled blasts.",
             f"{EMOJI_APPROVE} `/remindme` sets personal DM timers for solo tasks.",
         ],
     },
@@ -442,7 +442,7 @@ class Utility(commands.Cog):
             name="Operations",
             value="\n".join([
                 f"• {EMOJI_IDEA} `/event` to plan ops, view upcoming missions, and remove entries",
-                f"• {EMOJI_CONFIDENT} `/remind` for reminder templates, schedules, and instant blasts",
+                f"• {EMOJI_CONFIDENT} `/reminder` for reminder templates, schedules, and instant blasts",
                 f"• {EMOJI_APPROVE} `/analytics` for server usage and activity snapshots",
             ]),
             inline=False,
@@ -486,7 +486,7 @@ class Utility(commands.Cog):
                 "Operations & reminders",
                 [
                     "`/event` • plan ops + upcoming list + removal",
-                    "`/remind` • reminder templates + scheduling",
+                    "`/reminder` • reminder templates + scheduling",
                     "`/remindme` • personal DM timer",
                     "`/poll` • quick polls",
                 ],
@@ -713,7 +713,7 @@ class Utility(commands.Cog):
             "Use `/remindme 60 Prepare for War` to get a DM in one hour.",
             "Mission timers run on Dark War Survival time (UTC-2).",
             "Pin Fish-Link with `/setup_trade` so traders can move fast without spam.",
-            "Use `/remind` to schedule reminders or save templates for rapid ops pings.",
+            "Use `/reminder` to schedule reminders or save templates for rapid ops pings.",
             "Run `/event` to stage ops with a codename, location, and optional role ping.",
             "Need proof of power? `/scan` DMs you scan options to update `/profile` and `/leaderboard` stats.",
             "Inventory is sector-locked-`/inventory` only shows loot from this server.",
