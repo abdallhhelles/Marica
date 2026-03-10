@@ -423,9 +423,11 @@ class MarciaBot(commands.Bot):
         # 2.5. Guard slash commands from ignored channels
         self.tree.interaction_check = self._interaction_channel_gate
 
-        # 3. Sync slash commands so `/` autocomplete stays fresh
+        # 3. Prime global slash commands at startup.
         try:
             synced = await self.tree.sync()
+            self._slash_sync_completed = True
+            self._last_slash_sync_at = time.time()
             logger.info("✔ Slash commands synced (%d registered).", len(synced))
         except Exception:
             logger.exception("✘ Slash command sync failed")
@@ -585,9 +587,23 @@ class MarciaBot(commands.Bot):
             logger.exception("Failed to send interaction response")
         return None
 
+    async def _sync_commands_now(self, *, include_guilds: bool = True) -> tuple[int, int]:
+        """Sync global commands and optionally push immediate guild overlays."""
+        global_synced = await self.tree.sync()
+        guild_synced_total = 0
+        if include_guilds:
+            for guild in self.guilds:
+                try:
+                    guild_synced = await self.tree.sync(guild=guild)
+                    guild_synced_total += len(guild_synced)
+                except Exception:
+                    logger.exception("Guild slash sync failed for %s (%s)", guild.name, guild.id)
+        self._slash_sync_completed = True
+        self._last_slash_sync_at = time.time()
+        return len(global_synced), guild_synced_total
+
     async def _sync_slash_commands_with_retry(self) -> None:
         """Refresh slash commands after connect/restart with light retry logic."""
-        # Skip duplicate refreshes during transient reconnect storms.
         now = time.time()
         if self._slash_sync_completed and (now - self._last_slash_sync_at) < 600:
             return
@@ -595,6 +611,12 @@ class MarciaBot(commands.Bot):
         await self.wait_until_ready()
         for attempt in range(1, 4):
             try:
+                global_count, guild_total = await self._sync_commands_now(include_guilds=True)
+                logger.info(
+                    "✔ Auto refresh completed (%d global, %d guild overlays).",
+                    global_count,
+                    guild_total,
+                )
                 synced = await self.tree.sync()
                 self._slash_sync_completed = True
                 self._last_slash_sync_at = time.time()
@@ -974,6 +996,22 @@ class MarciaBot(commands.Bot):
             return
         try:
             await self.tree._call(interaction)
+        except app_commands.CommandSignatureMismatch as exc:
+            logger.warning("Signature mismatch for /%s; forcing command re-sync.", interaction.data.get("name", "unknown"))
+            create_tracked_task(
+                self._sync_slash_commands_with_retry(),
+                name="signature-mismatch-resync",
+                logger=logger,
+            )
+            await self._safe_interaction_reply(
+                interaction,
+                content=(
+                    "⚠️ Command schema just updated. I refreshed command data-"
+                    "please wait a few seconds and run the command again."
+                ),
+                ephemeral=True,
+            )
+            logger.exception("Application command signature mismatch", exc_info=exc)
         except Exception:
             logger.exception("Application command dispatch failed")
 
