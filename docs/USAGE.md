@@ -8,7 +8,7 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 ## Owner launch checklist
 1. **/setup** → link only the channels you need (start with **rules** + **events**).
 2. **/setup_trade** in your trade channel to anchor the Fish-Link terminal.
-3. **/refresh_commands** if slash commands ever desync.
+3. Slash commands auto-refresh on bot startup/restart. Use **/refresh_commands** if they ever desync manually.
 
 ## What I do (high level)
 - **Operations control:** Full event scheduling with opt-in reminders and DM countdowns.

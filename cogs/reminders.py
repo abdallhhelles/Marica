@@ -166,6 +166,28 @@ class Reminders(commands.Cog):
                     return candidate_utc
         return None
 
+    def _advance_to_future(
+        self,
+        send_at_utc: datetime,
+        recurrence_type: str,
+        recurrence_value: str | None,
+        now_utc: datetime | None = None,
+    ) -> datetime | None:
+        """Advance recurring reminders until the next valid future run."""
+        if recurrence_type == "once":
+            return send_at_utc if send_at_utc > (now_utc or datetime.now(timezone.utc)) else None
+
+        current = send_at_utc
+        horizon = (now_utc or datetime.now(timezone.utc))
+        for _ in range(366):
+            if current > horizon:
+                return current
+            nxt = self._compute_next_run(current, recurrence_type, recurrence_value)
+            if not nxt or nxt <= current:
+                return None
+            current = nxt
+        return None
+
     def _describe_recurrence(self, recurrence_type: str, recurrence_value: str | None) -> str:
         if recurrence_type == "once":
             return "One-time"
@@ -321,14 +343,20 @@ class Reminders(commands.Cog):
 
             recurrence_type = record["recurrence_type"]
             recurrence_value = record["recurrence_value"]
-            next_run = self._compute_next_run(when_utc, recurrence_type, recurrence_value)
-            if next_run and next_run > datetime.now(timezone.utc):
+            next_run = self._advance_to_future(
+                self._compute_next_run(when_utc, recurrence_type, recurrence_value) or when_utc,
+                recurrence_type,
+                recurrence_value,
+            )
+            if recurrence_type != "once" and next_run:
                 await update_scheduled_reminder(guild_id, reminder_id, next_run.isoformat())
                 self._schedule_reminder(reminder_id, channel, body, next_run)
             else:
                 await delete_scheduled_reminder(guild_id, reminder_id)
         finally:
-            self.scheduled_tasks.pop(reminder_id, None)
+            current = asyncio.current_task()
+            if self.scheduled_tasks.get(reminder_id) is current:
+                self.scheduled_tasks.pop(reminder_id, None)
 
     async def _restore_scheduled_reminders(self) -> None:
         await self.bot.wait_until_ready()
@@ -337,18 +365,18 @@ class Reminders(commands.Cog):
             now_utc = datetime.now(timezone.utc)
             for reminder in reminders:
                 send_at = datetime.fromisoformat(reminder["send_at_utc"]).astimezone(timezone.utc)
-                if send_at <= now_utc:
-                    next_run = self._compute_next_run(
-                        send_at,
-                        reminder["recurrence_type"],
-                        reminder["recurrence_value"],
-                    )
-                    if next_run and next_run > now_utc:
-                        await update_scheduled_reminder(guild.id, reminder["id"], next_run.isoformat())
-                        send_at = next_run
-                    else:
-                        await delete_scheduled_reminder(guild.id, reminder["id"])
-                        continue
+                next_run = self._advance_to_future(
+                    send_at,
+                    reminder["recurrence_type"],
+                    reminder["recurrence_value"],
+                    now_utc=now_utc,
+                )
+                if not next_run:
+                    await delete_scheduled_reminder(guild.id, reminder["id"])
+                    continue
+                if next_run != send_at:
+                    await update_scheduled_reminder(guild.id, reminder["id"], next_run.isoformat())
+                    send_at = next_run
                 channel = guild.get_channel(reminder["channel_id"])
                 if not channel:
                     await delete_scheduled_reminder(guild.id, reminder["id"])

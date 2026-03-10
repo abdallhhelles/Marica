@@ -110,6 +110,9 @@ class MarciaBot(commands.Bot):
         self._ollama_health_up: bool | None = None
         self._ollama_health_expires_at = 0.0
         self._ollama_config_task: asyncio.Task | None = None
+        self._startup_sync_task: asyncio.Task | None = None
+        self._slash_sync_completed = False
+        self._last_slash_sync_at = 0.0
         self._ollama_request_timeout = httpx.Timeout(
             config.ollama_request_timeout,
             connect=3.0,
@@ -124,6 +127,8 @@ class MarciaBot(commands.Bot):
             self._metrics_task.cancel()
         if self._ollama_config_task:
             self._ollama_config_task.cancel()
+        if self._startup_sync_task:
+            self._startup_sync_task.cancel()
         await self.http_client.aclose()
         await super().close()
 
@@ -580,6 +585,25 @@ class MarciaBot(commands.Bot):
             logger.exception("Failed to send interaction response")
         return None
 
+    async def _sync_slash_commands_with_retry(self) -> None:
+        """Refresh slash commands after connect/restart with light retry logic."""
+        # Skip duplicate refreshes during transient reconnect storms.
+        now = time.time()
+        if self._slash_sync_completed and (now - self._last_slash_sync_at) < 600:
+            return
+
+        await self.wait_until_ready()
+        for attempt in range(1, 4):
+            try:
+                synced = await self.tree.sync()
+                self._slash_sync_completed = True
+                self._last_slash_sync_at = time.time()
+                logger.info("✔ Auto refresh completed (%d slash commands).", len(synced))
+                return
+            except Exception:
+                logger.exception("Auto slash refresh failed (attempt %d/3)", attempt)
+                await asyncio.sleep(2 * attempt)
+
     async def on_ready(self):
         """Final system check once online."""
         logger.info("-" * 30)
@@ -591,6 +615,13 @@ class MarciaBot(commands.Bot):
         await self.change_presence(
             activity=discord.Game(name="Dark War: Survival | /commands"),
         )
+
+        if not self._startup_sync_task or self._startup_sync_task.done():
+            self._startup_sync_task = create_tracked_task(
+                self._sync_slash_commands_with_retry(),
+                name="startup-slash-sync",
+                logger=logger,
+            )
 
     async def _is_reply_to_bot(self, message: discord.Message) -> bool:
         """Return True when a message replies to the bot, even if uncached."""
