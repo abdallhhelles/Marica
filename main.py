@@ -999,11 +999,6 @@ class MarciaBot(commands.Bot):
             self._mark_interaction_started(interaction, invocation_id)
             if not self._should_process_interaction(interaction):
                 return
-            try:
-                await self.process_application_commands(interaction)
-            except Exception:
-                logger.exception("Failed to process application interaction")
-            return
 
         # No super().on_interaction in some discord.py builds; only handle app interactions here.
         return
