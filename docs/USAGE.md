@@ -54,13 +54,19 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
 - Natural @ mentions (e.g., “Dear @everyone”) read smoothly in context.
 
 ## Reminders system
-- **/remind** opens the menu.
-- **Send to channel:** choose channel + message + optional schedule.
-- **Send to events channel:** quick post to your configured events channel.
+- **/remind** opens the control deck.
+- **One-Time Reminder:** choose a channel + message and either send now or schedule once.
+- **Schedule Reminder:** choose channel + message + first run and cadence:
+  - `daily`
+  - `weekly`
+  - `monthly`
+  - `weekdays` (example details: `Monday,Wednesday,Friday`)
 - **Templates:**
-  - **/remind add <name> <body>**
-  - **Manage Templates** to delete old ones.
-- **Scheduling:** leave time blank for **send now** or set `YYYY-MM-DD HH:MM`.
+  - **Use Template** → apply as one-time or scheduled reminder.
+  - **Archive Template** → save new templates.
+  - **Delete Template** → remove old templates.
+- **Upcoming Reminders / Remove Reminder:** review and cancel active schedules.
+- **Date/time format:** `YYYY-MM-DD HH:MM` (UTC-2 game time).
 
 ## Scavenge & progression
 - **Cooldown:** 1 hour per user.
