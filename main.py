@@ -594,6 +594,9 @@ class MarciaBot(commands.Bot):
         if include_guilds:
             for guild in self.guilds:
                 try:
+                    # Force-copy global commands into each guild for immediate consistency.
+                    # This avoids stale guild command signatures lingering after schema changes.
+                    self.tree.copy_global_to(guild=guild)
                     guild_synced = await self.tree.sync(guild=guild)
                     guild_synced_total += len(guild_synced)
                 except Exception:
