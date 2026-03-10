@@ -602,10 +602,10 @@ class MarciaBot(commands.Bot):
         self._last_slash_sync_at = time.time()
         return len(global_synced), guild_synced_total
 
-    async def _sync_slash_commands_with_retry(self) -> None:
+    async def _sync_slash_commands_with_retry(self, *, force: bool = False) -> None:
         """Refresh slash commands after connect/restart with light retry logic."""
         now = time.time()
-        if self._slash_sync_completed and (now - self._last_slash_sync_at) < 600:
+        if not force and self._slash_sync_completed and (now - self._last_slash_sync_at) < 600:
             return
 
         await self.wait_until_ready()
@@ -636,7 +636,7 @@ class MarciaBot(commands.Bot):
 
         if not self._startup_sync_task or self._startup_sync_task.done():
             self._startup_sync_task = create_tracked_task(
-                self._sync_slash_commands_with_retry(),
+                self._sync_slash_commands_with_retry(force=True),
                 name="startup-slash-sync",
                 logger=logger,
             )
@@ -976,13 +976,8 @@ class MarciaBot(commands.Bot):
             self._mark_interaction_started(interaction, invocation_id)
             if not self._should_process_interaction(interaction):
                 return
-            try:
-                await self.process_application_commands(interaction)
-            except Exception:
-                logger.exception("Failed to process application interaction")
-            return
 
-        return
+        await super().on_interaction(interaction)
 
     async def process_application_commands(self, interaction: discord.Interaction):
         """Compatibility shim so app commands route even on discord.py builds without it."""
@@ -995,7 +990,7 @@ class MarciaBot(commands.Bot):
         except app_commands.CommandSignatureMismatch as exc:
             logger.warning("Signature mismatch for /%s; forcing command re-sync.", interaction.data.get("name", "unknown"))
             create_tracked_task(
-                self._sync_slash_commands_with_retry(),
+                self._sync_slash_commands_with_retry(force=True),
                 name="signature-mismatch-resync",
                 logger=logger,
             )
