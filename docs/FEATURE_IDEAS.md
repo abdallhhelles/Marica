@@ -20,7 +20,7 @@ A practical backlog of next-step ideas based on the current command surface (`/e
 
 4. **Reminder templates per role/team**
    - Let admins bind reminder templates to role presets (Raid, Defense, Duel).
-   - One click in `/remind` to choose template + role target.
+   - One click in `/reminder` to choose template + role target.
 
 ## Mid-term ideas
 
