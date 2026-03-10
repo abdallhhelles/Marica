@@ -226,9 +226,20 @@ async def init_db():
                 channel_id INTEGER,
                 creator_id INTEGER,
                 body TEXT,
-                send_at_utc TEXT
+                send_at_utc TEXT,
+                recurrence_type TEXT DEFAULT 'once',
+                recurrence_value TEXT
             )
         ''')
+        for ddl in (
+            "ALTER TABLE scheduled_reminders ADD COLUMN recurrence_type TEXT DEFAULT 'once'",
+            "ALTER TABLE scheduled_reminders ADD COLUMN recurrence_value TEXT",
+        ):
+            try:
+                await db.execute(ddl)
+            except aiosqlite.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
 
         await db.execute('''
             CREATE TABLE IF NOT EXISTS profile_channels (
@@ -1691,14 +1702,18 @@ async def add_scheduled_reminder(
     creator_id: int,
     body: str,
     send_at_utc: str,
+    recurrence_type: str = "once",
+    recurrence_value: str | None = None,
 ) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """
-            INSERT INTO scheduled_reminders (guild_id, channel_id, creator_id, body, send_at_utc)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO scheduled_reminders (
+                guild_id, channel_id, creator_id, body, send_at_utc, recurrence_type, recurrence_value
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (guild_id, channel_id, creator_id, body, send_at_utc),
+            (guild_id, channel_id, creator_id, body, send_at_utc, recurrence_type, recurrence_value),
         )
         await db.commit()
         return cursor.lastrowid
@@ -1709,7 +1724,8 @@ async def get_scheduled_reminders(guild_id: int):
         db.row_factory = aiosqlite.Row
         async with db.execute(
             """
-            SELECT id, channel_id, creator_id, body, send_at_utc
+            SELECT id, channel_id, creator_id, body, send_at_utc,
+                   COALESCE(recurrence_type, 'once') AS recurrence_type, recurrence_value
             FROM scheduled_reminders
             WHERE guild_id = ?
             ORDER BY send_at_utc ASC
@@ -1717,6 +1733,19 @@ async def get_scheduled_reminders(guild_id: int):
             (guild_id,),
         ) as cursor:
             return await cursor.fetchall()
+
+
+async def update_scheduled_reminder(
+    guild_id: int,
+    reminder_id: int,
+    send_at_utc: str,
+) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE scheduled_reminders SET send_at_utc = ? WHERE guild_id = ? AND id = ?",
+            (send_at_utc, guild_id, reminder_id),
+        )
+        await db.commit()
 
 
 async def delete_scheduled_reminder(guild_id: int, reminder_id: int) -> None:
