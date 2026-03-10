@@ -19,7 +19,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She coor
 
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
-* **Command-driven:** `/event` scheduling + upcoming ops, Join Event reactions with DM reminders, `/remind` for flexible reminders with templates, `/leaderboard` unified views with global rankings and server numbers, `/profile` snapshots, `/profile_review` admin scan controls, `/heroes` codex lookups, and admin setup commands like `/setup` and `/setup_trade`.
+* **Command-driven:** `/event` scheduling + upcoming ops, Join Event reactions with DM reminders, `/reminder` for flexible reminders with templates, `/leaderboard` unified views with global rankings and server numbers, `/profile` snapshots, `/profile_review` admin scan controls, `/heroes` codex lookups, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
