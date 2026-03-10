@@ -617,6 +617,10 @@ class MarciaBot(commands.Bot):
                     global_count,
                     guild_total,
                 )
+                synced = await self.tree.sync()
+                self._slash_sync_completed = True
+                self._last_slash_sync_at = time.time()
+                logger.info("✔ Auto refresh completed (%d slash commands).", len(synced))
                 return
             except Exception:
                 logger.exception("Auto slash refresh failed (attempt %d/3)", attempt)
