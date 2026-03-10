@@ -110,6 +110,9 @@ class MarciaBot(commands.Bot):
         self._ollama_health_up: bool | None = None
         self._ollama_health_expires_at = 0.0
         self._ollama_config_task: asyncio.Task | None = None
+        self._startup_sync_task: asyncio.Task | None = None
+        self._slash_sync_completed = False
+        self._last_slash_sync_at = 0.0
         self._ollama_request_timeout = httpx.Timeout(
             config.ollama_request_timeout,
             connect=3.0,
@@ -124,6 +127,8 @@ class MarciaBot(commands.Bot):
             self._metrics_task.cancel()
         if self._ollama_config_task:
             self._ollama_config_task.cancel()
+        if self._startup_sync_task:
+            self._startup_sync_task.cancel()
         await self.http_client.aclose()
         await super().close()
 
@@ -418,9 +423,11 @@ class MarciaBot(commands.Bot):
         # 2.5. Guard slash commands from ignored channels
         self.tree.interaction_check = self._interaction_channel_gate
 
-        # 3. Sync slash commands so `/` autocomplete stays fresh
+        # 3. Prime global slash commands at startup.
         try:
             synced = await self.tree.sync()
+            self._slash_sync_completed = True
+            self._last_slash_sync_at = time.time()
             logger.info("✔ Slash commands synced (%d registered).", len(synced))
         except Exception:
             logger.exception("✘ Slash command sync failed")
@@ -580,6 +587,41 @@ class MarciaBot(commands.Bot):
             logger.exception("Failed to send interaction response")
         return None
 
+    async def _sync_commands_now(self, *, include_guilds: bool = True) -> tuple[int, int]:
+        """Sync global commands and optionally push immediate guild overlays."""
+        global_synced = await self.tree.sync()
+        guild_synced_total = 0
+        if include_guilds:
+            for guild in self.guilds:
+                try:
+                    guild_synced = await self.tree.sync(guild=guild)
+                    guild_synced_total += len(guild_synced)
+                except Exception:
+                    logger.exception("Guild slash sync failed for %s (%s)", guild.name, guild.id)
+        self._slash_sync_completed = True
+        self._last_slash_sync_at = time.time()
+        return len(global_synced), guild_synced_total
+
+    async def _sync_slash_commands_with_retry(self) -> None:
+        """Refresh slash commands after connect/restart with light retry logic."""
+        now = time.time()
+        if self._slash_sync_completed and (now - self._last_slash_sync_at) < 600:
+            return
+
+        await self.wait_until_ready()
+        for attempt in range(1, 4):
+            try:
+                global_count, guild_total = await self._sync_commands_now(include_guilds=True)
+                logger.info(
+                    "✔ Auto refresh completed (%d global, %d guild overlays).",
+                    global_count,
+                    guild_total,
+                )
+                return
+            except Exception:
+                logger.exception("Auto slash refresh failed (attempt %d/3)", attempt)
+                await asyncio.sleep(2 * attempt)
+
     async def on_ready(self):
         """Final system check once online."""
         logger.info("-" * 30)
@@ -591,6 +633,13 @@ class MarciaBot(commands.Bot):
         await self.change_presence(
             activity=discord.Game(name="Dark War: Survival | /commands"),
         )
+
+        if not self._startup_sync_task or self._startup_sync_task.done():
+            self._startup_sync_task = create_tracked_task(
+                self._sync_slash_commands_with_retry(),
+                name="startup-slash-sync",
+                logger=logger,
+            )
 
     async def _is_reply_to_bot(self, message: discord.Message) -> bool:
         """Return True when a message replies to the bot, even if uncached."""
@@ -943,6 +992,22 @@ class MarciaBot(commands.Bot):
             return
         try:
             await self.tree._call(interaction)
+        except app_commands.CommandSignatureMismatch as exc:
+            logger.warning("Signature mismatch for /%s; forcing command re-sync.", interaction.data.get("name", "unknown"))
+            create_tracked_task(
+                self._sync_slash_commands_with_retry(),
+                name="signature-mismatch-resync",
+                logger=logger,
+            )
+            await self._safe_interaction_reply(
+                interaction,
+                content=(
+                    "⚠️ Command schema just updated. I refreshed command data-"
+                    "please wait a few seconds and run the command again."
+                ),
+                ephemeral=True,
+            )
+            logger.exception("Application command signature mismatch", exc_info=exc)
         except Exception:
             logger.exception("Application command dispatch failed")
 

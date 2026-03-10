@@ -736,14 +736,22 @@ class Utility(commands.Cog):
         if getattr(ctx, "interaction", None):
             await ctx.defer(ephemeral=True)
         try:
-            synced = await self.bot.tree.sync()
+            if hasattr(self.bot, "_sync_commands_now"):
+                global_count, guild_total = await self.bot._sync_commands_now(include_guilds=True)
+                message = (
+                    "📡 Command uplink refreshed. "
+                    f"Global: `{global_count}` • Guild overlays: `{guild_total}`."
+                )
+            else:
+                synced = await self.bot.tree.sync()
+                message = f"📡 Command uplink refreshed. Registered `{len(synced)}` slash commands."
         except Exception as e:
             await self._safe_send(ctx, content=f"❌ Sync failed: `{e}`", ephemeral=True)
             return
 
         await self._safe_send(
             ctx,
-            content=f"📡 Command uplink refreshed. Registered `{len(synced)}` slash commands.",
+            content=message,
             ephemeral=True,
         )
 
