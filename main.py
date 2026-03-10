@@ -999,6 +999,9 @@ class MarciaBot(commands.Bot):
             self._mark_interaction_started(interaction, invocation_id)
             if not self._should_process_interaction(interaction):
                 return
+            # Let discord.py CommandTree process interactions through its native wrapper.
+            # Manual dispatch here can create duplicate/competing handlers and stale signature loops.
+            return
 
         # No super().on_interaction in some discord.py builds; only handle app interactions here.
         return
@@ -1033,6 +1036,28 @@ class MarciaBot(commands.Bot):
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         """Mirror message-command error handling so slash users see one clear notice."""
         if getattr(error, "handled", False):
+            return
+
+        if isinstance(error, app_commands.CommandSignatureMismatch):
+            logger.warning(
+                "Signature mismatch for /%s from tree handler; forcing command re-sync.",
+                interaction.data.get("name", "unknown") if isinstance(interaction.data, dict) else "unknown",
+            )
+            create_tracked_task(
+                self._sync_slash_commands_with_retry(force=True),
+                name="signature-mismatch-resync",
+                logger=logger,
+            )
+            await self._safe_interaction_reply(
+                interaction,
+                content=(
+                    "⚠️ Command schema is refreshing on Discord. "
+                    "Please wait 10-20 seconds, then run `/reminder` again."
+                ),
+                ephemeral=True,
+            )
+            error.handled = True
+            self._record_app_command_result(interaction, getattr(interaction, "command", None), success=False)
             return
 
         already_replied = interaction.response.is_done() or getattr(
