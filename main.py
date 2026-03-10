@@ -977,7 +977,8 @@ class MarciaBot(commands.Bot):
             if not self._should_process_interaction(interaction):
                 return
 
-        await super().on_interaction(interaction)
+        # No super().on_interaction in some discord.py builds; only handle app interactions here.
+        return
 
     async def process_application_commands(self, interaction: discord.Interaction):
         """Compatibility shim so app commands route even on discord.py builds without it."""
