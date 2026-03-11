@@ -590,37 +590,50 @@ class MarciaBot(commands.Bot):
         return None
 
     async def _sync_commands_now(self, *, include_guilds: bool = True) -> tuple[int, int]:
-        """Sync global commands and optionally push immediate guild overlays."""
+        """Sync global commands and manage guild overlays without creating duplicate command listings."""
         global_synced = await self.tree.sync()
         guild_synced_total = 0
         if include_guilds:
             priority_guild_id = self.config.command_sync_guild_id
-            guild_order = list(self.guilds)
-            if priority_guild_id:
-                guild_order.sort(key=lambda g: 0 if g.id == priority_guild_id else 1)
+            sync_all_overlays = self.config.command_sync_all_guild_overlays
 
-            for guild in guild_order:
-                try:
-                    if self.config.command_sync_clear_guild and priority_guild_id and guild.id == priority_guild_id:
+            if sync_all_overlays:
+                guild_order = list(self.guilds)
+                if priority_guild_id:
+                    guild_order.sort(key=lambda g: 0 if g.id == priority_guild_id else 1)
+                for guild in guild_order:
+                    try:
+                        if self.config.command_sync_clear_guild and priority_guild_id and guild.id == priority_guild_id:
+                            self.tree.clear_commands(guild=guild)
+                        self.tree.copy_global_to(guild=guild)
+                        guild_synced = await self.tree.sync(guild=guild)
+                        guild_synced_total += len(guild_synced)
+                    except Exception:
+                        logger.exception("Guild slash sync failed for %s (%s)", guild.name, guild.id)
+            else:
+                # Cleanup stale guild overlays first to prevent duplicate slash listings.
+                for guild in self.guilds:
+                    if priority_guild_id and guild.id == priority_guild_id:
+                        continue
+                    try:
                         self.tree.clear_commands(guild=guild)
-                    # Force-copy global commands into each guild for immediate consistency.
-                    # This avoids stale guild command signatures lingering after schema changes.
-                    self.tree.copy_global_to(guild=guild)
-                    guild_synced = await self.tree.sync(guild=guild)
-                    guild_synced_total += len(guild_synced)
-                except Exception:
-                    logger.exception("Guild slash sync failed for %s (%s)", guild.name, guild.id)
+                        cleared = await self.tree.sync(guild=guild)
+                        guild_synced_total += len(cleared)
+                    except Exception:
+                        logger.exception("Guild command cleanup failed for %s (%s)", guild.name, guild.id)
 
-            if priority_guild_id and all(g.id != priority_guild_id for g in self.guilds):
-                try:
-                    priority = discord.Object(id=priority_guild_id)
-                    if self.config.command_sync_clear_guild:
-                        self.tree.clear_commands(guild=priority)
-                    self.tree.copy_global_to(guild=priority)
-                    guild_synced = await self.tree.sync(guild=priority)
-                    guild_synced_total += len(guild_synced)
-                except Exception:
-                    logger.exception("Priority guild sync failed for %s", priority_guild_id)
+                # Optional: keep one fast-propagation test guild overlay only.
+                if priority_guild_id:
+                    try:
+                        priority = discord.utils.get(self.guilds, id=priority_guild_id) or discord.Object(id=priority_guild_id)
+                        if self.config.command_sync_clear_guild:
+                            self.tree.clear_commands(guild=priority)
+                        self.tree.copy_global_to(guild=priority)
+                        guild_synced = await self.tree.sync(guild=priority)
+                        guild_synced_total += len(guild_synced)
+                    except Exception:
+                        logger.exception("Priority guild sync failed for %s", priority_guild_id)
+
         self._slash_sync_completed = True
         self._last_slash_sync_at = time.time()
         return len(global_synced), guild_synced_total

@@ -168,6 +168,7 @@ TOKEN=your_discord_bot_token_here
 * `MARCIA_BUSY_COOLDOWN` — Seconds between “busy” notices per user (default: `120`).
 * `MARCIA_COMMAND_SYNC_GUILD_ID` — Optional guild ID to sync first for fastest slash propagation (recommended for your test server).
 * `MARCIA_COMMAND_SYNC_CLEAR_GUILD` — Set `true` to clear guild command cache before sync when recovering from stubborn signature mismatches.
+* `MARCIA_COMMAND_SYNC_ALL_GUILD_OVERLAYS` — Defaults to `false`; keep this off to avoid duplicate slash listings from global+guild overlap.
 * **Troubleshooting 404s:** OpenRouter returns `404 Not Found` when the model name is invalid. Set `MARCIA_AI_MODEL` to a model listed in your OpenRouter dashboard.
 
 **HTTP guardrails**
