@@ -19,7 +19,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She coor
 
 **Quick feature overview (automated + commands):**
 * **Automated:** XP leveling on message activity, scheduled event reminders, scavenging contracts with streak tracking, auto-matching trade requests, and profile scan snapshot caching.
-* **Command-driven:** `/event` scheduling + upcoming ops, Join Event reactions with DM reminders, `/remind` for flexible reminders with templates, `/leaderboard` unified views with global rankings and server numbers, `/profile` snapshots, `/profile_review` admin scan controls, `/heroes` codex lookups, and admin setup commands like `/setup` and `/setup_trade`.
+* **Command-driven:** `/event` scheduling + upcoming ops, Join Event reactions with DM reminders, `/reminder` for flexible reminders with templates, `/leaderboard` unified views with global rankings and server numbers, `/profile` snapshots, `/profile_review` admin scan controls, `/heroes` codex lookups, and admin setup commands like `/setup` and `/setup_trade`.
 
 ## Table of contents
 1. [System capabilities](#system-capabilities)
@@ -166,6 +166,9 @@ TOKEN=your_discord_bot_token_here
 * `MARCIA_AI_APP_URL` — Optional referer URL for provider analytics.
 * `MARCIA_MENTION_COOLDOWN` — Seconds between AI replies per user (default: `45`).
 * `MARCIA_BUSY_COOLDOWN` — Seconds between “busy” notices per user (default: `120`).
+* `MARCIA_COMMAND_SYNC_GUILD_ID` — Optional guild ID to sync first for fastest slash propagation (recommended for your test server).
+* `MARCIA_COMMAND_SYNC_CLEAR_GUILD` — Set `true` to clear guild command cache before sync when recovering from stubborn signature mismatches.
+* `MARCIA_COMMAND_SYNC_ALL_GUILD_OVERLAYS` — Defaults to `false`; keep this off to avoid duplicate slash listings from global+guild overlap.
 * **Troubleshooting 404s:** OpenRouter returns `404 Not Found` when the model name is invalid. Set `MARCIA_AI_MODEL` to a model listed in your OpenRouter dashboard.
 
 **HTTP guardrails**

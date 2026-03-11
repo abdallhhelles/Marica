@@ -86,6 +86,9 @@ class MarciaConfig:
     profile_scan_workers: int
     profile_scan_concurrency: int
     profile_scan_release_ocr: bool
+    command_sync_guild_id: int | None
+    command_sync_clear_guild: bool
+    command_sync_all_guild_overlays: bool
 
 
 def load_config() -> MarciaConfig:
@@ -121,6 +124,9 @@ def load_config() -> MarciaConfig:
         profile_scan_workers=_get_int("PROFILE_SCAN_WORKERS", 1),
         profile_scan_concurrency=_get_int("PROFILE_SCAN_CONCURRENCY", 2),
         profile_scan_release_ocr=_get_bool("PROFILE_SCAN_RELEASE_OCR", True),
+        command_sync_guild_id=(lambda v: v if v > 0 else None)(_get_int("MARCIA_COMMAND_SYNC_GUILD_ID", 0)),
+        command_sync_clear_guild=_get_bool("MARCIA_COMMAND_SYNC_CLEAR_GUILD", False),
+        command_sync_all_guild_overlays=_get_bool("MARCIA_COMMAND_SYNC_ALL_GUILD_OVERLAYS", False),
     )
 
 
