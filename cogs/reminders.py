@@ -219,48 +219,102 @@ class Reminders(commands.Cog):
             return False
         return True
 
-    @commands.hybrid_group(
+    @commands.hybrid_command(
         name="reminder",
         aliases=["remind"],
-        invoke_without_command=True,
-        description="Send one-time or recurring reminders, with template controls.",
+        description="Send now or schedule one recurring reminder.",
     )
-    async def remind(self, ctx: commands.Context):
+    @discord.app_commands.describe(
+        body="Reminder message to send.",
+        when="Optional first run in game time: YYYY-MM-DD HH:MM (UTC-2).",
+        repeat="once | daily | weekly | monthly | weekdays",
+        weekdays="For repeat=weekdays: comma-separated days, e.g. Mon,Wed,Fri.",
+        channel="Optional target channel (default: configured events channel).",
+    )
+    async def remind(
+        self,
+        ctx: commands.Context,
+        body: str,
+        when: str | None = None,
+        repeat: str = "once",
+        weekdays: str | None = None,
+        channel: discord.TextChannel | None = None,
+    ):
         if not ctx.guild:
-            return await ctx.send("❌ Reminders can only be managed inside a server.")
+            await ctx.send("❌ Reminders can only be managed inside a server.")
+            return
 
         settings = await get_settings(ctx.guild.id)
-        if not settings or not settings.get("event_channel_id"):
-            return await ctx.send(
-                "📌 Set an events channel first with `/setup` so I know where to post reminders."
-            )
+        default_channel = None
+        if settings and settings.get("event_channel_id"):
+            default_channel = ctx.guild.get_channel(settings["event_channel_id"])
 
-        view = ReminderMenuView(self, ctx, settings["event_channel_id"])
-        embed = discord.Embed(
-            title="🛰️ Reminder Control Deck",
-            description=(
-                "Pick your move:\n\n"
-                "**One-Time Reminder**: Send now or schedule once.\n"
-                "**Schedule Reminder**: Daily / weekly / monthly / custom weekdays.\n"
-                "**Use Template**: Load a saved template and send/schedule it.\n"
-                "**Archive Template**: Save a reusable template.\n"
-                "**Delete Template**: Remove a saved template.\n"
-                "**Upcoming Reminders**: List all scheduled reminders.\n"
-                "**Remove Reminder**: Cancel any scheduled reminder."
-            ),
-            color=0x5865F2,
-        )
-        embed.add_field(
-            name="📅 Time Format",
-            value=(
-                "`YYYY-MM-DD` + `HH:MM` in game time (UTC-2).\n"
-                f"Now: {format_game(datetime.now(timezone.utc))}"
-            ),
-            inline=False,
-        )
-        embed.set_footer(text="Marcia keeps reminders direct, predictable, and easy to manage.")
-        await ctx.send(embed=embed, view=view)
+        target_channel = channel or default_channel
+        if not target_channel:
+            await ctx.send("📌 Set an events channel with `/setup` or provide a channel.")
+            return
 
+        if await is_channel_ignored(ctx.guild.id, target_channel.id):
+            await ctx.send("🚫 That channel is muted for Marcia. Pick another sector.")
+            return
+
+        mode = (repeat or "once").strip().lower()
+        if mode not in {"once", "daily", "weekly", "monthly", "weekdays"}:
+            await ctx.send("❌ `repeat` must be one of: `once`, `daily`, `weekly`, `monthly`, `weekdays`.")
+            return
+
+        when_utc = None
+        if when:
+            try:
+                when_utc = self._parse_when(when)
+            except ValueError as exc:
+                await ctx.send(str(exc))
+                return
+
+        recurrence_type = "once"
+        recurrence_value = None
+
+        if mode == "once":
+            recurrence_type = "once"
+        elif mode in {"daily", "weekly"}:
+            if not when_utc:
+                await ctx.send("❌ Recurring reminders need `when` for the first run.")
+                return
+            recurrence_type = mode
+        elif mode == "monthly":
+            if not when_utc:
+                await ctx.send("❌ Monthly reminders need `when` for the first run.")
+                return
+            recurrence_type = "monthly"
+            run_game = when_utc.astimezone(GAME_TZ)
+            minute_of_day = run_game.hour * 60 + run_game.minute
+            recurrence_value = f"{run_game.day}|{minute_of_day}"
+        elif mode == "weekdays":
+            if not when_utc:
+                await ctx.send("❌ Weekday reminders need `when` for the first run.")
+                return
+            try:
+                weekday_indexes = self._normalize_weekdays(weekdays)
+            except ValueError as exc:
+                await ctx.send(str(exc))
+                return
+            recurrence_type = "custom_weekdays"
+            run_game = when_utc.astimezone(GAME_TZ)
+            minute_of_day = run_game.hour * 60 + run_game.minute
+            recurrence_value = f"{','.join(str(x) for x in weekday_indexes)}|{minute_of_day}"
+
+        if when_utc and when_utc <= datetime.now(timezone.utc):
+            await ctx.send("❌ `when` must be in the future.")
+            return
+
+        await self._send_or_schedule(
+            ctx,
+            target_channel,
+            body,
+            when_utc,
+            recurrence_type=recurrence_type,
+            recurrence_value=recurrence_value,
+        )
     async def _send_or_schedule(
         self,
         ctx: commands.Context,
@@ -331,16 +385,17 @@ class Reminders(commands.Cog):
         await discord.utils.sleep_until(when_utc)
         guild_id = channel.guild.id
         try:
-            reminder_message = self._format_reminder_message(body)
-            await channel.send(
-                f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}",
-                allowed_mentions=discord.AllowedMentions(everyone=True),
-            )
-
             reminders = await get_scheduled_reminders(guild_id)
             record = next((item for item in reminders if item["id"] == reminder_id), None)
             if not record:
                 return
+
+            if not await is_channel_ignored(guild_id, channel.id):
+                reminder_message = self._format_reminder_message(body)
+                await channel.send(
+                    f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}",
+                    allowed_mentions=discord.AllowedMentions(everyone=True),
+                )
 
             recurrence_type = record["recurrence_type"]
             recurrence_value = record["recurrence_value"]

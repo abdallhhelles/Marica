@@ -1019,6 +1019,29 @@ class MarciaBot(commands.Bot):
         # No super().on_interaction in some discord.py builds; only handle app interactions here.
         return
 
+    async def _sync_interaction_guild_overlay(self, interaction: discord.Interaction) -> None:
+        """Fast-path sync for the interaction's guild to resolve stale command signatures."""
+        guild = interaction.guild
+        if not guild:
+            return
+        try:
+            self.tree.clear_commands(guild=guild)
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+            logger.info(
+                "✔ Refreshed slash overlay for %s (%s): %d commands.",
+                guild.name,
+                guild.id,
+                len(synced),
+            )
+        except Exception:
+            logger.exception("Guild overlay refresh failed for %s (%s)", guild.name, guild.id)
+
+    async def _recover_from_signature_mismatch(self, interaction: discord.Interaction) -> None:
+        """Repair stale slash schema quickly in the current guild, then run normal sync pass."""
+        await self._sync_interaction_guild_overlay(interaction)
+        await self._sync_slash_commands_with_retry(force=True)
+
     async def process_application_commands(self, interaction: discord.Interaction):
         """Compatibility shim so app commands route even on discord.py builds without it."""
         if interaction.type != discord.InteractionType.application_command:
@@ -1030,8 +1053,8 @@ class MarciaBot(commands.Bot):
         except app_commands.CommandSignatureMismatch as exc:
             logger.warning("Signature mismatch for /%s; forcing command re-sync.", interaction.data.get("name", "unknown"))
             create_tracked_task(
-                self._sync_slash_commands_with_retry(force=True),
-                name="signature-mismatch-resync",
+                self._recover_from_signature_mismatch(interaction),
+                name="signature-mismatch-recover",
                 logger=logger,
             )
             await self._safe_interaction_reply(
@@ -1057,8 +1080,8 @@ class MarciaBot(commands.Bot):
                 interaction.data.get("name", "unknown") if isinstance(interaction.data, dict) else "unknown",
             )
             create_tracked_task(
-                self._sync_slash_commands_with_retry(force=True),
-                name="signature-mismatch-resync",
+                self._recover_from_signature_mismatch(interaction),
+                name="signature-mismatch-recover",
                 logger=logger,
             )
             await self._safe_interaction_reply(
