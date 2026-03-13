@@ -331,16 +331,17 @@ class Reminders(commands.Cog):
         await discord.utils.sleep_until(when_utc)
         guild_id = channel.guild.id
         try:
-            reminder_message = self._format_reminder_message(body)
-            await channel.send(
-                f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}",
-                allowed_mentions=discord.AllowedMentions(everyone=True),
-            )
-
             reminders = await get_scheduled_reminders(guild_id)
             record = next((item for item in reminders if item["id"] == reminder_id), None)
             if not record:
                 return
+
+            if not await is_channel_ignored(guild_id, channel.id):
+                reminder_message = self._format_reminder_message(body)
+                await channel.send(
+                    f"{reminder_message}\n\n{random.choice(MARCIA_SYSTEM_LINES)}",
+                    allowed_mentions=discord.AllowedMentions(everyone=True),
+                )
 
             recurrence_type = record["recurrence_type"]
             recurrence_value = record["recurrence_value"]
