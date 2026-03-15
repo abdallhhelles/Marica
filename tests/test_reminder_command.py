@@ -21,8 +21,8 @@ class _Ctx:
         self.author = SimpleNamespace(id=77)
         self.sent = []
 
-    async def send(self, message, **kwargs):
-        self.sent.append(message)
+    async def send(self, message=None, **kwargs):
+        self.sent.append({"message": message, "kwargs": kwargs})
 
 
 class ReminderCommandTests(unittest.IsolatedAsyncioTestCase):
@@ -43,7 +43,7 @@ class ReminderCommandTests(unittest.IsolatedAsyncioTestCase):
 
         await Reminders.remind.callback(self.cog, ctx, body="Ping", repeat="daily")
 
-        self.assertIn("Recurring reminders need `when`", ctx.sent[0])
+        self.assertIn("Recurring reminders need `when`", ctx.sent[0]["message"])
         self.cog._send_or_schedule.assert_not_awaited()
 
     async def test_uses_default_channel_and_schedules_once(self):
@@ -58,6 +58,19 @@ class ReminderCommandTests(unittest.IsolatedAsyncioTestCase):
         call = self.cog._send_or_schedule.await_args
         self.assertEqual(call.args[2], "Ping")
         self.assertEqual(call.kwargs["recurrence_type"], "once")
+
+    async def test_without_body_opens_menu(self):
+        ctx = _Ctx()
+        reminders_module.get_settings = AsyncMock(return_value={"event_channel_id": 10})
+        reminders_module.is_channel_ignored = AsyncMock(return_value=False)
+        self.cog._send_or_schedule = AsyncMock()
+
+        await Reminders.remind.callback(self.cog, ctx)
+
+        self.cog._send_or_schedule.assert_not_awaited()
+        self.assertEqual(ctx.sent[0]["message"], None)
+        self.assertIn("embed", ctx.sent[0]["kwargs"])
+        self.assertIn("view", ctx.sent[0]["kwargs"])
 
 
 if __name__ == "__main__":

@@ -219,6 +219,27 @@ class Reminders(commands.Cog):
             return False
         return True
 
+    def _build_reminder_menu_embed(self, event_channel: discord.TextChannel | None) -> discord.Embed:
+        channel_label = event_channel.mention if event_channel else "Not configured"
+        embed = discord.Embed(
+            title="📡 Reminder Console",
+            description="Manage one-time and recurring reminders from a single command hub.",
+            color=0x5865F2,
+        )
+        embed.add_field(name="Default Channel", value=channel_label, inline=False)
+        embed.add_field(
+            name="Available Actions",
+            value=(
+                "• **One-Time Reminder**: send now or choose date/time\n"
+                "• **Schedule Reminder**: daily/weekly/monthly/weekday cadence\n"
+                "• **Use Template**: send from saved reminder templates\n"
+                "• **Upcoming / Remove**: review or cancel scheduled reminders"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Times use game time (UTC-2).")
+        return embed
+
     @commands.hybrid_command(
         name="reminder",
         aliases=["remind"],
@@ -234,7 +255,7 @@ class Reminders(commands.Cog):
     async def remind(
         self,
         ctx: commands.Context,
-        body: str,
+        body: str | None = None,
         when: str | None = None,
         repeat: str = "once",
         weekdays: str | None = None,
@@ -248,6 +269,14 @@ class Reminders(commands.Cog):
         default_channel = None
         if settings and settings.get("event_channel_id"):
             default_channel = ctx.guild.get_channel(settings["event_channel_id"])
+
+        if body is None:
+            if not default_channel:
+                await ctx.send("📌 Set an events channel first with `/setup` so reminders have a default destination.")
+                return
+            embed = self._build_reminder_menu_embed(default_channel)
+            await ctx.send(embed=embed, view=ReminderMenuView(self, ctx, default_channel.id))
+            return
 
         target_channel = channel or default_channel
         if not target_channel:
