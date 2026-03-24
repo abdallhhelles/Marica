@@ -15,10 +15,19 @@ class _Channel:
     def __init__(self, guild_id: int = 1, channel_id: int = 10):
         self.guild = _Guild(guild_id)
         self.id = channel_id
+        self.mention = f"<#{channel_id}>"
         self.sent_messages = []
 
     async def send(self, content: str, allowed_mentions=None):
         self.sent_messages.append(content)
+
+
+class _EmbedGuild:
+    def __init__(self, guild_id: int = 1):
+        self.id = guild_id
+
+    def get_channel(self, channel_id: int):
+        return _Channel(self.id, channel_id)
 
 
 class ReminderSchedulingTests(unittest.IsolatedAsyncioTestCase):
@@ -98,6 +107,30 @@ class ReminderSchedulingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(channel.sent_messages), 1)
         self.assertEqual(deleted, [(1, 2)])
+
+    async def test_upcoming_embed_splits_long_field_values(self):
+        guild = _EmbedGuild(1)
+        now = datetime.now(timezone.utc)
+
+        async def _get_scheduled(_guild_id):
+            return [
+                {
+                    "id": idx,
+                    "send_at_utc": (now + timedelta(minutes=idx + 1)).isoformat(),
+                    "channel_id": 10,
+                    "body": "X" * 120,
+                    "recurrence_type": "once",
+                    "recurrence_value": None,
+                }
+                for idx in range(15)
+            ]
+
+        reminders_module.get_scheduled_reminders = _get_scheduled
+        embed = await self.cog._build_upcoming_reminders_embed(guild)
+
+        self.assertGreaterEqual(len(embed.fields), 2)
+        for field in embed.fields:
+            self.assertLessEqual(len(field.value), 1024)
 
 
 if __name__ == "__main__":

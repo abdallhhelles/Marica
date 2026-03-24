@@ -743,7 +743,27 @@ class Reminders(commands.Cog):
                 preview = preview[:53] + "…"
             cadence = self._describe_recurrence(reminder["recurrence_type"], reminder["recurrence_value"])
             lines.append(f"• **{format_game(send_at)}** • {cadence} • {channel_label}\n  └ {preview}")
-        embed.add_field(name="Scheduled", value="\n".join(lines), inline=False)
+        chunks: list[str] = []
+        current_chunk = ""
+        for line in lines:
+            candidate = f"{current_chunk}\n{line}".strip() if current_chunk else line
+            if len(candidate) <= 1024:
+                current_chunk = candidate
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                if len(line) <= 1024:
+                    current_chunk = line
+                else:
+                    truncated = line[:1021] + "…"
+                    chunks.append(truncated)
+                    current_chunk = ""
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        for index, chunk in enumerate(chunks):
+            field_name = "Scheduled" if index == 0 else f"Scheduled (cont. {index + 1})"
+            embed.add_field(name=field_name, value=chunk, inline=False)
         embed.set_footer(text="Times shown in game time (UTC-2).")
         return embed
 
