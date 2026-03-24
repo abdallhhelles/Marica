@@ -38,6 +38,7 @@ Marcia is the tactical operations lead for the **Helles Hub Alliance**. She runs
 
 ### Commander protocols (events)
 * **Guided creation:** `/event` runs a DM wizard that captures codename, tag, instructions, start time (`YYYY-MM-DD HH:MM` in UTC-2), optional location/voice link, and ping target.
+* **Bulk import:** `/event` now includes a Bulk Import flow with copy-paste examples for `name | date | time | desc | location | ping`, where `-` skips optional fields.
 * **Cadenced reminders:** Posts a channel ping at T-minus 60 minutes and sends DM reminders to opt-in members at 30/15/3/0 minutes.
 * **Visibility:** `/event` includes an upcoming operations view for the current server in UTC-2.
 * **Cleanup & reuse:** `/event` includes Remove Event + template reuse flows in one mission-control panel.
@@ -177,4 +178,3 @@ Use this when someone asks what Marica is or how to try her:
 ## Feature ideas backlog
 - See [docs/FEATURE_IDEAS.md](docs/FEATURE_IDEAS.md) for prioritized ideas across trading, events, OCR quality, analytics digests, and federation concepts.
 - If you want implementation planning, convert that list into `Now / Next / Later` milestones with effort estimates.
-
