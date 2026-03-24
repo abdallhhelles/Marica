@@ -91,6 +91,18 @@ class BulkImportParserTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("Pick at least one day", errors[0])
 
+    def test_bulk_message_normalization_strips_code_fences(self):
+        raw = "```text\nname | date | time | desc | location | ping\nTest | 2026-03-30 | 20:00 | - | - | none\n```"
+        self.assertEqual(
+            self.events._normalize_bulk_message_content(raw),
+            "name | date | time | desc | location | ping\nTest | 2026-03-30 | 20:00 | - | - | none",
+        )
+        raw_reminder = "```text\nbody | when | repeat | weekdays | channel\nPing | 2026-03-30 20:00 | once | - | -\n```"
+        self.assertEqual(
+            self.reminders._normalize_bulk_message_content(raw_reminder),
+            "body | when | repeat | weekdays | channel\nPing | 2026-03-30 20:00 | once | - | -",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

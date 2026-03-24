@@ -256,8 +256,57 @@ class Reminders(commands.Cog):
             value=f"```text\n{BULK_REMINDER_EXAMPLE}\n```",
             inline=False,
         )
-        embed.set_footer(text="After you paste entries, I'll validate everything before saving.")
+        embed.set_footer(text="Click “Paste in Chat”, then send your batch as a normal message.")
         return embed
+
+    @staticmethod
+    def _normalize_bulk_message_content(raw_text: str) -> str:
+        cleaned = (raw_text or "").strip()
+        if cleaned.startswith("```") and cleaned.endswith("```"):
+            lines = cleaned.splitlines()
+            if len(lines) >= 2:
+                cleaned = "\n".join(lines[1:-1]).strip()
+        return cleaned
+
+    async def _collect_bulk_reminder_message(
+        self,
+        interaction: discord.Interaction,
+        ctx: commands.Context,
+        event_channel_id: int | None,
+    ) -> None:
+        def check(message: discord.Message) -> bool:
+            return (
+                message.author.id == ctx.author.id
+                and message.guild
+                and ctx.guild
+                and message.guild.id == ctx.guild.id
+                and message.channel.id == ctx.channel.id
+            )
+
+        try:
+            message = await self.bot.wait_for("message", check=check, timeout=180)
+        except asyncio.TimeoutError:
+            await interaction.followup.send(
+                "⌛ Bulk import timed out. Click **Bulk Import** again when you're ready.",
+                ephemeral=True,
+            )
+            return
+
+        default_channel = ctx.guild.get_channel(event_channel_id) if event_channel_id else None
+        parsed_rows, errors = self._parse_bulk_reminder_rows(
+            ctx.guild,
+            self._normalize_bulk_message_content(message.content),
+            default_channel,
+        )
+        embed = self._build_bulk_reminder_preview_embed(ctx.guild, parsed_rows, errors)
+        if not parsed_rows:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        await interaction.followup.send(
+            embed=embed,
+            view=BulkReminderPreviewView(self, ctx, parsed_rows, errors),
+            ephemeral=True,
+        )
 
     def _parse_bulk_reminder_rows(
         self,
@@ -801,13 +850,16 @@ class BulkReminderLauncherView(discord.ui.View):
         self.ctx = ctx
         self.event_channel_id = event_channel_id
 
-    @discord.ui.button(label="Paste Reminder Batch", style=discord.ButtonStyle.primary, emoji="📝")
-    async def launch_modal(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    @discord.ui.button(label="Paste in Chat", style=discord.ButtonStyle.primary, emoji="📝")
+    async def launch_chat_import(self, interaction: discord.Interaction, _button: discord.ui.Button):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("Only the requester can use this import.", ephemeral=True)
-        await interaction.response.send_modal(
-            BulkReminderModal(self.cog, self.ctx, self.event_channel_id)
+        await interaction.response.send_message(
+            "📝 Paste your reminder batch as your next message in this channel within 3 minutes. "
+            "You can paste plain lines or wrap them in a ```text``` code block.",
+            ephemeral=True,
         )
+        await self.cog._collect_bulk_reminder_message(interaction, self.ctx, self.event_channel_id)
 
 
 class BulkReminderPreviewView(discord.ui.View):
@@ -847,41 +899,6 @@ class BulkReminderPreviewView(discord.ui.View):
             content="📭 Bulk reminder import cancelled.",
             embed=None,
             view=None,
-        )
-
-
-class BulkReminderModal(discord.ui.Modal):
-    def __init__(self, cog: Reminders, ctx: commands.Context, event_channel_id: int | None):
-        super().__init__(title="Bulk Import Reminders")
-        self.cog = cog
-        self.ctx = ctx
-        self.event_channel_id = event_channel_id
-        self.entries = discord.ui.TextInput(
-            label="Reminder rows",
-            style=discord.TextStyle.paragraph,
-            placeholder=BULK_REMINDER_EXAMPLE,
-            max_length=4000,
-        )
-        self.add_item(self.entries)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        default_channel = self.ctx.guild.get_channel(self.event_channel_id) if self.event_channel_id else None
-        parsed_rows, errors = self.cog._parse_bulk_reminder_rows(
-            self.ctx.guild,
-            str(self.entries.value),
-            default_channel,
-        )
-        embed = self.cog._build_bulk_reminder_preview_embed(self.ctx.guild, parsed_rows, errors)
-        if not parsed_rows:
-            await interaction.response.send_message(
-                embed=embed,
-                ephemeral=True,
-            )
-            return
-        await interaction.response.send_message(
-            embed=embed,
-            view=BulkReminderPreviewView(self.cog, self.ctx, parsed_rows, errors),
-            ephemeral=True,
         )
 
 

@@ -647,11 +647,16 @@ class BulkEventLauncherView(discord.ui.View):
         self.cog = cog
         self.ctx = ctx
 
-    @discord.ui.button(label="Paste Event Batch", style=discord.ButtonStyle.primary, emoji="📝")
-    async def launch_modal(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    @discord.ui.button(label="Paste in Chat", style=discord.ButtonStyle.primary, emoji="📝")
+    async def launch_chat_import(self, interaction: discord.Interaction, _button: discord.ui.Button):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("Only the requester can use this import.", ephemeral=True)
-        await interaction.response.send_modal(BulkEventModal(self.cog, self.ctx))
+        await interaction.response.send_message(
+            "📝 Paste your event batch as your next message in this channel within 3 minutes. "
+            "You can paste plain lines or wrap them in a ```text``` code block.",
+            ephemeral=True,
+        )
+        await self.cog._collect_bulk_event_message(interaction, self.ctx)
 
 
 class BulkEventPreviewView(discord.ui.View):
@@ -688,35 +693,6 @@ class BulkEventPreviewView(discord.ui.View):
             content="📭 Bulk event import cancelled.",
             embed=None,
             view=None,
-        )
-
-
-class BulkEventModal(discord.ui.Modal):
-    def __init__(self, cog, ctx):
-        super().__init__(title="Bulk Import Events")
-        self.cog = cog
-        self.ctx = ctx
-        self.entries = discord.ui.TextInput(
-            label="Event rows",
-            style=discord.TextStyle.paragraph,
-            placeholder=EVENT_BULK_EXAMPLE,
-            max_length=4000,
-        )
-        self.add_item(self.entries)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        parsed_rows, errors = self.cog._parse_bulk_event_rows(
-            self.ctx.guild,
-            str(self.entries.value),
-        )
-        embed = self.cog._build_bulk_event_preview_embed(self.ctx.guild, parsed_rows, errors)
-        if not parsed_rows:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        await interaction.response.send_message(
-            embed=embed,
-            view=BulkEventPreviewView(self.cog, self.ctx, parsed_rows, errors),
-            ephemeral=True,
         )
 
 
@@ -909,8 +885,50 @@ class Events(commands.Cog):
             inline=False,
         )
         embed.add_field(name="Example", value=f"```text\n{EVENT_BULK_EXAMPLE}\n```", inline=False)
-        embed.set_footer(text="After you paste entries, I'll show a preview with any issues.")
+        embed.set_footer(text="Click “Paste in Chat”, then send your batch as a normal message.")
         return embed
+
+    @staticmethod
+    def _normalize_bulk_message_content(raw_text: str) -> str:
+        cleaned = (raw_text or "").strip()
+        if cleaned.startswith("```") and cleaned.endswith("```"):
+            lines = cleaned.splitlines()
+            if len(lines) >= 2:
+                cleaned = "\n".join(lines[1:-1]).strip()
+        return cleaned
+
+    async def _collect_bulk_event_message(self, interaction: discord.Interaction, ctx) -> None:
+        def check(message: discord.Message) -> bool:
+            return (
+                message.author.id == ctx.author.id
+                and message.guild
+                and ctx.guild
+                and message.guild.id == ctx.guild.id
+                and message.channel.id == ctx.channel.id
+            )
+
+        try:
+            message = await self.bot.wait_for("message", check=check, timeout=180)
+        except asyncio.TimeoutError:
+            await interaction.followup.send(
+                "⌛ Bulk import timed out. Click **Bulk Import** again when you're ready.",
+                ephemeral=True,
+            )
+            return
+
+        parsed_rows, errors = self._parse_bulk_event_rows(
+            ctx.guild,
+            self._normalize_bulk_message_content(message.content),
+        )
+        embed = self._build_bulk_event_preview_embed(ctx.guild, parsed_rows, errors)
+        if not parsed_rows:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        await interaction.followup.send(
+            embed=embed,
+            view=BulkEventPreviewView(self, ctx, parsed_rows, errors),
+            ephemeral=True,
+        )
 
     def _parse_bulk_event_rows(self, guild: discord.Guild, raw_text: str) -> tuple[list[dict], list[str]]:
         parsed_rows: list[dict] = []
