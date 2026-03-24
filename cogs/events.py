@@ -38,7 +38,7 @@ RSVP_EMOJIS = {
 }
 MISSED_EVENT_GRACE = timedelta(minutes=10)
 EVENT_BULK_HEADER = "name | date | time | desc | location | ping"
-MAX_BULK_EVENT_ROWS = 25
+MAX_BULK_EVENT_ROWS = 50
 EVENT_BULK_EXAMPLE = (
     "Fortress Push | 2026-03-27 | 20:00 | Rally center target | VC 2 | @Raid Team\n"
     "Desert Reset | 2026-03-28 | 18:30 | Be online 10 min early | - | everyone\n"
