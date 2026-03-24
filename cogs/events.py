@@ -38,6 +38,7 @@ RSVP_EMOJIS = {
 }
 MISSED_EVENT_GRACE = timedelta(minutes=10)
 EVENT_BULK_HEADER = "name | date | time | desc | location | ping"
+MAX_BULK_EVENT_ROWS = 50
 EVENT_BULK_EXAMPLE = (
     "Fortress Push | 2026-03-27 | 20:00 | Rally center target | VC 2 | @Raid Team\n"
     "Desert Reset | 2026-03-28 | 18:30 | Be online 10 min early | - | everyone\n"
@@ -678,9 +679,10 @@ class BulkEventPreviewView(discord.ui.View):
         summary = f"✅ Scheduled **{imported}** event(s)."
         if self.errors:
             summary += f" Skipped **{len(self.errors)}** issue(s) listed in the preview."
+        await self.ctx.send(summary, delete_after=12)
         await interaction.followup.edit_message(
             message_id=interaction.message.id,
-            content=summary,
+            content="✅ Scheduled. Confirmation posted in-channel.",
             embed=None,
             view=None,
         )
@@ -943,7 +945,15 @@ class Events(commands.Cog):
         if start_index >= len(lines):
             return parsed_rows, ["Add at least one event row below the header."]
 
-        for row_number, line in enumerate(lines[start_index:], start=1):
+        data_lines = lines[start_index:]
+        if len(data_lines) > MAX_BULK_EVENT_ROWS:
+            errors.append(
+                f"Only {MAX_BULK_EVENT_ROWS} rows can be imported at once. Extra rows were ignored."
+            )
+            data_lines = data_lines[:MAX_BULK_EVENT_ROWS]
+
+        now_utc = datetime.now(timezone.utc)
+        for row_number, line in enumerate(data_lines, start=1):
             parts = [part.strip() for part in line.split("|")]
             if len(parts) != 6:
                 errors.append(
@@ -966,7 +976,7 @@ class Events(commands.Cog):
                 errors.append(f"Row {row_number}: use `YYYY-MM-DD` and `HH:MM`.")
                 continue
             utc_dt = game_to_utc(target_dt)
-            if utc_dt <= datetime.now(timezone.utc):
+            if utc_dt <= now_utc:
                 errors.append(f"Row {row_number}: event time must be in the future.")
                 continue
 

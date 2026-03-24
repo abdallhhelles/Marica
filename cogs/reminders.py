@@ -48,6 +48,7 @@ WEEKDAY_ALIASES = {
 }
 WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 BULK_REMINDER_HEADER = "body | when | repeat | weekdays | channel"
+MAX_BULK_REMINDER_ROWS = 25
 BULK_REMINDER_EXAMPLE = (
     "Shield before reset | 2026-03-27 17:00 | once | - | #events\n"
     "Gather for rally | 2026-03-28 20:00 | daily | - | -\n"
@@ -327,7 +328,15 @@ class Reminders(commands.Cog):
         if start_index >= len(lines):
             return parsed_rows, ["Add at least one reminder row below the header."]
 
-        for row_number, line in enumerate(lines[start_index:], start=1):
+        data_lines = lines[start_index:]
+        if len(data_lines) > MAX_BULK_REMINDER_ROWS:
+            errors.append(
+                f"Only {MAX_BULK_REMINDER_ROWS} rows can be imported at once. Extra rows were ignored."
+            )
+            data_lines = data_lines[:MAX_BULK_REMINDER_ROWS]
+
+        now_utc = datetime.now(timezone.utc)
+        for row_number, line in enumerate(data_lines, start=1):
             parts = [part.strip() for part in line.split("|")]
             if len(parts) != 5:
                 errors.append(
@@ -358,7 +367,7 @@ class Reminders(commands.Cog):
                 errors.append(f"Row {row_number}: recurring reminders need `when` for the first run.")
                 continue
 
-            if when_utc and when_utc <= datetime.now(timezone.utc):
+            if when_utc and when_utc <= now_utc:
                 errors.append(f"Row {row_number}: `when` must be in the future.")
                 continue
 
@@ -461,6 +470,7 @@ class Reminders(commands.Cog):
                 row["when_utc"],
                 recurrence_type=row["recurrence_type"],
                 recurrence_value=row["recurrence_value"],
+                notify_ctx=False,
             )
             imported += 1
             if row["when_utc"] is None:
@@ -606,6 +616,7 @@ class Reminders(commands.Cog):
         when_utc: datetime | None,
         recurrence_type: str = "once",
         recurrence_value: str | None = None,
+        notify_ctx: bool = True,
     ) -> None:
         if not channel:
             await ctx.send("❌ I can't find that channel.")
@@ -636,13 +647,15 @@ class Reminders(commands.Cog):
             )
             self._schedule_reminder(reminder_id, channel, body, when_utc)
             recur_text = self._describe_recurrence(recurrence_type, recurrence_value)
-            await ctx.send(
-                f"⏳ Reminder scheduled for {format_game(when_utc)} in {channel.mention}. ({recur_text})",
-                delete_after=12,
-            )
+            if notify_ctx:
+                await ctx.send(
+                    f"⏳ Reminder scheduled for {format_game(when_utc)} in {channel.mention}. ({recur_text})",
+                    delete_after=12,
+                )
         else:
             await _post()
-            await ctx.send(f"✅ Reminder sent to {channel.mention}.", delete_after=8)
+            if notify_ctx:
+                await ctx.send(f"✅ Reminder sent to {channel.mention}.", delete_after=8)
 
     def _schedule_reminder(
         self,
@@ -904,9 +917,10 @@ class BulkReminderPreviewView(discord.ui.View):
         )
         if self.errors:
             summary += f" Skipped **{len(self.errors)}** issue(s) listed in the preview."
+        await self.ctx.send(summary, delete_after=12)
         await interaction.followup.edit_message(
             message_id=interaction.message.id,
-            content=summary,
+            content="✅ Imported. Confirmation posted in-channel.",
             embed=None,
             view=None,
         )

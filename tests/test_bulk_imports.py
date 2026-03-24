@@ -103,6 +103,33 @@ class BulkImportParserTests(unittest.TestCase):
             "body | when | repeat | weekdays | channel\nPing | 2026-03-30 20:00 | once | - | -",
         )
 
+    def test_event_bulk_parser_enforces_max_rows(self):
+        future = datetime.now(timezone.utc) + timedelta(days=2)
+        date_value = future.strftime("%Y-%m-%d")
+        time_value = future.strftime("%H:%M")
+        rows = [
+            f"Event {idx} | {date_value} | {time_value} | - | - | none"
+            for idx in range(30)
+        ]
+        parsed, errors = self.events._parse_bulk_event_rows(self.guild, "\n".join(rows))
+        self.assertEqual(len(parsed), 25)
+        self.assertTrue(any("Only 25 rows" in err for err in errors))
+
+    def test_reminder_bulk_parser_enforces_max_rows(self):
+        future = datetime.now(timezone.utc) + timedelta(days=2)
+        when_value = future.strftime("%Y-%m-%d %H:%M")
+        rows = [
+            f"Reminder {idx} | {when_value} | once | - | #events"
+            for idx in range(30)
+        ]
+        parsed, errors = self.reminders._parse_bulk_reminder_rows(
+            self.guild,
+            "\n".join(rows),
+            self.guild.get_channel(10),
+        )
+        self.assertEqual(len(parsed), 25)
+        self.assertTrue(any("Only 25 rows" in err for err in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
