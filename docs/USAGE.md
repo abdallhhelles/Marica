@@ -38,6 +38,9 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
   - **Ping target:** `everyone`, a role mention, or `none`.
   - **Time format:** `YYYY-MM-DD HH:MM` (game time). I convert to UTC.
 - **Reuse:** **Use Template** to schedule from a saved briefing.
+- **Bulk Import:** **Bulk Import** shows an exact copy-paste template:
+  - `name | date | time | desc | location | ping`
+  - Use `-` to skip optional fields like description, location, or ping.
 - **Remove:** **Remove Event** to delete a scheduled op.
 - **Upcoming:** **Upcoming Events** to list the queue.
 - **Share:** **Share Upcoming** posts the queue in your events channel.
@@ -61,6 +64,9 @@ Hey, I’m **Marcia**. I keep your server coordinated, loot flowing, and schedul
   - `weekly`
   - `monthly`
   - `weekdays` (example details: `Monday,Wednesday,Friday`)
+- **Bulk Import:** **Bulk Import** shows an exact copy-paste template:
+  - `body | when | repeat | weekdays | channel`
+  - Use `-` to skip optional fields and fall back to defaults.
 - **Templates:**
   - **Use Template** → apply as one-time or scheduled reminder.
   - **Archive Template** → save new templates.

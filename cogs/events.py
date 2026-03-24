@@ -37,6 +37,12 @@ RSVP_EMOJIS = {
     JOIN_EVENT_EMOJI: "going",
 }
 MISSED_EVENT_GRACE = timedelta(minutes=10)
+EVENT_BULK_HEADER = "name | date | time | desc | location | ping"
+EVENT_BULK_EXAMPLE = (
+    "Fortress Push | 2026-03-27 | 20:00 | Rally center target | VC 2 | @Raid Team\n"
+    "Desert Reset | 2026-03-28 | 18:30 | Be online 10 min early | - | everyone\n"
+    "Trap Defense | 2026-03-29 | 21:15 | - | - | none"
+)
 
 DUEL_DATA = {
     0: (
@@ -195,6 +201,12 @@ def _shield_recommendation(hours_left: int) -> str:
 
 def _marcia_quip():
     return random.choice(MARCIA_SYSTEM_LINES)
+
+
+def _is_skipped_value(raw_value: str | None) -> bool:
+    if raw_value is None:
+        return True
+    return raw_value.strip() in {"", "-", "—"}
 
 # --- UI COMPONENTS ---
 
@@ -552,7 +564,17 @@ class EventMenuView(discord.ui.View):
         await it.response.send_message("💾 Archiving Module Active. Check DMs.", ephemeral=True)
         await self.cog.create_template_flow(self.ctx)
 
-    @discord.ui.button(label="Upcoming Events", style=discord.ButtonStyle.secondary, emoji="📆", row=1)
+    @discord.ui.button(label="Bulk Import", style=discord.ButtonStyle.success, emoji="📦", row=1)
+    async def bulk_import(self, it, btn):
+        if not await self._require_manage_events(it):
+            return
+        await it.response.send_message(
+            embed=self.cog._build_bulk_event_help_embed(),
+            view=BulkEventLauncherView(self.cog, self.ctx),
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Upcoming Events", style=discord.ButtonStyle.secondary, emoji="📆", row=2)
     async def upcoming_events(self, it, btn):
         missions = await get_upcoming_missions(it.guild.id, limit=10)
         if not missions:
@@ -563,7 +585,7 @@ class EventMenuView(discord.ui.View):
         embed = self.cog._build_upcoming_events_embed(it.guild, missions)
         await it.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="Share Upcoming", style=discord.ButtonStyle.secondary, emoji="📣", row=1)
+    @discord.ui.button(label="Share Upcoming", style=discord.ButtonStyle.secondary, emoji="📣", row=2)
     async def share_upcoming(self, it, btn):
         if not await self._require_manage_events(it):
             return
@@ -592,7 +614,7 @@ class EventMenuView(discord.ui.View):
             ephemeral=True,
         )
 
-    @discord.ui.button(label="Remove Event", style=discord.ButtonStyle.danger, emoji="🗑️", row=1)
+    @discord.ui.button(label="Remove Event", style=discord.ButtonStyle.danger, emoji="🗑️", row=2)
     async def remove_event(self, it, btn):
         if not await self._require_manage_events(it):
             return
@@ -617,6 +639,85 @@ class EventMenuView(discord.ui.View):
                 await self.ctx.interaction.message.edit(view=self)
             except discord.HTTPException:
                 pass
+
+
+class BulkEventLauncherView(discord.ui.View):
+    def __init__(self, cog, ctx):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+
+    @discord.ui.button(label="Paste Event Batch", style=discord.ButtonStyle.primary, emoji="📝")
+    async def launch_modal(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the requester can use this import.", ephemeral=True)
+        await interaction.response.send_modal(BulkEventModal(self.cog, self.ctx))
+
+
+class BulkEventPreviewView(discord.ui.View):
+    def __init__(self, cog, ctx, parsed_rows: list[dict], errors: list[str]):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+        self.parsed_rows = parsed_rows
+        self.errors = errors
+
+    @discord.ui.button(label="Schedule Valid Rows", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the requester can confirm this import.", ephemeral=True)
+        if not self.parsed_rows:
+            return await interaction.response.send_message("❌ There are no valid rows to schedule yet.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        imported = await self.cog._commit_bulk_events(self.ctx, self.parsed_rows)
+        summary = f"✅ Scheduled **{imported}** event(s)."
+        if self.errors:
+            summary += f" Skipped **{len(self.errors)}** issue(s) listed in the preview."
+        await interaction.followup.edit_message(
+            message_id=interaction.message.id,
+            content=summary,
+            embed=None,
+            view=None,
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="🛑")
+    async def cancel(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the requester can cancel this import.", ephemeral=True)
+        await interaction.response.edit_message(
+            content="📭 Bulk event import cancelled.",
+            embed=None,
+            view=None,
+        )
+
+
+class BulkEventModal(discord.ui.Modal):
+    def __init__(self, cog, ctx):
+        super().__init__(title="Bulk Import Events")
+        self.cog = cog
+        self.ctx = ctx
+        self.entries = discord.ui.TextInput(
+            label="Event rows",
+            style=discord.TextStyle.paragraph,
+            placeholder=EVENT_BULK_EXAMPLE,
+            max_length=4000,
+        )
+        self.add_item(self.entries)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        parsed_rows, errors = self.cog._parse_bulk_event_rows(
+            self.ctx.guild,
+            str(self.entries.value),
+        )
+        embed = self.cog._build_bulk_event_preview_embed(self.ctx.guild, parsed_rows, errors)
+        if not parsed_rows:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        await interaction.response.send_message(
+            embed=embed,
+            view=BulkEventPreviewView(self.cog, self.ctx, parsed_rows, errors),
+            ephemeral=True,
+        )
 
 
 class EventRemovalView(discord.ui.View):
@@ -761,6 +862,174 @@ class Events(commands.Cog):
                 return role.id, role.name
         return -1, "@everyone"
 
+    def _parse_optional_ping_target(self, guild: discord.Guild, raw_value: str) -> tuple[int | None, str]:
+        raw = (raw_value or "").strip()
+        if _is_skipped_value(raw):
+            return None, "none"
+        lowered = raw.lower()
+        if lowered in {"none", "no", "off"}:
+            return None, "none"
+        if lowered in {"everyone", "@everyone", "all"}:
+            return -1, "@everyone"
+        role_id = None
+        if raw.startswith("<@&") and raw.endswith(">"):
+            try:
+                role_id = int(raw[3:-1])
+            except ValueError:
+                role_id = None
+        elif raw.isdigit():
+            role_id = int(raw)
+        if role_id is not None:
+            role = guild.get_role(role_id)
+            if role:
+                return role.id, role.name
+        role_by_name = discord.utils.get(guild.roles, name=raw.lstrip("@"))
+        if role_by_name:
+            return role_by_name.id, role_by_name.name
+        raise ValueError("ping must be `everyone`, `none`, `-`, or a valid role mention/name.")
+
+    def _build_bulk_event_help_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="📦 Bulk Event Import",
+            description=(
+                "Paste one event per line using the exact format below.\n"
+                "Use `-` to skip optional fields like briefing, location, or ping."
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(name="Format", value=f"```text\n{EVENT_BULK_HEADER}\n```", inline=False)
+        embed.add_field(
+            name="Rules",
+            value=(
+                "• `date` = `YYYY-MM-DD`\n"
+                "• `time` = `HH:MM` in game time (UTC-2)\n"
+                "• `ping` can be `everyone`, `none`, `-`, or a role mention/name\n"
+                "• I validate every row before anything is scheduled"
+            ),
+            inline=False,
+        )
+        embed.add_field(name="Example", value=f"```text\n{EVENT_BULK_EXAMPLE}\n```", inline=False)
+        embed.set_footer(text="After you paste entries, I'll show a preview with any issues.")
+        return embed
+
+    def _parse_bulk_event_rows(self, guild: discord.Guild, raw_text: str) -> tuple[list[dict], list[str]]:
+        parsed_rows: list[dict] = []
+        errors: list[str] = []
+        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+        if not lines:
+            return parsed_rows, ["Add at least one event row before importing."]
+
+        start_index = 0
+        if lines[0].lower() == EVENT_BULK_HEADER:
+            start_index = 1
+        if start_index >= len(lines):
+            return parsed_rows, ["Add at least one event row below the header."]
+
+        for row_number, line in enumerate(lines[start_index:], start=1):
+            parts = [part.strip() for part in line.split("|")]
+            if len(parts) != 6:
+                errors.append(
+                    f"Row {row_number}: expected 6 columns (`name | date | time | desc | location | ping`)."
+                )
+                continue
+
+            name, date_raw, time_raw, desc_raw, location_raw, ping_raw = parts
+            if _is_skipped_value(name):
+                errors.append(f"Row {row_number}: `name` is required.")
+                continue
+            if _is_skipped_value(date_raw) or _is_skipped_value(time_raw):
+                errors.append(f"Row {row_number}: both `date` and `time` are required.")
+                continue
+
+            t_str = f"{date_raw} {time_raw}"
+            try:
+                target_dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M")
+            except ValueError:
+                errors.append(f"Row {row_number}: use `YYYY-MM-DD` and `HH:MM`.")
+                continue
+            utc_dt = game_to_utc(target_dt)
+            if utc_dt <= datetime.now(timezone.utc):
+                errors.append(f"Row {row_number}: event time must be in the future.")
+                continue
+
+            try:
+                ping_role_id, ping_raw = self._parse_optional_ping_target(guild, ping_raw)
+            except ValueError as exc:
+                errors.append(f"Row {row_number}: {exc}")
+                continue
+
+            parsed_rows.append(
+                {
+                    "row_number": row_number,
+                    "name": name,
+                    "desc": "" if _is_skipped_value(desc_raw) else desc_raw,
+                    "location": None if _is_skipped_value(location_raw) else location_raw,
+                    "ping_role_id": ping_role_id,
+                    "ping_raw": ping_raw,
+                    "t_str": t_str,
+                    "utc_dt": utc_dt,
+                }
+            )
+
+        return parsed_rows, errors
+
+    def _build_bulk_event_preview_embed(
+        self,
+        guild: discord.Guild,
+        parsed_rows: list[dict],
+        errors: list[str],
+    ) -> discord.Embed:
+        embed = discord.Embed(
+            title="🛰️ Bulk Event Preview",
+            description=(
+                f"Ready to schedule **{len(parsed_rows)}** event(s). "
+                f"I found **{len(errors)}** issue(s)."
+            ),
+            color=0x5865F2 if parsed_rows else 0xED4245,
+        )
+        if parsed_rows:
+            lines = []
+            for row in parsed_rows[:8]:
+                ping_label = row["ping_raw"]
+                location = row["location"] or "No location"
+                lines.append(
+                    f"• Row {row['row_number']} • **{row['name']}** • {format_game(row['utc_dt'])}\n"
+                    f"  └ {location} • Ping: {ping_label}"
+                )
+            embed.add_field(name="Valid rows", value="\n".join(lines), inline=False)
+            if len(parsed_rows) > 8:
+                embed.add_field(
+                    name="More rows",
+                    value=f"...and **{len(parsed_rows) - 8}** more ready to schedule.",
+                    inline=False,
+                )
+        if errors:
+            embed.add_field(
+                name="Issues to review",
+                value="\n".join(f"• {item}" for item in errors[:8]),
+                inline=False,
+            )
+            if len(errors) > 8:
+                embed.add_field(
+                    name="More issues",
+                    value=f"...and **{len(errors) - 8}** more issue(s).",
+                    inline=False,
+                )
+        embed.set_footer(text=f"Sector: {guild.name} | Clock: UTC-2")
+        return embed
+
+    async def _commit_bulk_events(self, ctx, parsed_rows: list[dict]) -> int:
+        for row in parsed_rows:
+            await self.finalize_mission(
+                ctx,
+                row["name"],
+                row["desc"],
+                row["t_str"],
+                row["location"],
+                row["ping_role_id"],
+            )
+        return len(parsed_rows)
+
     async def open_event_draft_modal(
         self,
         interaction: discord.Interaction,
@@ -877,6 +1146,7 @@ class Events(commands.Cog):
                 "`New Event` opens a quick form here.\n"
                 "`Use Template` schedules from a saved briefing.\n"
                 "`Archive Template` saves a briefing for reuse.\n"
+                "`Bulk Import` gives you a copy-paste format for mass scheduling.\n"
                 "`Upcoming Events` shows the next ops list.\n"
                 "`Share Upcoming` posts the queue in #events.\n"
                 "`Remove Event` deletes a scheduled op.\n"
