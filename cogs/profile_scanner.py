@@ -83,6 +83,7 @@ LABEL_HINTS = {
 DUEL_WEEK_ROI_DEFAULT = (0.149573, 0.200632, 0.25641, 0.065956)
 OWNER_NAME_ROI_DEFAULT = (0.329915, 0.742101, 0.275214, 0.031991)
 OWNER_SCORE_ROI_DEFAULT = (0.684615, 0.742101, 0.194872, 0.057662)
+PENDING_SCAN_TTL_SECONDS = 10 * 60
 
 
 def _parse_roi(raw: str) -> tuple[float, float, float, float] | None:
@@ -93,7 +94,8 @@ def _parse_roi(raw: str) -> tuple[float, float, float, float] | None:
         values = tuple(float(part) for part in parts)
     except ValueError:
         return None
-    if any(value <= 0 for value in values):
+    x, y, width, height = values
+    if x < 0 or y < 0 or width <= 0 or height <= 0:
         return None
     if any(value > 1 for value in values):
         return None
@@ -308,7 +310,7 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
                 "score_text": _format_duel_score_text(score_int, suffix or None, raw),
                 "has_suffix": bool(suffix),
                 "has_decimal": has_decimal,
-                "digits": len(re.sub(r"\\D", "", raw)),
+                "digits": len(re.sub(r"\D", "", raw)),
             }
         )
         if suffix in {"M", "B"} and not has_decimal and score_int >= 100_000_000 and raw.isdigit():
@@ -327,7 +329,7 @@ def _parse_duel_score(text: str) -> tuple[str | None, int | None]:
                         ),
                         "has_suffix": True,
                         "has_decimal": True,
-                        "digits": len(re.sub(r"\\D", "", raw_decimal)),
+                        "digits": len(re.sub(r"\D", "", raw_decimal)),
                     }
                 )
 
@@ -630,6 +632,12 @@ class ProfileScanner(commands.Cog):
         pending = self._pending_scans.get(message.author.id)
         if not pending:
             return
+        if self._is_pending_scan_expired(pending):
+            self._pending_scans.pop(message.author.id, None)
+            await message.reply(
+                "That scan request expired after 10 minutes. Run `/scan` again and send a fresh screenshot."
+            )
+            return
 
         attachment = next(
             (a for a in message.attachments if self._is_image_attachment(a)),
@@ -688,6 +696,11 @@ class ProfileScanner(commands.Cog):
             f"📡 {scan_label.title()} queued. {queue_note} I'll DM results when ready."
         )
         self._pending_scans.pop(message.author.id, None)
+
+    @staticmethod
+    def _is_pending_scan_expired(pending: PendingScan) -> bool:
+        age = datetime.now(timezone.utc) - pending.requested_at
+        return age.total_seconds() > PENDING_SCAN_TTL_SECONDS
 
     async def _scan_worker(self, worker_id: int) -> None:
         while True:
