@@ -47,6 +47,19 @@ WEEKDAY_ALIASES = {
     "sunday": 6,
 }
 WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+BULK_REMINDER_HEADER = "body | when | repeat | weekdays | channel"
+MAX_BULK_REMINDER_ROWS = 25
+BULK_REMINDER_EXAMPLE = (
+    "Shield before reset | 2026-03-27 17:00 | once | - | #events\n"
+    "Gather for rally | 2026-03-28 20:00 | daily | - | -\n"
+    "Officer prep | 2026-03-31 19:00 | weekdays | Mon,Wed,Fri | #officers"
+)
+
+
+def _is_skipped_value(raw_value: str | None) -> bool:
+    if raw_value is None:
+        return True
+    return raw_value.strip() in {"", "-", "—"}
 
 
 class Reminders(commands.Cog):
@@ -214,6 +227,256 @@ class Reminders(commands.Cog):
             return "Custom weekdays"
         return recurrence_type
 
+    def _build_bulk_reminder_help_embed(self, event_channel: discord.TextChannel | None) -> discord.Embed:
+        channel_label = event_channel.mention if event_channel else "your default events channel"
+        embed = discord.Embed(
+            title="📦 Bulk Reminder Import",
+            description=(
+                "Paste one reminder per line using the exact format below.\n"
+                "Use `-` to skip optional fields and fall back to defaults."
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(
+            name="Format",
+            value=f"```text\n{BULK_REMINDER_HEADER}\n```",
+            inline=False,
+        )
+        embed.add_field(
+            name="Rules",
+            value=(
+                "• `when` uses `YYYY-MM-DD HH:MM` in game time (UTC-2)\n"
+                "• `repeat` = `once`, `daily`, `weekly`, `monthly`, or `weekdays`\n"
+                "• `weekdays` is only used with `repeat=weekdays`\n"
+                f"• `channel` can be a #mention, channel id, or `-` for {channel_label}"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Example",
+            value=f"```text\n{BULK_REMINDER_EXAMPLE}\n```",
+            inline=False,
+        )
+        embed.set_footer(text="Click “Paste in Chat”, then send your batch as a normal message.")
+        return embed
+
+    @staticmethod
+    def _normalize_bulk_message_content(raw_text: str) -> str:
+        cleaned = (raw_text or "").strip()
+        if cleaned.startswith("```") and cleaned.endswith("```"):
+            lines = cleaned.splitlines()
+            if len(lines) >= 2:
+                cleaned = "\n".join(lines[1:-1]).strip()
+        return cleaned
+
+    async def _collect_bulk_reminder_message(
+        self,
+        interaction: discord.Interaction,
+        ctx: commands.Context,
+        event_channel_id: int | None,
+    ) -> None:
+        def check(message: discord.Message) -> bool:
+            return (
+                message.author.id == ctx.author.id
+                and message.guild
+                and ctx.guild
+                and message.guild.id == ctx.guild.id
+                and message.channel.id == ctx.channel.id
+            )
+
+        try:
+            message = await self.bot.wait_for("message", check=check, timeout=180)
+        except asyncio.TimeoutError:
+            await interaction.followup.send(
+                "⌛ Bulk import timed out. Click **Bulk Import** again when you're ready.",
+                ephemeral=True,
+            )
+            return
+
+        default_channel = ctx.guild.get_channel(event_channel_id) if event_channel_id else None
+        parsed_rows, errors = self._parse_bulk_reminder_rows(
+            ctx.guild,
+            self._normalize_bulk_message_content(message.content),
+            default_channel,
+        )
+        embed = self._build_bulk_reminder_preview_embed(ctx.guild, parsed_rows, errors)
+        if not parsed_rows:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        await interaction.followup.send(
+            embed=embed,
+            view=BulkReminderPreviewView(self, ctx, parsed_rows, errors),
+            ephemeral=True,
+        )
+
+    def _parse_bulk_reminder_rows(
+        self,
+        guild: discord.Guild,
+        raw_text: str,
+        default_channel: discord.TextChannel | None,
+    ) -> tuple[list[dict], list[str]]:
+        parsed_rows: list[dict] = []
+        errors: list[str] = []
+        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+        if not lines:
+            return parsed_rows, ["Add at least one reminder row before importing."]
+
+        start_index = 0
+        if lines and lines[0].lower() == BULK_REMINDER_HEADER:
+            start_index = 1
+
+        if start_index >= len(lines):
+            return parsed_rows, ["Add at least one reminder row below the header."]
+
+        data_lines = lines[start_index:]
+        if len(data_lines) > MAX_BULK_REMINDER_ROWS:
+            errors.append(
+                f"Only {MAX_BULK_REMINDER_ROWS} rows can be imported at once. Extra rows were ignored."
+            )
+            data_lines = data_lines[:MAX_BULK_REMINDER_ROWS]
+
+        now_utc = datetime.now(timezone.utc)
+        for row_number, line in enumerate(data_lines, start=1):
+            parts = [part.strip() for part in line.split("|")]
+            if len(parts) != 5:
+                errors.append(
+                    f"Row {row_number}: expected 5 columns (`body | when | repeat | weekdays | channel`)."
+                )
+                continue
+
+            body, when_raw, repeat_raw, weekdays_raw, channel_raw = parts
+            if _is_skipped_value(body):
+                errors.append(f"Row {row_number}: `body` is required.")
+                continue
+
+            mode = "once" if _is_skipped_value(repeat_raw) else repeat_raw.strip().lower()
+            if mode not in {"once", "daily", "weekly", "monthly", "weekdays"}:
+                errors.append(
+                    f"Row {row_number}: `repeat` must be once, daily, weekly, monthly, or weekdays."
+                )
+                continue
+
+            when_utc = None
+            if not _is_skipped_value(when_raw):
+                try:
+                    when_utc = self._parse_when(when_raw)
+                except ValueError as exc:
+                    errors.append(f"Row {row_number}: {exc}")
+                    continue
+            elif mode != "once":
+                errors.append(f"Row {row_number}: recurring reminders need `when` for the first run.")
+                continue
+
+            if when_utc and when_utc <= now_utc:
+                errors.append(f"Row {row_number}: `when` must be in the future.")
+                continue
+
+            recurrence_type = "once"
+            recurrence_value = None
+            if mode in {"daily", "weekly"}:
+                recurrence_type = mode
+            elif mode == "monthly":
+                recurrence_type = "monthly"
+                run_game = when_utc.astimezone(GAME_TZ)
+                minute_of_day = run_game.hour * 60 + run_game.minute
+                recurrence_value = f"{run_game.day}|{minute_of_day}"
+            elif mode == "weekdays":
+                try:
+                    weekday_indexes = self._normalize_weekdays(
+                        None if _is_skipped_value(weekdays_raw) else weekdays_raw
+                    )
+                except ValueError as exc:
+                    errors.append(f"Row {row_number}: {exc}")
+                    continue
+                recurrence_type = "custom_weekdays"
+                run_game = when_utc.astimezone(GAME_TZ)
+                minute_of_day = run_game.hour * 60 + run_game.minute
+                recurrence_value = f"{','.join(str(x) for x in weekday_indexes)}|{minute_of_day}"
+
+            channel = default_channel
+            if not _is_skipped_value(channel_raw):
+                channel = self._parse_channel(guild, channel_raw)
+                if not channel:
+                    errors.append(f"Row {row_number}: channel not found.")
+                    continue
+            if not channel:
+                errors.append(f"Row {row_number}: no default events channel is configured.")
+                continue
+
+            parsed_rows.append(
+                {
+                    "row_number": row_number,
+                    "body": body,
+                    "when_utc": when_utc,
+                    "channel": channel,
+                    "recurrence_type": recurrence_type,
+                    "recurrence_value": recurrence_value,
+                }
+            )
+
+        return parsed_rows, errors
+
+    def _build_bulk_reminder_preview_embed(
+        self,
+        guild: discord.Guild,
+        parsed_rows: list[dict],
+        errors: list[str],
+    ) -> discord.Embed:
+        embed = discord.Embed(
+            title="🛰️ Bulk Reminder Preview",
+            description=(
+                f"Ready to queue **{len(parsed_rows)}** reminder(s). "
+                f"I found **{len(errors)}** issue(s)."
+            ),
+            color=0x5865F2 if parsed_rows else 0xED4245,
+        )
+        if parsed_rows:
+            preview_lines = []
+            for row in parsed_rows[:8]:
+                when_label = format_game(row["when_utc"]) if row["when_utc"] else "Send now"
+                cadence = self._describe_recurrence(row["recurrence_type"], row["recurrence_value"])
+                body = row["body"][:40] + ("…" if len(row["body"]) > 40 else "")
+                preview_lines.append(
+                    f"• Row {row['row_number']} • {when_label} • {cadence} • {row['channel'].mention}\n"
+                    f"  └ {body}"
+                )
+            embed.add_field(name="Valid rows", value="\n".join(preview_lines), inline=False)
+            if len(parsed_rows) > 8:
+                embed.add_field(
+                    name="More rows",
+                    value=f"...and **{len(parsed_rows) - 8}** more ready to import.",
+                    inline=False,
+                )
+        if errors:
+            error_preview = "\n".join(f"• {item}" for item in errors[:8])
+            embed.add_field(name="Issues to review", value=error_preview, inline=False)
+            if len(errors) > 8:
+                embed.add_field(
+                    name="More issues",
+                    value=f"...and **{len(errors) - 8}** more issue(s).",
+                    inline=False,
+                )
+        embed.set_footer(text=f"Sector: {guild.name} | Times use game time (UTC-2).")
+        return embed
+
+    async def _commit_bulk_reminders(self, ctx: commands.Context, parsed_rows: list[dict]) -> tuple[int, int]:
+        imported = 0
+        sent_now = 0
+        for row in parsed_rows:
+            await self._send_or_schedule(
+                ctx,
+                row["channel"],
+                row["body"],
+                row["when_utc"],
+                recurrence_type=row["recurrence_type"],
+                recurrence_value=row["recurrence_value"],
+                notify_ctx=False,
+            )
+            imported += 1
+            if row["when_utc"] is None:
+                sent_now += 1
+        return imported, sent_now
+
     async def cog_check(self, ctx: commands.Context) -> bool:
         if ctx.guild and await is_channel_ignored(ctx.guild.id, ctx.channel.id):
             return False
@@ -232,6 +495,7 @@ class Reminders(commands.Cog):
             value=(
                 "• **One-Time Reminder**: send now or choose date/time\n"
                 "• **Schedule Reminder**: daily/weekly/monthly/weekday cadence\n"
+                "• **Bulk Import**: paste multiple reminders at once with examples\n"
                 "• **Use Template**: send from saved reminder templates\n"
                 "• **Upcoming / Remove**: review or cancel scheduled reminders"
             ),
@@ -352,6 +616,7 @@ class Reminders(commands.Cog):
         when_utc: datetime | None,
         recurrence_type: str = "once",
         recurrence_value: str | None = None,
+        notify_ctx: bool = True,
     ) -> None:
         if not channel:
             await ctx.send("❌ I can't find that channel.")
@@ -382,13 +647,15 @@ class Reminders(commands.Cog):
             )
             self._schedule_reminder(reminder_id, channel, body, when_utc)
             recur_text = self._describe_recurrence(recurrence_type, recurrence_value)
-            await ctx.send(
-                f"⏳ Reminder scheduled for {format_game(when_utc)} in {channel.mention}. ({recur_text})",
-                delete_after=12,
-            )
+            if notify_ctx:
+                await ctx.send(
+                    f"⏳ Reminder scheduled for {format_game(when_utc)} in {channel.mention}. ({recur_text})",
+                    delete_after=12,
+                )
         else:
             await _post()
-            await ctx.send(f"✅ Reminder sent to {channel.mention}.", delete_after=8)
+            if notify_ctx:
+                await ctx.send(f"✅ Reminder sent to {channel.mention}.", delete_after=8)
 
     def _schedule_reminder(
         self,
@@ -489,7 +756,27 @@ class Reminders(commands.Cog):
                 preview = preview[:53] + "…"
             cadence = self._describe_recurrence(reminder["recurrence_type"], reminder["recurrence_value"])
             lines.append(f"• **{format_game(send_at)}** • {cadence} • {channel_label}\n  └ {preview}")
-        embed.add_field(name="Scheduled", value="\n".join(lines), inline=False)
+        chunks: list[str] = []
+        current_chunk = ""
+        for line in lines:
+            candidate = f"{current_chunk}\n{line}".strip() if current_chunk else line
+            if len(candidate) <= 1024:
+                current_chunk = candidate
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                if len(line) <= 1024:
+                    current_chunk = line
+                else:
+                    truncated = line[:1021] + "…"
+                    chunks.append(truncated)
+                    current_chunk = ""
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        for index, chunk in enumerate(chunks):
+            field_name = "Scheduled" if index == 0 else f"Scheduled (cont. {index + 1})"
+            embed.add_field(name=field_name, value=chunk, inline=False)
         embed.set_footer(text="Times shown in game time (UTC-2).")
         return embed
 
@@ -535,6 +822,18 @@ class ReminderMenuView(discord.ui.View):
             ephemeral=True,
         )
 
+    @discord.ui.button(label="Bulk Import", style=discord.ButtonStyle.success, emoji="📦", row=1)
+    async def bulk_import(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if not self._is_requester(interaction):
+            return await interaction.response.send_message("Only the requester can use this menu.", ephemeral=True)
+        default_channel = self.ctx.guild.get_channel(self.event_channel_id) if self.event_channel_id else None
+        embed = self.cog._build_bulk_reminder_help_embed(default_channel)
+        await interaction.response.send_message(
+            embed=embed,
+            view=BulkReminderLauncherView(self.cog, self.ctx, self.event_channel_id),
+            ephemeral=True,
+        )
+
     @discord.ui.button(label="Archive Template", style=discord.ButtonStyle.secondary, emoji="💾", row=1)
     async def archive_template(self, interaction: discord.Interaction, _button: discord.ui.Button):
         if not self._is_requester(interaction):
@@ -574,6 +873,66 @@ class ReminderMenuView(discord.ui.View):
             "Select a reminder to remove.",
             view=ReminderRemoveView(self.cog, self.ctx, reminders),
             ephemeral=True,
+        )
+
+
+class BulkReminderLauncherView(discord.ui.View):
+    def __init__(self, cog: Reminders, ctx: commands.Context, event_channel_id: int | None):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+        self.event_channel_id = event_channel_id
+
+    @discord.ui.button(label="Paste in Chat", style=discord.ButtonStyle.primary, emoji="📝")
+    async def launch_chat_import(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the requester can use this import.", ephemeral=True)
+        await interaction.response.send_message(
+            "📝 Paste your reminder batch as your next message in this channel within 3 minutes. "
+            "You can paste plain lines or wrap them in a ```text``` code block.",
+            ephemeral=True,
+        )
+        await self.cog._collect_bulk_reminder_message(interaction, self.ctx, self.event_channel_id)
+
+
+class BulkReminderPreviewView(discord.ui.View):
+    def __init__(self, cog: Reminders, ctx: commands.Context, parsed_rows: list[dict], errors: list[str]):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+        self.parsed_rows = parsed_rows
+        self.errors = errors
+
+    @discord.ui.button(label="Import Valid Rows", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the requester can confirm this import.", ephemeral=True)
+        if not self.parsed_rows:
+            return await interaction.response.send_message("❌ There are no valid rows to import yet.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        imported, sent_now = await self.cog._commit_bulk_reminders(self.ctx, self.parsed_rows)
+        scheduled = imported - sent_now
+        summary = (
+            f"✅ Imported **{imported}** reminder(s): **{scheduled}** scheduled, **{sent_now}** sent now."
+        )
+        if self.errors:
+            summary += f" Skipped **{len(self.errors)}** issue(s) listed in the preview."
+        await self.ctx.send(summary, delete_after=12)
+        await interaction.followup.edit_message(
+            message_id=interaction.message.id,
+            content="✅ Imported. Confirmation posted in-channel.",
+            embed=None,
+            view=None,
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="🛑")
+    async def cancel(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the requester can cancel this import.", ephemeral=True)
+        await interaction.response.edit_message(
+            content="📭 Bulk reminder import cancelled.",
+            embed=None,
+            view=None,
         )
 
 
