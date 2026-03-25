@@ -1174,13 +1174,18 @@ class ProfileScanner(commands.Cog):
         loop = asyncio.get_running_loop()
 
         def _scan():
+            def _decode_from_bytes():
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
             if temp_path and temp_path.exists():
                 img = cv2.imread(str(temp_path))
+                if img is None:
+                    img = decoded_image if decoded_image is not None else _decode_from_bytes()
             elif decoded_image is not None:
                 img = decoded_image
             else:
-                arr = np.frombuffer(image_bytes, dtype=np.uint8)
-                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                img = _decode_from_bytes()
             if img is None:
                 return None
 
@@ -1251,13 +1256,18 @@ class ProfileScanner(commands.Cog):
         loop = asyncio.get_running_loop()
 
         def _scan() -> str:
+            def _decode_from_bytes():
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
             if temp_path and temp_path.exists():
                 img = cv2.imread(str(temp_path))
+                if img is None:
+                    img = decoded_image if decoded_image is not None else _decode_from_bytes()
             elif decoded_image is not None:
                 img = decoded_image
             else:
-                arr = np.frombuffer(image_bytes, dtype=np.uint8)
-                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                img = _decode_from_bytes()
             if img is None:
                 return ""
 
