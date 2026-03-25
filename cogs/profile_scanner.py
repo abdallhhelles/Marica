@@ -926,7 +926,9 @@ class ProfileScanner(commands.Cog):
 
         async with self._scan_semaphore:
             temp_path = persisted_path or await self._stash_temp_image(image_bytes, filename)
-            decoded_image = self._decode_cv2_image(image_bytes)
+            decoded_image = None
+            if not (temp_path and temp_path.exists()):
+                decoded_image = self._decode_cv2_image(image_bytes)
 
             try:
                 easyocr_results = await self._run_easyocr(
