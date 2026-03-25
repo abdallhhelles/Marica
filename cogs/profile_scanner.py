@@ -926,15 +926,24 @@ class ProfileScanner(commands.Cog):
 
         async with self._scan_semaphore:
             temp_path = persisted_path or await self._stash_temp_image(image_bytes, filename)
+            decoded_image = None
+            if not (temp_path and temp_path.exists()):
+                decoded_image = self._decode_cv2_image(image_bytes)
 
             try:
-                easyocr_results = await self._run_easyocr(image_bytes, temp_path)
+                easyocr_results = await self._run_easyocr(
+                    image_bytes,
+                    temp_path,
+                    decoded_image=decoded_image,
+                )
                 if easyocr_results:
                     parsed.update(easyocr_results["parsed"])
                     raw_text = easyocr_results["raw"]
                     if not self._has_profile_metrics(parsed):
                         easyocr_full = await self._run_easyocr_full_text(
-                            image_bytes, temp_path=temp_path
+                            image_bytes,
+                            temp_path=temp_path,
+                            decoded_image=decoded_image,
                         )
                         if easyocr_full:
                             raw_text = raw_text or easyocr_full
@@ -942,7 +951,7 @@ class ProfileScanner(commands.Cog):
                 elif self._easyocr_ready is False and self._easyocr_failure_reason:
                     ocr_note = self._easyocr_failure_reason
 
-                if not parsed:
+                if not self._has_profile_metrics(parsed):
                     pytesseract_text = await self._run_pytesseract(image_bytes)
                     raw_text = pytesseract_text or raw_text
                     if pytesseract_text:
@@ -955,7 +964,7 @@ class ProfileScanner(commands.Cog):
                         else:
                             ocr_note = "I couldn't read this image. Try a clearer, full-screen screenshot."
 
-                if not parsed and self.ocr_space_api_key:
+                if not self._has_profile_metrics(parsed) and self.ocr_space_api_key:
                     api_text, api_note = await self._run_ocr_space(image_bytes, filename)
                     raw_text = raw_text or api_text
                     if api_text:
@@ -977,6 +986,13 @@ class ProfileScanner(commands.Cog):
         )
 
         return parsed, raw_text, ocr_note
+
+    @staticmethod
+    def _decode_cv2_image(image_bytes: bytes):
+        if not (cv2 and np):
+            return None
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        return cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
     async def _run_ocr_space(
         self, image_bytes: bytes, filename: str | None = None
@@ -1144,7 +1160,13 @@ class ProfileScanner(commands.Cog):
                 self.log.warning(self._easyocr_failure_reason)
             return self._easyocr_ready
 
-    async def _run_easyocr(self, image_bytes: bytes, temp_path: Path | None = None):
+    async def _run_easyocr(
+        self,
+        image_bytes: bytes,
+        temp_path: Path | None = None,
+        *,
+        decoded_image=None,
+    ):
         ready = await self._ensure_easyocr()
         if not ready or not self._easyocr_reader or not self._easyocr_boxes:
             return None
@@ -1152,11 +1174,18 @@ class ProfileScanner(commands.Cog):
         loop = asyncio.get_running_loop()
 
         def _scan():
+            def _decode_from_bytes():
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
             if temp_path and temp_path.exists():
                 img = cv2.imread(str(temp_path))
+                if img is None:
+                    img = decoded_image if decoded_image is not None else _decode_from_bytes()
+            elif decoded_image is not None:
+                img = decoded_image
             else:
-                arr = np.frombuffer(image_bytes, dtype=np.uint8)
-                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                img = _decode_from_bytes()
             if img is None:
                 return None
 
@@ -1214,7 +1243,11 @@ class ProfileScanner(commands.Cog):
         return await loop.run_in_executor(None, _scan)
 
     async def _run_easyocr_full_text(
-        self, image_bytes: bytes, temp_path: Path | None = None
+        self,
+        image_bytes: bytes,
+        temp_path: Path | None = None,
+        *,
+        decoded_image=None,
     ) -> str:
         ready = await self._ensure_easyocr()
         if not ready or not self._easyocr_reader:
@@ -1223,11 +1256,18 @@ class ProfileScanner(commands.Cog):
         loop = asyncio.get_running_loop()
 
         def _scan() -> str:
+            def _decode_from_bytes():
+                arr = np.frombuffer(image_bytes, dtype=np.uint8)
+                return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
             if temp_path and temp_path.exists():
                 img = cv2.imread(str(temp_path))
+                if img is None:
+                    img = decoded_image if decoded_image is not None else _decode_from_bytes()
+            elif decoded_image is not None:
+                img = decoded_image
             else:
-                arr = np.frombuffer(image_bytes, dtype=np.uint8)
-                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                img = _decode_from_bytes()
             if img is None:
                 return ""
 
