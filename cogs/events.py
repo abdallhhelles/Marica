@@ -1713,6 +1713,14 @@ class Events(commands.Cog):
         for uid in subscribers:
             member = guild.get_member(uid) if guild else None
             user = member or self.bot.get_user(uid)
+            if user is None:
+                try:
+                    user = await self.bot.fetch_user(uid)
+                except (discord.NotFound, discord.Forbidden):
+                    continue
+                except discord.HTTPException:
+                    logger.debug("Failed to fetch participant %s for %s", uid, codename)
+                    continue
             if not user or getattr(user, "bot", False):
                 continue
 
