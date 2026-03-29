@@ -37,3 +37,11 @@ def format_game(dt: datetime) -> str:
     """Human-friendly display for game time."""
     return utc_to_game(dt).strftime("%Y-%m-%d %H:%M UTC-2")
 
+
+def format_discord_local(dt: datetime, style: str = "F") -> str:
+    """Return a Discord timestamp token that auto-renders in each user's local timezone."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return f"<t:{int(dt.timestamp())}:{style}>"
