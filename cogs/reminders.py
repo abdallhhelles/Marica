@@ -24,7 +24,7 @@ from database import (
     get_settings,
     is_channel_ignored,
 )
-from utils.time_utils import GAME_TZ, game_to_utc, format_game
+from utils.time_utils import GAME_TZ, game_to_utc, format_game, format_discord_local
 from utils.async_utils import create_tracked_task
 
 
@@ -649,7 +649,9 @@ class Reminders(commands.Cog):
             recur_text = self._describe_recurrence(recurrence_type, recurrence_value)
             if notify_ctx:
                 await ctx.send(
-                    f"⏳ Reminder scheduled for {format_game(when_utc)} in {channel.mention}. ({recur_text})",
+                    "⏳ Reminder scheduled for "
+                    f"{format_game(when_utc)} ({format_discord_local(when_utc)}) "
+                    f"in {channel.mention}. ({recur_text})",
                     delete_after=12,
                 )
         else:

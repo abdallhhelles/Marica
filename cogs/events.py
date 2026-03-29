@@ -10,7 +10,7 @@ import random
 import logging
 from datetime import datetime, timezone, timedelta
 from utils.assets import TIMED_REMINDERS, DRONE_NAMES, MARCIA_STATUSES, MARCIA_SYSTEM_LINES
-from utils.time_utils import now_game, game_to_utc, format_game
+from utils.time_utils import now_game, game_to_utc, format_game, format_discord_local
 from database import (
     add_mission,
     add_template,
@@ -1636,6 +1636,7 @@ class Events(commands.Cog):
         briefing = desc or "No briefing provided."
         embed.add_field(name="📝 Briefing", value=briefing, inline=False)
         embed.add_field(name="⏰ Game Time", value=format_game(utc_dt), inline=False)
+        embed.add_field(name="🌍 Your Local Time", value=format_discord_local(utc_dt), inline=False)
         if location:
             embed.add_field(name="📍 Location", value=location, inline=True)
         if ping_role_id is not None:
