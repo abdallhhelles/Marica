@@ -27,6 +27,7 @@ from database import (
     mark_task_complete,
     remove_rsvp_status,
     set_rsvp_status,
+    update_setting,
     upsert_rsvp_prompt,
 )
 from utils.async_utils import create_tracked_task
@@ -632,6 +633,16 @@ class EventMenuView(discord.ui.View):
             ephemeral=True,
         )
 
+    @discord.ui.button(label="Reminder Controls", style=discord.ButtonStyle.secondary, emoji="🔕", row=1)
+    async def reminder_controls(self, it, btn):
+        current_settings = await get_settings(it.guild.id)
+        embed = self.cog._build_reminder_controls_embed(current_settings)
+        await it.response.send_message(
+            embed=embed,
+            view=EventReminderControlsView(self.cog, self.ctx),
+            ephemeral=True,
+        )
+
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
@@ -658,6 +669,57 @@ class BulkEventLauncherView(discord.ui.View):
             ephemeral=True,
         )
         await self.cog._collect_bulk_event_message(interaction, self.ctx)
+
+
+class EventReminderControlsView(discord.ui.View):
+    def __init__(self, cog, ctx):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.ctx = ctx
+
+    async def _require_manage_events(self, interaction: discord.Interaction) -> bool:
+        if interaction.user and interaction.user.guild_permissions.manage_guild:
+            return True
+        await interaction.response.send_message(
+            "🔒 You need Manage Server permissions to change reminder controls.",
+            ephemeral=True,
+        )
+        return False
+
+    async def _toggle(self, interaction: discord.Interaction, *, column: str, label: str) -> None:
+        if not await self._require_manage_events(interaction):
+            return
+        settings = await get_settings(interaction.guild.id) or {}
+        current_enabled = bool(settings.get(column, 1))
+        await update_setting(interaction.guild.id, column, 0 if current_enabled else 1)
+        refreshed = await get_settings(interaction.guild.id)
+        embed = self.cog._build_reminder_controls_embed(refreshed)
+        status = "disabled" if current_enabled else "enabled"
+        await interaction.response.edit_message(
+            content=f"✅ **{label}** reminders are now **{status}**.",
+            embed=embed,
+            view=self,
+        )
+
+    @discord.ui.button(label="Toggle Duel Reminders", style=discord.ButtonStyle.primary, emoji="⚔️", row=0)
+    async def toggle_duel(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self._toggle(
+            interaction,
+            column="duel_reminders_enabled",
+            label="Duel",
+        )
+
+    @discord.ui.button(label="Toggle Kill Shield Reminders", style=discord.ButtonStyle.primary, emoji="🛡️", row=0)
+    async def toggle_kill_shield(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self._toggle(
+            interaction,
+            column="kill_event_shield_reminders_enabled",
+            label="Kill event shield",
+        )
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
 
 
 class BulkEventPreviewView(discord.ui.View):
@@ -1175,6 +1237,7 @@ class Events(commands.Cog):
                 "`Use Template` schedules from a saved briefing.\n"
                 "`Archive Template` saves a briefing for reuse.\n"
                 "`Bulk Import` gives you a copy-paste format for mass scheduling.\n"
+                "`Reminder Controls` toggles automated duel + shield reminders.\n"
                 "`Upcoming Events` shows the next ops list.\n"
                 "`Share Upcoming` posts the queue in #events.\n"
                 "`Remove Event` deletes a scheduled op.\n"
@@ -1183,6 +1246,32 @@ class Events(commands.Cog):
             color=0x5865F2,
         )
         embed.set_footer(text="Marcia drones on standby. Keep it sharp.")
+        return embed
+
+    @staticmethod
+    def _build_reminder_controls_embed(settings: dict | None) -> discord.Embed:
+        settings = settings or {}
+        duel_enabled = bool(settings.get("duel_reminders_enabled", 1))
+        kill_enabled = bool(settings.get("kill_event_shield_reminders_enabled", 1))
+        embed = discord.Embed(
+            title="🔕 Automated Reminder Controls",
+            description=(
+                "Use the buttons below to quickly turn system reminders on or off.\n"
+                "Changes apply immediately for this server."
+            ),
+            color=0x5865F2,
+        )
+        embed.add_field(
+            name="⚔️ Duel daily directives",
+            value="✅ Enabled" if duel_enabled else "⏸️ Disabled",
+            inline=False,
+        )
+        embed.add_field(
+            name="🛡️ Kill-event shield reminders",
+            value="✅ Enabled" if kill_enabled else "⏸️ Disabled",
+            inline=False,
+        )
+        embed.set_footer(text="Tip: disable reminders during quieter weeks, re-enable anytime.")
         return embed
 
     async def recover_missions(self):
@@ -1240,10 +1329,14 @@ class Events(commands.Cog):
         for guild in self.bot.guilds:
             settings = await get_settings(guild.id)
             if not settings or not settings['event_channel_id']: continue
+            duel_reminders_enabled = bool(settings.get("duel_reminders_enabled", 1))
+            kill_shield_reminders_enabled = bool(
+                settings.get("kill_event_shield_reminders_enabled", 1)
+            )
 
             now_server = now_game()
 
-            if now_server.hour == 0:
+            if duel_reminders_enabled and now_server.hour == 0:
                 date_key = now_server.strftime("%Y-%m-%d")
                 task_id = f"duel_{guild.id}"
                 
@@ -1268,7 +1361,11 @@ class Events(commands.Cog):
                                 chan.id,
                             )
             # Saturday (weekday 5) - Kill Event Shield Reminders
-            if now_server.weekday() == 5 and now_server.hour in KILL_EVENT_SHIELD_REMINDERS:
+            if (
+                kill_shield_reminders_enabled
+                and now_server.weekday() == 5
+                and now_server.hour in KILL_EVENT_SHIELD_REMINDERS
+            ):
                 date_key = now_server.strftime("%Y-%m-%d")
                 task_id = f"duel_shield_{guild.id}_{now_server.hour}"
                 if await can_run_daily_task(task_id, date_str=date_key):
@@ -1297,7 +1394,11 @@ class Events(commands.Cog):
                             )
             
             # Friday (weekday 4) - Pre-Kill Event Shield Reminders
-            if now_server.weekday() == 4 and now_server.hour in KILL_EVENT_PRE_SHIELD_REMINDERS:
+            if (
+                kill_shield_reminders_enabled
+                and now_server.weekday() == 4
+                and now_server.hour in KILL_EVENT_PRE_SHIELD_REMINDERS
+            ):
                 date_key = now_server.strftime("%Y-%m-%d")
                 task_id = f"duel_pre_shield_{guild.id}_{now_server.hour}"
                 if await can_run_daily_task(task_id, date_str=date_key):
