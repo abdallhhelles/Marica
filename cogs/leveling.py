@@ -267,30 +267,33 @@ class Leveling(commands.Cog):
             )
 
             if levels_gained:
-                # Level up Announcement
-                embed = discord.Embed(
-                    title="🎊 LEVEL SYNCHRONIZED",
-                    description=(
-                        f"{message.author.mention}, your bio-signature has evolved to **Level {new_level}**.\n"
-                        f"{random.choice(MARCIA_QUOTES)}"
-                    ),
-                    color=0x2ecc71
-                )
-                
-                # Direct announcement to the chat sector if configured
-                settings = await get_settings(gid)
-                target = message.channel
-                if settings and settings['chat_channel_id']:
-                    target = self.bot.get_channel(settings['chat_channel_id']) or message.channel
+                settings = await get_settings(gid) or {}
+                level_up_notifications_enabled = bool(settings.get("level_up_notifications_enabled", 1))
 
-                try:
-                    await target.send(embed=embed)
-                except discord.Forbidden:
-                    if target != message.channel:
-                        try:
-                            await message.channel.send(embed=embed)
-                        except discord.Forbidden:
-                            pass
+                if level_up_notifications_enabled:
+                    # Level up Announcement
+                    embed = discord.Embed(
+                        title="🎊 LEVEL SYNCHRONIZED",
+                        description=(
+                            f"{message.author.mention}, your bio-signature has evolved to **Level {new_level}**.\n"
+                            f"{random.choice(MARCIA_QUOTES)}"
+                        ),
+                        color=0x2ecc71
+                    )
+
+                    # Direct announcement to the chat sector if configured
+                    target = message.channel
+                    if settings.get('chat_channel_id'):
+                        target = self.bot.get_channel(settings['chat_channel_id']) or message.channel
+
+                    try:
+                        await target.send(embed=embed)
+                    except discord.Forbidden:
+                        if target != message.channel:
+                            try:
+                                await message.channel.send(embed=embed)
+                            except discord.Forbidden:
+                                pass
                 await self.apply_role_rewards(message.author, new_level)
 
     @commands.Cog.listener()

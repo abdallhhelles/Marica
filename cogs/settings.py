@@ -105,6 +105,12 @@ class SetupFeatureSelect(discord.ui.Select):
                 value="ai_replies_enabled",
                 emoji="🤖",
             ),
+            discord.SelectOption(
+                label="Level-up notifications",
+                description="Toggle XP level-up announcements",
+                value="level_up_notifications_enabled",
+                emoji="🔔",
+            ),
         ]
         if cog.is_marcia_server:
             options.extend([
@@ -275,12 +281,17 @@ class Settings(commands.Cog):
             "analytics_channel_id": "Global analytics channel",
             "auto_role_id": "Auto-role",
             "ai_replies_enabled": "AI mention replies",
+            "level_up_notifications_enabled": "Level-up notifications",
         }
         label = feature_labels.get(feature_key, "Feature")
 
-        if feature_key == "ai_replies_enabled":
+        toggle_features = {
+            "ai_replies_enabled": "🤖",
+            "level_up_notifications_enabled": "🔔",
+        }
+        if feature_key in toggle_features:
             await interaction.response.send_message(
-                f"🤖 **{label}** - type `on` or `off` to toggle mention replies.",
+                f"{toggle_features[feature_key]} **{label}** - type `on` or `off` to toggle this feature.",
                 ephemeral=True,
             )
         else:
@@ -305,14 +316,14 @@ class Settings(commands.Cog):
         if content == "cancel":
             return await msg.reply(_marcia_line("Abort confirmed."))
 
-        if feature_key == "ai_replies_enabled":
+        if feature_key in {"ai_replies_enabled", "level_up_notifications_enabled"}:
             if content in {"on", "enable", "enabled", "yes", "y"}:
-                await update_setting(interaction.guild.id, "ai_replies_enabled", 1, interaction.guild.name)
-                return await msg.reply("✅ AI mention replies enabled.")
+                await update_setting(interaction.guild.id, feature_key, 1, interaction.guild.name)
+                return await msg.reply(f"✅ {label} enabled.")
             if content in {"off", "disable", "disabled", "no", "n"}:
-                await update_setting(interaction.guild.id, "ai_replies_enabled", 0, interaction.guild.name)
-                return await msg.reply("✅ AI mention replies disabled.")
-            return await msg.reply("❌ I need `on` or `off` to update AI mention replies.")
+                await update_setting(interaction.guild.id, feature_key, 0, interaction.guild.name)
+                return await msg.reply(f"✅ {label} disabled.")
+            return await msg.reply(f"❌ I need `on` or `off` to update {label}.")
 
         if feature_key == "auto_role_id":
             if content == "clear":
@@ -399,6 +410,9 @@ class Settings(commands.Cog):
             ai_enabled = data.get("ai_replies_enabled", 1)
             ai_status = "✅ Enabled" if ai_enabled else "⏸️ Disabled"
             embed.add_field(name="🤖 AI Replies", value=ai_status, inline=True)
+            levelup_enabled = data.get("level_up_notifications_enabled", 1)
+            levelup_status = "✅ Enabled" if levelup_enabled else "⏸️ Disabled"
+            embed.add_field(name="🔔 Level-Up Alerts", value=levelup_status, inline=True)
 
             embed.set_footer(text="System Clock: UTC-2 (Dark War Survival global time)")
         else:
@@ -618,6 +632,11 @@ class Settings(commands.Cog):
         embed.add_field(
             name="🤖 AI mention replies",
             value="Toggle whether Marcia responds to mentions and direct replies.",
+            inline=False,
+        )
+        embed.add_field(
+            name="🔔 Level-up notifications",
+            value="Toggle XP level-up announcement messages in chat.",
             inline=False,
         )
         embed.add_field(

@@ -169,12 +169,14 @@ async def init_db():
                 auto_role_id INTEGER,
                 server_offset_hours INTEGER DEFAULT -2,
                 ai_replies_enabled INTEGER DEFAULT 1,
+                level_up_notifications_enabled INTEGER DEFAULT 1,
                 duel_reminders_enabled INTEGER DEFAULT 1,
                 kill_event_shield_reminders_enabled INTEGER DEFAULT 1
             )
         ''')
         for ddl in (
             "ALTER TABLE settings ADD COLUMN ai_replies_enabled INTEGER DEFAULT 1",
+            "ALTER TABLE settings ADD COLUMN level_up_notifications_enabled INTEGER DEFAULT 1",
             "ALTER TABLE settings ADD COLUMN duel_reminders_enabled INTEGER DEFAULT 1",
             "ALTER TABLE settings ADD COLUMN kill_event_shield_reminders_enabled INTEGER DEFAULT 1",
         ):
