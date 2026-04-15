@@ -33,13 +33,14 @@ from database import (
 from utils.async_utils import create_tracked_task
 
 logger = logging.getLogger('MarciaOS.Events')
+MARCIA_SERVER_ID = 1454704176662843525
 JOIN_EVENT_EMOJI = "🤝"
 RSVP_EMOJIS = {
     JOIN_EVENT_EMOJI: "going",
 }
 MISSED_EVENT_GRACE = timedelta(minutes=10)
 EVENT_BULK_HEADER = "name | date | time | desc | location | ping"
-MAX_BULK_EVENT_ROWS = 50
+MAX_BULK_EVENT_ROWS = 25
 EVENT_BULK_EXAMPLE = (
     "Fortress Push | 2026-03-27 | 20:00 | Rally center target | VC 2 | @Raid Team\n"
     "Desert Reset | 2026-03-28 | 18:30 | Be online 10 min early | - | everyone\n"
@@ -209,6 +210,13 @@ def _is_skipped_value(raw_value: str | None) -> bool:
     if raw_value is None:
         return True
     return raw_value.strip() in {"", "-", "—"}
+
+
+def _effective_reminder_ping_role_id(guild_id: int, mins: int, ping_role_id: int | None) -> int | None:
+    """Apply per-server reminder ping policy while preserving scheduler defaults elsewhere."""
+    if guild_id == MARCIA_SERVER_ID and mins == 60:
+        return -1
+    return ping_role_id
 
 # --- UI COMPONENTS ---
 
@@ -944,6 +952,7 @@ class Events(commands.Cog):
                 "• `date` = `YYYY-MM-DD`\n"
                 "• `time` = `HH:MM` in game time (UTC-2)\n"
                 "• `ping` can be `everyone`, `none`, `-`, or a role mention/name\n"
+                f"• Up to **{MAX_BULK_EVENT_ROWS}** rows per import\n"
                 "• I validate every row before anything is scheduled"
             ),
             inline=False,
@@ -1661,14 +1670,19 @@ class Events(commands.Cog):
 
                 drone = random.choice(DRONE_NAMES)
                 guild = chan.guild
-                role = guild.get_role(ping_role_id) if isinstance(ping_role_id, int) and ping_role_id >= 0 else None
+                effective_ping_role_id = _effective_reminder_ping_role_id(guild_id, mins, ping_role_id)
+                role = (
+                    guild.get_role(effective_ping_role_id)
+                    if isinstance(effective_ping_role_id, int) and effective_ping_role_id >= 0
+                    else None
+                )
                 location_line = f"\n📍 {location}" if location else ""
                 title, body = random.choice(TIMED_REMINDERS.get(mins, [("", "`{name}` is coming up.")]))
                 body = body.format(name=name, drone=drone)
                 quote = random.choice(MARCIA_SYSTEM_LINES)
 
                 greetings = ["Dear", "Hello", "Attention", "Listen up,", "Heads up,"]
-                if ping_role_id == -1:
+                if effective_ping_role_id == -1:
                     mention_target = "@everyone"
                 elif role:
                     mention_target = role.mention
@@ -1692,7 +1706,7 @@ class Events(commands.Cog):
                     sent = await chan.send(
                         msg,
                         allowed_mentions=discord.AllowedMentions(
-                            everyone=ping_role_id == -1,
+                            everyone=effective_ping_role_id == -1,
                             roles=bool(role),
                         ),
                     )
@@ -1718,13 +1732,14 @@ class Events(commands.Cog):
                     await upsert_rsvp_prompt(guild_id, name, sent.id)
             else:
                 if mins == 0:
-                    await self._announce_event_start(
-                        guild_id,
-                        name,
-                        desc,
-                        location,
-                        ping_role_id,
-                    )
+                    if guild_id != MARCIA_SERVER_ID:
+                        await self._announce_event_start(
+                            guild_id,
+                            name,
+                            desc,
+                            location,
+                            ping_role_id,
+                        )
                 await self._notify_dm_participants(guild_id, name, mins, desc, location)
 
         await delete_mission(guild_id, name)

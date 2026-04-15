@@ -164,6 +164,14 @@ class Settings(commands.Cog):
         self.bot = bot
         self.is_marcia_server = False
 
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
+        """Keep ignore-list entries clean when channels are deleted."""
+        guild = getattr(channel, "guild", None)
+        if not guild:
+            return
+        await remove_ignored_channel(guild.id, channel.id)
+
     async def _ensure_scanner_config(self, guild_id: int) -> tuple[dict | None, list[str]]:
         config = await get_scanner_config(guild_id)
         missing = [
