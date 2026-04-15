@@ -26,6 +26,40 @@ from database import (
 
 MARCIA_SERVER_ID = 1454704176662843525
 ANALYTICS_CHANNEL_NAME = "marcia-info"
+REQUIRED_CHANNEL_SPECS = {
+    "about": {
+        "setting_key": None,
+        "topic": "Welcome brief and orientation for new survivors.",
+        "seed_message": (
+            "## 👋 Welcome to the Marcia Server\n"
+            "Marcia keeps this server focused: clear rules, clear events, clear operations.\n\n"
+            "Start here, read **#rules**, then watch **#events** for scheduled ops and reminders."
+        ),
+    },
+    "rules": {
+        "setting_key": "rules_channel_id",
+        "topic": "Server rules and conduct expectations.",
+        "seed_message": (
+            "## 📜 Marcia Server Rules\n"
+            "1. Respect everyone in comms.\n"
+            "2. Keep operations and coordination clear.\n"
+            "3. No spam, harassment, or disruptive behavior.\n"
+            "4. Follow Discord Terms of Service and Community Guidelines.\n\n"
+            "Violation handling is at moderator discretion."
+        ),
+    },
+    "events": {
+        "setting_key": "event_channel_id",
+        "topic": "Scheduled operations, reminders, and start pings.",
+        "seed_message": (
+            "## 📡 Event Operations Channel\n"
+            "Marcia posts mission schedules here.\n\n"
+            "Reminder policy for this server:\n"
+            "• T-60 message in this channel with @everyone\n"
+            "• Follow-up reminders are DM-only for members who react with 🤝"
+        ),
+    },
+}
 
 
 class MarciaServer(commands.Cog):
@@ -54,11 +88,62 @@ class MarciaServer(commands.Cog):
     async def _ensure_marcia_channels(self, guild: discord.Guild) -> None:
         async with self._channel_lock:
             settings = await get_settings(guild.id)
+            settings = settings or {}
+            for channel_name, spec in REQUIRED_CHANNEL_SPECS.items():
+                linked_channel = None
+                setting_key = spec["setting_key"]
+                if setting_key:
+                    linked_id = settings.get(setting_key)
+                    if linked_id:
+                        linked_channel = guild.get_channel(linked_id)
+
+                if linked_channel and linked_channel.name != channel_name:
+                    try:
+                        await linked_channel.edit(
+                            name=channel_name,
+                            reason=f"Marcia Server align {channel_name} channel name",
+                        )
+                    except Exception:
+                        self.log.warning("Unable to rename %s channel %s", channel_name, linked_channel.id)
+
+                channels_named = [channel for channel in guild.text_channels if channel.name == channel_name]
+                if linked_channel is None and channels_named:
+                    linked_channel = min(channels_named, key=lambda channel: channel.id)
+
+                if linked_channel is None:
+                    linked_channel = await self._ensure_channel(
+                        guild,
+                        channel_name,
+                        topic=spec["topic"],
+                        read_only=True,
+                    )
+                else:
+                    await self._apply_read_only_permissions(linked_channel)
+                    if linked_channel.topic != spec["topic"]:
+                        try:
+                            await linked_channel.edit(
+                                topic=spec["topic"],
+                                reason=f"Marcia Server align {channel_name} channel topic",
+                            )
+                        except Exception:
+                            self.log.warning("Unable to update %s channel topic %s", channel_name, linked_channel.id)
+
+                if channels_named:
+                    for channel in channels_named:
+                        if channel.id != linked_channel.id:
+                            try:
+                                await channel.delete(reason=f"Marcia Server dedupe {channel_name}")
+                            except Exception:
+                                self.log.warning("Unable to delete duplicate %s channel %s", channel_name, channel.id)
+
+                await self._seed_channel_message(linked_channel, spec["seed_message"])
+                if setting_key:
+                    await update_setting(guild.id, setting_key, linked_channel.id, guild.name)
+
             analytics_channel = None
-            if settings:
-                channel_id = settings.get("analytics_channel_id")
-                if channel_id:
-                    analytics_channel = guild.get_channel(channel_id)
+            channel_id = settings.get("analytics_channel_id")
+            if channel_id:
+                analytics_channel = guild.get_channel(channel_id)
 
             if analytics_channel and analytics_channel.name != ANALYTICS_CHANNEL_NAME:
                 try:
@@ -104,6 +189,21 @@ class MarciaServer(commands.Cog):
                             self.log.warning("Unable to delete duplicate marcia-info channel %s", channel.id)
 
             await update_setting(guild.id, "analytics_channel_id", analytics_channel.id, guild.name)
+
+    async def _seed_channel_message(self, channel: discord.TextChannel, seed_message: str) -> None:
+        """Ensure baseline info posts exist without spamming duplicate messages."""
+        try:
+            async for msg in channel.history(limit=25):
+                if msg.author.id == self.bot.user.id:
+                    return
+        except Exception:
+            self.log.warning("Unable to inspect history for %s (%s)", channel.guild.name, channel.id)
+            return
+
+        try:
+            await channel.send(seed_message)
+        except Exception:
+            self.log.warning("Unable to seed baseline message in %s (%s)", channel.guild.name, channel.id)
 
     async def _ensure_channel(
         self,
